@@ -19,8 +19,12 @@ import { generateTokens, verifyAccessToken } from '../security/auth';
 import { calculateDocumentTaxes } from '../utils/taxCalculation';
 import { validateGSTIN, validateQuantity, validateCreditLimit } from '../utils/validation';
 import { logAuditAction } from '../utils/auditLogger';
+import { reportsRouter } from './reportsRoutes';
 
 export const erpRouter = Router();
+
+// Mount Super Admin Reports Router
+erpRouter.use('/reports', reportsRouter);
 
 // ==========================================
 // 1. AUTHENTICATION (EMAIL OR MOBILE + PASSWORD)
