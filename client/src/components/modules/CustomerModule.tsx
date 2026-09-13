@@ -12,6 +12,8 @@ import {
 } from 'lucide-react';
 import { useErpStore, Customer } from '../../store/erpStore';
 import { DataTable, ColumnDef } from '../shared/DataTable';
+import { Combobox } from '../shared/Combobox';
+import { useIndiaStates } from '../../utils/indiaStates';
 
 interface CustomerModuleProps {
   initialOpenAdd?: boolean;
@@ -19,6 +21,7 @@ interface CustomerModuleProps {
 
 export const CustomerModule: React.FC<CustomerModuleProps> = ({ initialOpenAdd = false }) => {
   const { customers, addCustomer } = useErpStore();
+  const { states: stateOptions, isLoading: isStatesLoading } = useIndiaStates();
   const [searchQuery, setSearchQuery] = useState('');
   const [isAddModalOpen, setIsAddModalOpen] = useState(initialOpenAdd);
 
@@ -36,6 +39,7 @@ export const CustomerModule: React.FC<CustomerModuleProps> = ({ initialOpenAdd =
   const [sameAsBilling, setSameAsBilling] = useState(true);
   const [gstin, setGstin] = useState('');
   const [creditLimit, setCreditLimit] = useState(2500000);
+  const [creditLimitError, setCreditLimitError] = useState('');
 
   const filteredCustomers = customers.filter((c) => {
     return (
@@ -48,6 +52,12 @@ export const CustomerModule: React.FC<CustomerModuleProps> = ({ initialOpenAdd =
 
   const handleCreateCustomer = (e: React.FormEvent) => {
     e.preventDefault();
+
+    if (!creditLimit || creditLimit <= 10000) {
+      setCreditLimitError('Credit limit must be strictly more than ₹10,000 (minimum ₹10,001)');
+      return;
+    }
+
     const finalShipAddr = sameAsBilling ? billingAddress : (shippingAddress || billingAddress);
     const finalShipState = sameAsBilling ? billingState : (shippingState || billingState);
 
@@ -75,6 +85,7 @@ export const CustomerModule: React.FC<CustomerModuleProps> = ({ initialOpenAdd =
     setBillingAddress('');
     setShippingAddress('');
     setGstin('');
+    setCreditLimitError('');
   };
 
   const columns: ColumnDef<Customer>[] = [
@@ -195,186 +206,231 @@ export const CustomerModule: React.FC<CustomerModuleProps> = ({ initialOpenAdd =
       {/* Modal: Add Customer */}
       {isAddModalOpen && (
         <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-900/40 backdrop-blur-xs">
-          <div className="relative w-full max-w-lg rounded-xl bg-white p-6 shadow-2xl border border-slate-200">
-            <div className="flex items-center justify-between border-b border-slate-200 pb-3">
-              <h3 className="text-base font-bold text-slate-900">Add New Customer</h3>
-              <button onClick={() => setIsAddModalOpen(false)} className="text-slate-400 hover:text-slate-600">
+          <div className="relative w-full max-w-lg h-[88vh] max-h-[720px] rounded-2xl bg-white shadow-2xl border border-slate-200 flex flex-col overflow-hidden">
+            <div className="flex items-center justify-between border-b border-slate-200 px-6 py-4 shrink-0 bg-white">
+              <div>
+                <h3 className="text-base font-bold text-slate-900">Add New Customer</h3>
+                <p className="text-[11px] text-slate-500">Register company account, billing state & credit limit</p>
+              </div>
+              <button onClick={() => { setIsAddModalOpen(false); setCreditLimitError(''); }} className="text-slate-400 hover:text-slate-600 cursor-pointer p-1 rounded-lg hover:bg-slate-100 transition">
                 <X className="h-4 w-4" />
               </button>
             </div>
 
-            <form onSubmit={handleCreateCustomer} className="mt-4 space-y-3.5 text-xs">
-              <div>
-                <label className="block font-semibold text-slate-700 mb-1">Company / Entity Name</label>
-                <input
-                  type="text"
-                  required
-                  placeholder="e.g. Bharat Electronics Ltd"
-                  value={name}
-                  onChange={(e) => setName(e.target.value)}
-                  className="w-full rounded-lg border border-slate-200 p-2.5 outline-none focus:border-blue-500"
-                />
-              </div>
-
-              <div className="grid grid-cols-2 gap-4">
+            <form onSubmit={handleCreateCustomer} className="flex flex-col flex-1 min-h-0">
+              <div className="flex-1 overflow-y-auto px-6 py-4 space-y-3.5 text-xs">
                 <div>
-                  <label className="block font-semibold text-slate-700 mb-1">Contact Person</label>
+                  <label className="block font-semibold text-slate-700 mb-1">Company / Entity Name</label>
                   <input
                     type="text"
                     required
-                    placeholder="e.g. S. Ramanathan"
-                    value={contactPerson}
-                    onChange={(e) => setContactPerson(e.target.value)}
+                    placeholder="e.g. Bharat Electronics Ltd"
+                    value={name}
+                    onChange={(e) => setName(e.target.value)}
                     className="w-full rounded-lg border border-slate-200 p-2.5 outline-none focus:border-blue-500"
                   />
                 </div>
-                <div>
-                  <label className="block font-semibold text-slate-700 mb-1">GSTIN</label>
-                  <input
-                    type="text"
-                    required
-                    placeholder="33AAACB1234P1Z1"
-                    value={gstin}
-                    onChange={(e) => setGstin(e.target.value)}
-                    className="w-full rounded-lg border border-slate-200 p-2.5 outline-none focus:border-blue-500 font-mono uppercase"
-                  />
-                </div>
-              </div>
 
-              <div className="grid grid-cols-2 gap-4">
-                <div>
-                  <label className="block font-semibold text-slate-700 mb-1">Email</label>
-                  <input
-                    type="email"
-                    required
-                    placeholder="procurement@company.com"
-                    value={email}
-                    onChange={(e) => setEmail(e.target.value)}
-                    className="w-full rounded-lg border border-slate-200 p-2.5 outline-none focus:border-blue-500"
-                  />
-                </div>
-                <div>
-                  <label className="block font-semibold text-slate-700 mb-1">Phone / Mobile</label>
-                  <input
-                    type="text"
-                    required
-                    placeholder="+91 98400 12345"
-                    value={phone}
-                    onChange={(e) => setPhone(e.target.value)}
-                    className="w-full rounded-lg border border-slate-200 p-2.5 outline-none focus:border-blue-500"
-                  />
-                </div>
-              </div>
-
-              <div className="grid grid-cols-2 gap-4">
-                <div>
-                  <label className="block font-semibold text-slate-700 mb-1">City</label>
-                  <input
-                    type="text"
-                    required
-                    value={city}
-                    onChange={(e) => setCity(e.target.value)}
-                    className="w-full rounded-lg border border-slate-200 p-2.5 outline-none focus:border-blue-500 text-slate-800"
-                  />
-                </div>
-                <div>
-                  <label className="block font-semibold text-slate-700 mb-1">Billing State</label>
-                  <input
-                    type="text"
-                    required
-                    value={billingState}
-                    onChange={(e) => {
-                      setBillingState(e.target.value);
-                      if (sameAsBilling) setShippingState(e.target.value);
-                    }}
-                    className="w-full rounded-lg border border-slate-200 p-2.5 outline-none focus:border-blue-500 text-slate-800"
-                  />
-                </div>
-              </div>
-
-              <div>
-                <label className="block font-semibold text-slate-700 mb-1">Billing Address</label>
-                <textarea
-                  rows={2}
-                  required
-                  placeholder="e.g. Plot 14, Guindy Industrial Area, Chennai - 600032"
-                  value={billingAddress}
-                  onChange={(e) => {
-                    setBillingAddress(e.target.value);
-                    if (sameAsBilling) setShippingAddress(e.target.value);
-                  }}
-                  className="w-full rounded-lg border border-slate-200 p-2.5 outline-none focus:border-blue-500 text-slate-800 resize-none text-xs"
-                />
-              </div>
-
-              <div className="flex items-center gap-2 pt-1 pb-1">
-                <input
-                  type="checkbox"
-                  id="sameAsBilling"
-                  checked={sameAsBilling}
-                  onChange={(e) => {
-                    setSameAsBilling(e.target.checked);
-                    if (e.target.checked) {
-                      setShippingAddress(billingAddress);
-                      setShippingState(billingState);
-                    }
-                  }}
-                  className="h-4 w-4 rounded text-blue-600 focus:ring-blue-500 border-slate-300"
-                />
-                <label htmlFor="sameAsBilling" className="text-xs font-semibold text-slate-700 select-none cursor-pointer">
-                  Shipping address same as billing address
-                </label>
-              </div>
-
-              {!sameAsBilling && (
-                <div className="space-y-3 rounded-lg border border-slate-200 bg-slate-50/50 p-3">
+                <div className="grid grid-cols-2 gap-4">
                   <div>
-                    <label className="block font-semibold text-slate-700 mb-1">Shipping State</label>
+                    <label className="block font-semibold text-slate-700 mb-1">Contact Person</label>
                     <input
                       type="text"
-                      required={!sameAsBilling}
-                      value={shippingState}
-                      onChange={(e) => setShippingState(e.target.value)}
-                      className="w-full rounded-lg border border-slate-200 p-2.5 outline-none focus:border-blue-500 text-slate-800 bg-white"
+                      required
+                      placeholder="e.g. S. Ramanathan"
+                      value={contactPerson}
+                      onChange={(e) => setContactPerson(e.target.value)}
+                      className="w-full rounded-lg border border-slate-200 p-2.5 outline-none focus:border-blue-500"
                     />
                   </div>
                   <div>
-                    <label className="block font-semibold text-slate-700 mb-1">Shipping Address</label>
-                    <textarea
-                      rows={2}
-                      required={!sameAsBilling}
-                      placeholder="e.g. Warehouse 3B, SIPCOT Sriperumbudur, Tamil Nadu"
-                      value={shippingAddress}
-                      onChange={(e) => setShippingAddress(e.target.value)}
-                      className="w-full rounded-lg border border-slate-200 p-2.5 outline-none focus:border-blue-500 text-slate-800 resize-none text-xs bg-white"
+                    <label className="block font-semibold text-slate-700 mb-1">GSTIN</label>
+                    <input
+                      type="text"
+                      required
+                      placeholder="33AAACB1234P1Z1"
+                      value={gstin}
+                      onChange={(e) => setGstin(e.target.value)}
+                      className="w-full rounded-lg border border-slate-200 p-2.5 outline-none focus:border-blue-500 font-mono uppercase"
                     />
                   </div>
                 </div>
-              )}
 
-              <div>
-                <label className="block font-semibold text-slate-700 mb-1">Credit Limit (₹)</label>
-                <input
-                  type="number"
-                  min="50000"
-                  required
-                  value={creditLimit}
-                  onChange={(e) => setCreditLimit(parseFloat(e.target.value) || 0)}
-                  className="w-full rounded-lg border border-slate-200 p-2.5 outline-none focus:border-blue-500 font-mono text-slate-800"
-                />
+                <div className="grid grid-cols-2 gap-4">
+                  <div>
+                    <label className="block font-semibold text-slate-700 mb-1">Email</label>
+                    <input
+                      type="email"
+                      required
+                      placeholder="procurement@company.com"
+                      value={email}
+                      onChange={(e) => setEmail(e.target.value)}
+                      className="w-full rounded-lg border border-slate-200 p-2.5 outline-none focus:border-blue-500"
+                    />
+                  </div>
+                  <div>
+                    <label className="block font-semibold text-slate-700 mb-1">Phone / Mobile</label>
+                    <input
+                      type="text"
+                      required
+                      placeholder="+91 98400 12345"
+                      value={phone}
+                      onChange={(e) => setPhone(e.target.value)}
+                      className="w-full rounded-lg border border-slate-200 p-2.5 outline-none focus:border-blue-500"
+                    />
+                  </div>
+                </div>
+
+                <div className="grid grid-cols-2 gap-4">
+                  <div>
+                    <label className="block font-semibold text-slate-700 mb-1">City</label>
+                    <input
+                      type="text"
+                      required
+                      value={city}
+                      onChange={(e) => setCity(e.target.value)}
+                      className="w-full rounded-lg border border-slate-200 p-2.5 outline-none focus:border-blue-500 text-slate-800"
+                    />
+                  </div>
+                  <div>
+                    <div className="flex items-center justify-between mb-1">
+                      <label className="block font-semibold text-slate-700">Billing State</label>
+                      {isStatesLoading && (
+                        <span className="text-[10px] text-blue-600 animate-pulse">Loading API...</span>
+                      )}
+                    </div>
+                    <Combobox
+                      value={billingState}
+                      onChange={(val) => {
+                        setBillingState(val);
+                        if (sameAsBilling) setShippingState(val);
+                      }}
+                      options={stateOptions}
+                      placeholder="Select State / UT..."
+                      searchable
+                    />
+                  </div>
+                </div>
+
+                <div>
+                  <label className="block font-semibold text-slate-700 mb-1">Billing Address</label>
+                  <textarea
+                    rows={2}
+                    required
+                    placeholder="e.g. Plot 14, Guindy Industrial Area, Chennai - 600032"
+                    value={billingAddress}
+                    onChange={(e) => {
+                      setBillingAddress(e.target.value);
+                      if (sameAsBilling) setShippingAddress(e.target.value);
+                    }}
+                    className="w-full rounded-lg border border-slate-200 p-2.5 outline-none focus:border-blue-500 text-slate-800 resize-none text-xs"
+                  />
+                </div>
+
+                <div className="flex items-center gap-2 pt-1 pb-1">
+                  <input
+                    type="checkbox"
+                    id="sameAsBilling"
+                    checked={sameAsBilling}
+                    onChange={(e) => {
+                      setSameAsBilling(e.target.checked);
+                      if (e.target.checked) {
+                        setShippingAddress(billingAddress);
+                        setShippingState(billingState);
+                      }
+                    }}
+                    className="h-4 w-4 rounded text-blue-600 focus:ring-blue-500 border-slate-300"
+                  />
+                  <label htmlFor="sameAsBilling" className="text-xs font-semibold text-slate-700 select-none cursor-pointer">
+                    Shipping address same as billing address
+                  </label>
+                </div>
+
+                {!sameAsBilling && (
+                  <div className="space-y-3 rounded-lg border border-slate-200 bg-slate-50/50 p-3">
+                    <div>
+                      <Combobox
+                        label="Shipping State"
+                        value={shippingState}
+                        onChange={(val) => setShippingState(val)}
+                        options={stateOptions}
+                        placeholder="Select Shipping State / UT..."
+                        searchable
+                      />
+                    </div>
+                    <div>
+                      <label className="block font-semibold text-slate-700 mb-1">Shipping Address</label>
+                      <textarea
+                        rows={2}
+                        required={!sameAsBilling}
+                        placeholder="e.g. Warehouse 3B, SIPCOT Sriperumbudur, Tamil Nadu"
+                        value={shippingAddress}
+                        onChange={(e) => setShippingAddress(e.target.value)}
+                        className="w-full rounded-lg border border-slate-200 p-2.5 outline-none focus:border-blue-500 text-slate-800 resize-none text-xs bg-white"
+                      />
+                    </div>
+                  </div>
+                )}
+
+                <div>
+                  <div className="flex items-center justify-between mb-1">
+                    <label className="block font-semibold text-slate-700">Credit Limit (₹)</label>
+                    <span className={`text-[11px] font-semibold ${creditLimit <= 10000 ? 'text-rose-600' : 'text-blue-600'}`}>
+                      Must be &gt; ₹10,000
+                    </span>
+                  </div>
+                  <input
+                    type="number"
+                    min="10001"
+                    step="1"
+                    required
+                    placeholder="Enter amount strictly > 10000 (e.g. 50000)"
+                    value={creditLimit === 0 ? '' : creditLimit}
+                    onChange={(e) => {
+                      const text = e.target.value;
+                      const val = text === '' ? 0 : parseFloat(text);
+                      setCreditLimit(val);
+                      if (val <= 10000) {
+                        setCreditLimitError('Credit limit must be strictly more than ₹10,000 (minimum ₹10,001)');
+                      } else {
+                        setCreditLimitError('');
+                      }
+                    }}
+                    className={`w-full rounded-lg border p-2.5 outline-none font-mono text-slate-800 ${
+                      creditLimit <= 10000
+                        ? 'border-rose-400 bg-rose-50/30 focus:border-rose-500 ring-1 ring-rose-200'
+                        : 'border-slate-200 focus:border-blue-500'
+                    }`}
+                  />
+                  {creditLimit <= 10000 ? (
+                    <p className="mt-1 text-[11px] font-semibold text-rose-600">
+                      {creditLimitError || 'Credit limit must be strictly more than ₹10,000 (minimum ₹10,001)'}
+                    </p>
+                  ) : (
+                    <p className="mt-1 text-[11px] text-slate-400">
+                      Only amounts strictly greater than ₹10,000 are permitted.
+                    </p>
+                  )}
+                </div>
               </div>
 
-              <div className="flex justify-end gap-2 pt-3 border-t border-slate-200">
+              {/* Fixed Footer */}
+              <div className="flex justify-end gap-2 px-6 py-3 border-t border-slate-200 shrink-0 bg-slate-50/80">
                 <button
                   type="button"
-                  onClick={() => setIsAddModalOpen(false)}
-                  className="rounded-lg border border-slate-200 px-4 py-2 font-semibold text-slate-600 hover:bg-slate-50"
+                  onClick={() => { setIsAddModalOpen(false); setCreditLimitError(''); }}
+                  className="rounded-lg border border-slate-200 bg-white px-4 py-2 font-semibold text-slate-600 hover:bg-slate-100 cursor-pointer shadow-xs"
                 >
                   Cancel
                 </button>
                 <button
                   type="submit"
-                  className="rounded-lg bg-blue-600 px-4 py-2 font-semibold text-white hover:bg-blue-700"
+                  disabled={creditLimit <= 10000}
+                  className={`rounded-lg px-4 py-2 font-semibold text-white transition shadow-xs ${
+                    creditLimit <= 10000
+                      ? 'bg-slate-300 cursor-not-allowed opacity-70'
+                      : 'bg-blue-600 hover:bg-blue-700 cursor-pointer'
+                  }`}
                 >
                   Register Customer
                 </button>
