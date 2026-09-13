@@ -84,36 +84,36 @@ export const Navbar: React.FC<NavbarProps> = ({
   };
 
   return (
-    <header className="h-16 shrink-0 w-full border-b border-slate-200 bg-white px-3 sm:px-4 lg:px-6 shadow-xs flex items-center justify-between z-30 select-none">
+    <header className="h-16 shrink-0 w-full border-b border-slate-200 bg-white px-2 sm:px-4 lg:px-6 shadow-xs flex items-center justify-between gap-2 z-30 select-none">
       {/* Left Section: Sidebar Toggle + Greeting + Dual Switchers (Organisation & Branch) */}
-      <div className="flex items-center gap-2 sm:gap-3 min-w-0">
+      <div className="flex items-center gap-1.5 sm:gap-2.5 min-w-0">
         {onToggleSidebar && (
           <button
             type="button"
             onClick={onToggleSidebar}
-            className="rounded-lg p-2 text-slate-500 hover:bg-slate-100 hover:text-slate-800 transition lg:hidden cursor-pointer shrink-0"
+            className="rounded-lg p-1.5 sm:p-2 text-slate-500 hover:bg-slate-100 hover:text-slate-800 transition lg:hidden cursor-pointer shrink-0"
             title="Toggle Sidebar"
           >
             <Menu className="h-5 w-5" />
           </button>
         )}
 
-        {/* Dynamic Greeting (Desktop) */}
-        <div className="hidden xl:flex flex-col shrink-0 mr-1">
+        {/* Dynamic Greeting (Large Desktop Only) */}
+        <div className="hidden 2xl:flex flex-col shrink-0 mr-1">
           <div className="flex items-center gap-1.5 text-xs text-slate-500 whitespace-nowrap">
             <Sun className="h-3.5 w-3.5 text-amber-500 shrink-0" />
             <span className="font-medium">{getGreeting()},</span>
             <span className="font-bold text-slate-800">{user.userName}</span>
           </div>
           <div className="flex items-center gap-1 text-[11px] text-slate-400">
-            <span className="font-medium truncate max-w-[200px]">
+            <span className="font-medium truncate max-w-[180px]">
               {organisation.name}
             </span>
           </div>
         </div>
 
-        {/* 1. Organisation Switcher Combobox */}
-        <div className="w-[140px] sm:w-[170px] shrink-0">
+        {/* 1. Organisation Switcher Combobox (Visible on md and up) */}
+        <div className="hidden md:block w-32 lg:w-40 shrink-0">
           <Combobox
             value={organisation.id || user.organisationId || 'org_main'}
             onChange={(val) => switchOrganisation(val)}
@@ -128,8 +128,8 @@ export const Navbar: React.FC<NavbarProps> = ({
           />
         </div>
 
-        {/* 2. Branch Switcher Combobox (Role Restricted) */}
-        <div className="w-[160px] sm:w-[210px] shrink-0">
+        {/* 2. Branch Switcher Combobox (Adaptive Width, Always Accessible) */}
+        <div className="w-32 sm:w-40 md:w-44 lg:w-52 shrink-0">
           <Combobox
             value={activeBranchId}
             onChange={(val) => switchBranch(val)}
@@ -161,23 +161,23 @@ export const Navbar: React.FC<NavbarProps> = ({
       </div>
 
       {/* Right Section: Financial Year Switcher + Quick Add + Notifications + Profile */}
-      <div className="flex items-center gap-2 sm:gap-2.5 shrink-0">
+      <div className="flex items-center gap-1 sm:gap-2 shrink-0">
         {/* 3. Financial Year Switcher (Smart ERP Style) */}
         <div className="relative shrink-0" ref={fyRef}>
           <button
             type="button"
             onClick={() => setIsFyDropdownOpen(!isFyDropdownOpen)}
-            className="flex items-center gap-1.5 rounded-full border border-slate-200 bg-white px-2 sm:px-3 py-1 text-xs font-semibold text-slate-700 hover:bg-slate-50 hover:border-slate-300 transition shadow-xs cursor-pointer"
+            className="flex items-center gap-1 sm:gap-1.5 rounded-full border border-slate-200 bg-white px-2 sm:px-2.5 md:px-3 py-1 text-xs font-semibold text-slate-700 hover:bg-slate-50 hover:border-slate-300 transition shadow-xs cursor-pointer"
             title="Switch Financial Year"
           >
             <div className="flex h-5 w-5 shrink-0 items-center justify-center rounded-full bg-blue-600 text-[10px] text-white font-bold shadow-xs">
               📅
             </div>
-            <span className="hidden sm:inline font-mono text-xs">
+            <span className="hidden sm:inline font-mono text-xs whitespace-nowrap">
               {activeFinancialYear || '2026-2027'}
             </span>
             <ChevronDown
-              className={`h-3 w-3 text-slate-400 transition-transform duration-200 ${
+              className={`h-3 w-3 text-slate-400 shrink-0 transition-transform duration-200 ${
                 isFyDropdownOpen ? 'rotate-180' : ''
               }`}
             />
@@ -226,22 +226,23 @@ export const Navbar: React.FC<NavbarProps> = ({
         <button
           type="button"
           onClick={onOpenSearch}
-          className="lg:hidden rounded-lg p-2 text-slate-500 hover:bg-slate-100 transition cursor-pointer"
+          className="lg:hidden rounded-lg p-1.5 sm:p-2 text-slate-500 hover:bg-slate-100 transition cursor-pointer shrink-0"
           title="Search"
         >
           <Search className="h-4 w-4" />
         </button>
 
         {/* Quick Add Menu */}
-        <div className="relative">
+        <div className="relative shrink-0">
           <button
             type="button"
             onClick={() => setIsQuickAddOpen(!isQuickAddOpen)}
-            className="flex items-center gap-1.5 rounded-xl bg-blue-600 px-2.5 sm:px-3 py-1.5 text-xs font-semibold text-white hover:bg-blue-700 transition shadow-xs cursor-pointer"
+            className="flex items-center justify-center gap-1 rounded-xl bg-blue-600 p-2 sm:px-2.5 sm:py-1.5 md:px-3 text-xs font-semibold text-white hover:bg-blue-700 transition shadow-xs cursor-pointer shrink-0"
+            title="Quick Create"
           >
-            <Plus className="h-3.5 w-3.5" />
+            <Plus className="h-3.5 w-3.5 shrink-0" />
             <span className="hidden md:inline">Create</span>
-            <ChevronDown className="h-3 w-3" />
+            <ChevronDown className="h-3 w-3 shrink-0 hidden md:inline" />
           </button>
 
           {isQuickAddOpen && (
@@ -304,7 +305,7 @@ export const Navbar: React.FC<NavbarProps> = ({
         <button
           type="button"
           onClick={onOpenNotifications}
-          className="relative rounded-lg p-2 text-slate-500 hover:bg-slate-100 hover:text-slate-700 transition cursor-pointer"
+          className="relative rounded-lg p-1.5 sm:p-2 text-slate-500 hover:bg-slate-100 hover:text-slate-700 transition cursor-pointer shrink-0"
           title="Open Notifications Drawer"
         >
           <Bell className="h-4 w-4" />
@@ -315,10 +316,10 @@ export const Navbar: React.FC<NavbarProps> = ({
         <button
           type="button"
           onClick={onOpenProfile}
-          className="flex items-center gap-2 pl-2 border-l border-slate-200 cursor-pointer group"
+          className="flex items-center gap-2 pl-1.5 sm:pl-2 border-l border-slate-200 cursor-pointer group shrink-0"
           title="Open Profile Drawer"
         >
-          <div className="flex h-8 w-8 items-center justify-center rounded-full bg-gradient-to-tr from-blue-600 to-indigo-600 text-xs font-bold text-white shadow-xs group-hover:ring-2 group-hover:ring-blue-400/50 transition">
+          <div className="flex h-7 w-7 sm:h-8 sm:w-8 items-center justify-center rounded-full bg-gradient-to-tr from-blue-600 to-indigo-600 text-xs font-bold text-white shadow-xs group-hover:ring-2 group-hover:ring-blue-400/50 transition">
             {getInitials(user.userName)}
           </div>
           <div className="hidden xl:flex flex-col text-left">

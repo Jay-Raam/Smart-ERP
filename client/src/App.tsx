@@ -24,11 +24,23 @@ export function App() {
   const { isAuthenticated, checkSession, logout } = useAuthStore();
   const { fetchBootstrap, isInitialized, isLoading } = useErpStore();
   const [activeModule, setActiveModule] = useState<ModuleType>('dashboard');
-  const [isSidebarCollapsed, setIsSidebarCollapsed] = useState(false);
+  const [isSidebarCollapsed, setIsSidebarCollapsed] = useState(() => {
+    return typeof window !== 'undefined' ? window.innerWidth < 1024 : false;
+  });
   const [isSearchOpen, setIsSearchOpen] = useState(false);
   const [isNotificationsOpen, setIsNotificationsOpen] = useState(false);
   const [isProfileOpen, setIsProfileOpen] = useState(false);
   const [quickAddType, setQuickAddType] = useState<string | null>(null);
+
+  useEffect(() => {
+    const handleResize = () => {
+      if (window.innerWidth < 1024) {
+        setIsSidebarCollapsed(true);
+      }
+    };
+    window.addEventListener('resize', handleResize);
+    return () => window.removeEventListener('resize', handleResize);
+  }, []);
 
   // Strictly bind authentication to the presence of the authToken cookie
   useEffect(() => {
@@ -102,6 +114,9 @@ export function App() {
         setActiveModule={(m) => {
           setActiveModule(m);
           setQuickAddType(null);
+          if (typeof window !== 'undefined' && window.innerWidth < 1024) {
+            setIsSidebarCollapsed(true);
+          }
         }}
         isCollapsed={isSidebarCollapsed}
         setIsCollapsed={setIsSidebarCollapsed}
