@@ -339,14 +339,14 @@ export const Sidebar: React.FC<SidebarProps> = ({
             <div className="rounded-xl border border-slate-200 bg-white p-2.5 shadow-xs space-y-2">
               <div className="flex items-center gap-2.5">
                 <div className="flex h-8 w-8 shrink-0 items-center justify-center rounded-lg bg-blue-600 text-xs font-bold text-white shadow-xs">
-                  {getInitials(user?.userName || 'Jay Raam')}
+                  {getInitials(user?.userName || 'User')}
                 </div>
                 <div className="min-w-0 flex-1">
                   <div className="text-xs font-bold text-slate-900 truncate">
-                    {user?.userName || 'Jay Raam'}
+                    {user?.userName || 'User'}
                   </div>
                   <div className="text-[10px] font-medium text-slate-400 capitalize truncate">
-                    {user?.role || 'SuperAdmin'}
+                    {user?.role || 'Staff'}
                   </div>
                 </div>
                 <span className="flex h-2 w-2 relative shrink-0">

@@ -72,8 +72,8 @@ localStorage.removeItem('token');
 // Strictly verify session from cookies (if cookie deleted, user is unauthenticated)
 const savedCookieToken = cookieUtils.get('authToken');
 
-const savedUser = savedCookieToken ? localStorage.getItem('userName') || 'Jay Raam' : '';
-const savedRole = savedCookieToken ? (localStorage.getItem('userType') as UserRole) || 'SuperAdmin' : 'Viewer';
+const savedUser = savedCookieToken ? localStorage.getItem('userName') || '' : '';
+const savedRole = savedCookieToken ? (localStorage.getItem('userType') as UserRole) || 'Staff' : 'Viewer';
 const savedBranchId = savedCookieToken ? localStorage.getItem('Branch') || '' : '';
 const savedBranchName = savedCookieToken ? localStorage.getItem('BranchName') || '' : '';
 const savedOrgId = savedCookieToken ? localStorage.getItem('OrganizationId') || '' : '';
@@ -100,10 +100,10 @@ export const useAuthStore = create<AuthState>((set, get) => ({
   user: {
     userId: savedCookieToken ? localStorage.getItem('UserID') || '' : '',
     userName: savedUser,
-    email: savedCookieToken ? localStorage.getItem('userEmail') || 'jay.raam@smart.com' : '',
+    email: savedCookieToken ? localStorage.getItem('userEmail') || '' : '',
     role: savedRole,
     organisationId: savedOrgId,
-    organisationName: 'Smart Enterprise Industries Ltd.',
+    organisationName: '',
     branchId: savedBranchId,
     branchName: savedBranchName,
     permissions: savedRole === 'SuperAdmin' ? ['*'] : ['sales:*', 'invoices:*', 'store:read'],
@@ -175,10 +175,10 @@ export const useAuthStore = create<AuthState>((set, get) => ({
     const token = `jwt_token_${Date.now()}_${Math.random().toString(36).slice(2, 8)}`;
     cookieUtils.set('authToken', token, 7);
 
-    localStorage.setItem('UserID', '6aa641dd0aaf856b62c3b7e1');
-    localStorage.setItem('userName', data.userName || 'Jay Raam');
+    localStorage.setItem('UserID', '');
+    localStorage.setItem('userName', data.userName || '');
     localStorage.setItem('userEmail', data.email);
-    localStorage.setItem('userType', data.role || 'SuperAdmin');
+    localStorage.setItem('userType', data.role || 'Staff');
     localStorage.setItem('OrganizationId', data.organisationId || '');
     localStorage.setItem('Branch', data.branchId || '');
 
@@ -186,20 +186,20 @@ export const useAuthStore = create<AuthState>((set, get) => ({
       isAuthenticated: true,
       token,
       user: {
-        userId: '6aa641dd0aaf856b62c3b7e1',
-        userName: data.userName || 'Jay Raam',
+        userId: '',
+        userName: data.userName || '',
         email: data.email,
-        role: data.role || 'SuperAdmin',
+        role: data.role || 'Staff',
         organisationId: data.organisationId || '',
-        organisationName: 'Smart Enterprise Industries Ltd.',
+        organisationName: '',
         branchId: data.branchId || '',
         branchName: data.branchName || '',
-        permissions: (data.role || 'SuperAdmin') === 'SuperAdmin' ? ['*'] : ['sales:*', 'invoices:*'],
+        permissions: (data.role || 'Staff') === 'SuperAdmin' ? ['*'] : ['sales:*', 'invoices:*'],
         roles: [],
       },
     });
 
-    showAppToast(`Welcome back, ${data.userName || 'Jay Raam'}!`, 'success');
+    showAppToast(`Welcome back, ${data.userName || 'User'}!`, 'success');
   },
 
   logout: () => {
