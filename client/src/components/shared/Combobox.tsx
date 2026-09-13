@@ -18,6 +18,7 @@ export interface ComboboxProps {
   className?: string;
   label?: string;
   error?: string;
+  placement?: 'bottom' | 'top';
 }
 
 export const Combobox: React.FC<ComboboxProps> = ({
@@ -30,6 +31,7 @@ export const Combobox: React.FC<ComboboxProps> = ({
   className = '',
   label,
   error,
+  placement = 'bottom',
 }) => {
   const [isOpen, setIsOpen] = useState(false);
   const [searchQuery, setSearchQuery] = useState('');
@@ -114,14 +116,24 @@ export const Combobox: React.FC<ComboboxProps> = ({
           </span>
           <ChevronDown
             className={`h-4 w-4 shrink-0 text-slate-400 transition-transform duration-200 ${
-              isOpen ? 'rotate-180 text-blue-600' : ''
+              placement === 'top'
+                ? isOpen
+                  ? 'text-blue-600'
+                  : 'rotate-180'
+                : isOpen
+                ? 'rotate-180 text-blue-600'
+                : ''
             }`}
           />
         </button>
 
         {/* Dropdown Menu */}
         {isOpen && (
-          <div className="absolute left-0 right-0 z-50 mt-1 max-h-64 rounded-xl border border-slate-200 bg-white shadow-xl shadow-slate-200/50 overflow-hidden flex flex-col animate-in fade-in-50 zoom-in-95 duration-100">
+          <div
+            className={`absolute left-0 right-0 z-50 max-h-64 rounded-xl border border-slate-200 bg-white shadow-xl shadow-slate-200/50 overflow-hidden flex flex-col animate-in fade-in-50 zoom-in-95 duration-100 ${
+              placement === 'top' ? 'bottom-full mb-1.5' : 'mt-1'
+            }`}
+          >
             {/* Search Box */}
             {searchable && (
               <div className="p-2 border-b border-slate-100 bg-slate-50/70 flex items-center gap-2 shrink-0">
