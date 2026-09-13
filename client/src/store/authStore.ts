@@ -33,21 +33,25 @@ export interface UserSession {
   userName: string;
   email: string;
   role: UserRole;
+  userType?: string;
   organisationId: string;
   organisationName: string;
   branchId: string;
   branchName: string;
   permissions: string[];
+  userPermissions?: Record<string, { view?: boolean; add?: boolean; edit?: boolean; delete?: boolean; history?: boolean; approve?: boolean }>;
   roles: UserRoleAssignment[];
 }
 
 interface AuthState {
   isAuthenticated: boolean;
+  isSessionValidated: boolean;
   token: string | null;
   user: UserSession;
   currentTenant: TenantConfig;
   switchTenant: (id: string) => void;
   checkSession: () => boolean;
+  validateSession: () => Promise<boolean>;
   loginWithCredentials: (
     identifier: string,
     password: string
@@ -68,18 +72,34 @@ interface AuthState {
 
 // Ensure secret token is NEVER stored in localStorage
 localStorage.removeItem('token');
+localStorage.removeItem('userType');
+localStorage.removeItem('UserID');
+localStorage.removeItem('userName');
+localStorage.removeItem('userEmail');
 
 // Strictly verify session from cookies (if cookie deleted, user is unauthenticated)
 const savedCookieToken = cookieUtils.get('authToken');
+const savedBranchId = localStorage.getItem('Branch') || '';
+const savedBranchName = localStorage.getItem('BranchName') || '';
+const savedOrgId = localStorage.getItem('OrganizationId') || '';
 
-const savedUser = savedCookieToken ? localStorage.getItem('userName') || '' : '';
-const savedRole = savedCookieToken ? (localStorage.getItem('userType') as UserRole) || 'Staff' : 'Viewer';
-const savedBranchId = savedCookieToken ? localStorage.getItem('Branch') || '' : '';
-const savedBranchName = savedCookieToken ? localStorage.getItem('BranchName') || '' : '';
-const savedOrgId = savedCookieToken ? localStorage.getItem('OrganizationId') || '' : '';
+const initialEmptyUser: UserSession = {
+  userId: '',
+  userName: '',
+  email: '',
+  role: 'Viewer',
+  organisationId: savedOrgId,
+  organisationName: 'Smart Enterprise Industries Ltd.',
+  branchId: savedBranchId,
+  branchName: savedBranchName,
+  permissions: [],
+  userPermissions: {},
+  roles: [],
+};
 
 export const useAuthStore = create<AuthState>((set, get) => ({
   isAuthenticated: !!savedCookieToken,
+  isSessionValidated: false,
   token: savedCookieToken || null,
   currentTenant: AVAILABLE_TENANTS[0],
   switchTenant: (id: string) => {
@@ -97,18 +117,60 @@ export const useAuthStore = create<AuthState>((set, get) => ({
     }
     return true;
   },
-  user: {
-    userId: savedCookieToken ? localStorage.getItem('UserID') || '' : '',
-    userName: savedUser,
-    email: savedCookieToken ? localStorage.getItem('userEmail') || '' : '',
-    role: savedRole,
-    organisationId: savedOrgId,
-    organisationName: '',
-    branchId: savedBranchId,
-    branchName: savedBranchName,
-    permissions: savedRole === 'SuperAdmin' ? ['*'] : ['sales:*', 'invoices:*', 'store:read'],
-    roles: [],
+
+  validateSession: async () => {
+    const token = cookieUtils.get('authToken');
+    if (!token) {
+      if (get().isAuthenticated) {
+        get().logout();
+      }
+      return false;
+    }
+
+    try {
+      const res = await fetch('/api/erp/auth/me');
+      if (!res.ok) {
+        get().logout();
+        return false;
+      }
+
+      const data = await res.json();
+      if (!data.success || !data.user) {
+        get().logout();
+        return false;
+      }
+
+      const isSuperAdmin = data.user.role === 'SuperAdmin' || data.user.userType === 'SUPER_ADMIN';
+      const userSession: UserSession = {
+        userId: data.user.userId || data.user.id,
+        userName: data.user.userName || data.user.name,
+        email: data.user.email,
+        role: data.user.role as UserRole,
+        userType: data.user.userType,
+        organisationId: data.user.organisationId,
+        organisationName: data.user.organisationName || 'Smart Enterprise Industries Ltd.',
+        branchId: data.user.branchId,
+        branchName: data.user.branchName,
+        permissions: isSuperAdmin ? ['*'] : [],
+        userPermissions: data.user.permissions || {},
+        roles: data.user.roles || [],
+      };
+
+      set({
+        isAuthenticated: true,
+        token,
+        user: userSession,
+        isSessionValidated: true,
+      });
+
+      return true;
+    } catch (err) {
+      get().logout();
+      return false;
+    }
   },
+
+  user: initialEmptyUser,
 
   loginWithCredentials: async (identifier: string, password: string) => {
     try {
@@ -130,35 +192,35 @@ export const useAuthStore = create<AuthState>((set, get) => ({
       // Secret token is saved ONLY in cookies (NEVER in localStorage)
       cookieUtils.set('authToken', token, 7);
 
-      // Non-sensitive harmless operational context saved in localStorage
-      localStorage.setItem('UserID', data.user.userId);
-      localStorage.setItem('userName', data.user.userName);
-      localStorage.setItem('userEmail', data.user.email);
-      localStorage.setItem('userType', data.user.role);
-      localStorage.setItem('OrganizationId', data.user.organisationId);
-      localStorage.setItem('Branch', data.user.branchId);
-      localStorage.setItem('BranchName', data.user.branchName);
+      // Operational branch context saved in localStorage (NO role or permissions stored)
+      if (data.user.organisationId) localStorage.setItem('OrganizationId', data.user.organisationId);
+      if (data.user.branchId) localStorage.setItem('Branch', data.user.branchId);
+      if (data.user.branchName) localStorage.setItem('BranchName', data.user.branchName);
       if (!localStorage.getItem('FinancialYear')) {
         localStorage.setItem('FinancialYear', '2026-2027');
       }
 
-      const roles = data.user.roles || [];
+      const isSuperAdmin = data.user.role === 'SuperAdmin' || data.user.userType === 'SUPER_ADMIN';
+      const userSession: UserSession = {
+        userId: data.user.userId || data.user.id,
+        userName: data.user.userName || data.user.name,
+        email: data.user.email,
+        role: data.user.role as UserRole,
+        userType: data.user.userType,
+        organisationId: data.user.organisationId,
+        organisationName: data.user.organisationName || 'Smart Enterprise Industries Ltd.',
+        branchId: data.user.branchId,
+        branchName: data.user.branchName,
+        permissions: isSuperAdmin ? ['*'] : [],
+        userPermissions: data.user.permissions || {},
+        roles: data.user.roles || [],
+      };
 
       set({
         isAuthenticated: true,
         token,
-        user: {
-          userId: data.user.userId,
-          userName: data.user.userName,
-          email: data.user.email,
-          role: data.user.role as UserRole,
-          organisationId: data.user.organisationId,
-          organisationName: 'Smart Enterprise Industries Ltd.',
-          branchId: data.user.branchId,
-          branchName: data.user.branchName,
-          permissions: data.user.role === 'SuperAdmin' ? ['*'] : ['sales:*', 'invoices:*', 'store:read'],
-          roles,
-        },
+        user: userSession,
+        isSessionValidated: true,
       });
 
       showAppToast(`Welcome back, ${data.user.userName}! Authenticated successfully.`, 'success');

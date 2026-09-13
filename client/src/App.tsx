@@ -5,9 +5,11 @@ import { GlobalSearchModal } from './components/layout/GlobalSearchModal';
 import { NotificationDrawer } from './components/layout/NotificationDrawer';
 import { ProfileDrawer } from './components/layout/ProfileDrawer';
 import { ContextSwitcherDrawer } from './components/layout/ContextSwitcherDrawer';
+import { ThemeDrawer } from './components/layout/ThemeDrawer';
 import { LoginScreen } from './components/auth/LoginScreen';
 import { useAuthStore } from './store/authStore';
 import { useErpStore } from './store/erpStore';
+import { useThemeStore } from './store/themeStore';
 
 // ERP Modules
 import { DashboardModule } from './components/modules/DashboardModule';
@@ -29,8 +31,21 @@ import { TransactionModule } from './components/modules/banking/TransactionModul
 import { UsersModule } from './components/modules/admin/UsersModule';
 
 export function App() {
-  const { isAuthenticated, checkSession, logout } = useAuthStore();
+  const {
+    isAuthenticated,
+    isSessionValidated,
+    checkSession,
+    logout,
+    validateSession,
+    user,
+  } = useAuthStore();
   const { fetchBootstrap, isInitialized, isLoading } = useErpStore();
+  const { initTheme } = useThemeStore();
+  const [isThemeDrawerOpen, setIsThemeDrawerOpen] = useState(false);
+
+  useEffect(() => {
+    initTheme();
+  }, [initTheme]);
   const [activeModule, setActiveModule] = useState<ModuleType>(() => {
     if (typeof window !== 'undefined') {
       const p = window.location.pathname;
@@ -104,15 +119,65 @@ export function App() {
     };
   }, [isAuthenticated, checkSession, logout]);
 
+  // Validate session against backend on mount/reload to hydrate in-memory RBAC
   useEffect(() => {
-    if (isAuthenticated && !isInitialized) {
+    if (isAuthenticated && !isSessionValidated) {
+      validateSession().then((isValid) => {
+        if (!isValid) {
+          logout();
+        }
+      });
+    }
+  }, [isAuthenticated, isSessionValidated, validateSession, logout]);
+
+  // Fallback active module if user lacks permission for current module
+  useEffect(() => {
+    if (isAuthenticated && isSessionValidated && user) {
+      const isSuperAdmin = Boolean(
+        user.role?.toLowerCase().replace(/\s+/g, '') === 'superadmin' ||
+        (user as any).isSuperAdmin
+      );
+      if (!isSuperAdmin && user.permissions) {
+        const perms = user.permissions as Record<string, any>;
+        const hasPermission = perms[activeModule]?.view === true;
+        if (!hasPermission) {
+          const permitted = Object.keys(perms).find(
+            (mod) => perms[mod]?.view === true
+          ) as ModuleType | undefined;
+          if (permitted) {
+            setActiveModule(permitted);
+          }
+        }
+      }
+    }
+  }, [isAuthenticated, isSessionValidated, user, activeModule]);
+
+  useEffect(() => {
+    if (isAuthenticated && isSessionValidated && !isInitialized) {
       fetchBootstrap();
     }
-  }, [isAuthenticated, isInitialized, fetchBootstrap]);
+  }, [isAuthenticated, isSessionValidated, isInitialized, fetchBootstrap]);
 
   // If not authenticated, display Enterprise Login Screen
   if (!isAuthenticated) {
     return <LoginScreen />;
+  }
+
+  // If session has not finished validating with backend /auth/me, display loading screen
+  if (isAuthenticated && !isSessionValidated) {
+    return (
+      <div className="flex h-screen w-screen flex-col items-center justify-center bg-slate-950 text-white">
+        <div className="flex h-12 w-12 items-center justify-center rounded-2xl bg-blue-600 font-bold text-2xl shadow-lg shadow-blue-500/30 animate-pulse">
+          S
+        </div>
+        <div className="mt-4 text-sm font-semibold text-slate-200">
+          Validating Security Session & Permissions...
+        </div>
+        <div className="text-xs text-slate-400 mt-1">
+          Hydrating in-memory credentials and access privileges
+        </div>
+      </div>
+    );
   }
 
   if (isLoading && !isInitialized) {
@@ -154,7 +219,7 @@ export function App() {
   };
 
   return (
-    <div className="flex h-screen w-screen overflow-hidden bg-slate-50 text-slate-900 antialiased font-sans">
+    <div className="flex h-screen w-screen overflow-hidden bg-slate-50 dark:bg-slate-950 text-slate-900 dark:text-slate-100 antialiased font-sans">
       {/* 1. Left Fixed Sidebar (h-screen shrink-0) */}
       <Sidebar
         activeModule={activeModule}
@@ -181,11 +246,12 @@ export function App() {
           onOpenNotifications={() => setIsNotificationsOpen(true)}
           onOpenProfile={() => setIsProfileOpen(true)}
           onOpenContextSwitcher={() => setIsContextSwitcherOpen(true)}
+          onOpenThemeCustomizer={() => setIsThemeDrawerOpen(true)}
           onToggleSidebar={() => setIsSidebarCollapsed(!isSidebarCollapsed)}
         />
 
         {/* Dynamic Module Content Canvas: ONLY THIS BODY SCROLLS */}
-        <main className="flex-1 min-h-0 overflow-y-auto p-4 md:p-6">
+        <main className="flex-1 min-h-0 overflow-y-auto p-4 md:p-6 bg-slate-50 dark:bg-slate-950">
           <div className="max-w-7xl w-full mx-auto pb-12">
             {/* Dedicated Full Pages */}
             {currentPath === '/invoices/new' && <InvoiceCreatePage />}
@@ -250,6 +316,12 @@ export function App() {
       <ProfileDrawer
         isOpen={isProfileOpen}
         onClose={() => setIsProfileOpen(false)}
+      />
+
+      {/* Slide-over Theme Appearance Customizer Drawer */}
+      <ThemeDrawer
+        isOpen={isThemeDrawerOpen}
+        onClose={() => setIsThemeDrawerOpen(false)}
       />
     </div>
   );

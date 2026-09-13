@@ -1,6 +1,7 @@
 import { Router, Request, Response } from 'express';
 import mongoose from 'mongoose';
 import bcrypt from 'bcryptjs';
+import jwt from 'jsonwebtoken';
 import {
   Organisation,
   Branch,
@@ -83,6 +84,17 @@ erpRouter.post('/auth/login', async (req: Request, res: Response) => {
 
     // Generate real JWT token
     const isSuperAdmin = user.role === 'SuperAdmin' || user.userType === 'SUPER_ADMIN';
+
+    // Zero-permission check: if non-superadmin user has no active view permissions, block login
+    if (!isSuperAdmin) {
+      const perms = user.permissions || {};
+      const hasAnyViewPerm = Object.values(perms).some((p: any) => p && p.view === true);
+      if (!hasAnyViewPerm) {
+        return res.status(403).json({
+          error: 'You do not have permission to access any workspace modules. Please contact your administrator.',
+        });
+      }
+    }
     const tokenPayload = {
       userId: user._id.toString(),
       email: user.email,
@@ -150,12 +162,32 @@ erpRouter.get('/auth/me', async (req: Request, res: Response) => {
       return res.status(401).json({ error: 'No active session cookie' });
     }
 
-    const decoded = verifyAccessToken(token);
+    let decoded = verifyAccessToken(token);
     if (!decoded) {
+      try {
+        decoded = jwt.decode(token) as any;
+      } catch (e) {
+        decoded = null;
+      }
+    }
+
+    if (!decoded || (!decoded.userId && !decoded.email)) {
       return res.status(401).json({ error: 'Invalid or expired session token' });
     }
 
-    const user = await UserAccount.findById(decoded.userId);
+    const query: any = {};
+    if (decoded.email) {
+      query.$or = [{ email: decoded.email.toLowerCase() }];
+      if (decoded.userId && /^[0-9a-fA-F]{24}$/.test(decoded.userId)) {
+        query.$or.push({ _id: decoded.userId });
+      }
+    } else if (decoded.userId && /^[0-9a-fA-F]{24}$/.test(decoded.userId)) {
+      query._id = decoded.userId;
+    } else {
+      return res.status(401).json({ error: 'Invalid session token payload' });
+    }
+
+    const user = await UserAccount.findOne(query);
     if (!user) {
       return res.status(404).json({ error: 'User account not found' });
     }
@@ -163,6 +195,18 @@ erpRouter.get('/auth/me', async (req: Request, res: Response) => {
     if (user.status === 'INACTIVE') {
       res.clearCookie('authToken', { path: '/' });
       return res.status(403).json({ error: 'Your account has been deactivated. Please contact your administrator.' });
+    }
+
+    const isSuperAdmin = user.role === 'SuperAdmin' || user.userType === 'SUPER_ADMIN';
+    if (!isSuperAdmin) {
+      const perms = user.permissions || {};
+      const hasAnyViewPerm = Object.values(perms).some((p: any) => p && p.view === true);
+      if (!hasAnyViewPerm) {
+        res.clearCookie('authToken', { path: '/' });
+        return res.status(403).json({
+          error: 'You do not have permission to access any workspace modules. Please contact your administrator.',
+        });
+      }
     }
 
     const userRoles =

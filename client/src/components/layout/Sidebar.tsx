@@ -192,12 +192,10 @@ export const Sidebar: React.FC<SidebarProps> = ({
       ...section,
       items: section.items.filter((item) => {
         if (isSuperAdmin) return true;
-        if (item.id === 'dashboard') return true;
         const userPerms = (user as any)?.permissions;
-        if (!userPerms) return true;
+        if (!userPerms) return false;
         const modPerm = userPerms[item.id];
-        if (modPerm && modPerm.view === false) return false;
-        return true;
+        return Boolean(modPerm?.view === true);
       }),
     }))
     .filter((section) => section.items.length > 0);
@@ -221,29 +219,29 @@ export const Sidebar: React.FC<SidebarProps> = ({
         />
       )}
 
-      {/* Main Sidebar Shell (shadcn radix structure with template colors) */}
+      {/* Main Sidebar Shell (radix structure with theme support) */}
       <aside
-        className={`fixed inset-y-0 left-0 z-50 lg:static flex flex-col h-screen shrink-0 border-r border-slate-200 bg-white transition-all duration-300 ease-in-out ${
+        className={`fixed inset-y-0 left-0 z-50 lg:static flex flex-col h-screen shrink-0 border-r border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900 transition-all duration-300 ease-in-out ${
           isCollapsed
             ? '-translate-x-full lg:translate-x-0 lg:w-18'
             : 'translate-x-0 w-64 shadow-xl lg:shadow-none'
         } select-none overflow-hidden`}
       >
         {/* SidebarHeader */}
-        <div className="flex h-16 items-center justify-between border-b border-slate-200 px-3.5">
+        <div className="flex h-16 items-center justify-between border-b border-slate-200 dark:border-slate-800 px-3.5">
           {!isCollapsed ? (
             <div className="flex items-center gap-2.5 min-w-0">
               <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-xl bg-blue-600 font-bold text-white shadow-sm ring-2 ring-blue-500/20">
                 S
               </div>
               <div className="min-w-0">
-                <div className="text-xs font-bold tracking-tight text-slate-900 flex items-center gap-1.5 truncate">
+                <div className="text-xs font-bold tracking-tight text-slate-900 dark:text-slate-100 flex items-center gap-1.5 truncate">
                   Smart Enterprise
-                  <span className="rounded bg-blue-50 px-1.5 py-0.2 text-[9px] font-bold text-blue-700 border border-blue-200">
+                  <span className="rounded bg-blue-50 dark:bg-blue-950/60 px-1.5 py-0.2 text-[9px] font-bold text-blue-700 dark:text-blue-400 border border-blue-200 dark:border-blue-900">
                     ERP
                   </span>
                 </div>
-                <div className="text-[11px] font-medium text-slate-500 truncate">
+                <div className="text-[11px] font-medium text-slate-500 dark:text-slate-400 truncate">
                   {activeBranch?.name}
                 </div>
               </div>
@@ -258,7 +256,7 @@ export const Sidebar: React.FC<SidebarProps> = ({
           <button
             type="button"
             onClick={() => setIsCollapsed(!isCollapsed)}
-            className="rounded-lg p-1.5 text-slate-400 hover:bg-slate-100 hover:text-slate-700 transition cursor-pointer shrink-0"
+            className="rounded-lg p-1.5 text-slate-400 hover:bg-slate-100 dark:hover:bg-slate-800 hover:text-slate-700 dark:hover:text-slate-200 transition cursor-pointer shrink-0"
             title={isCollapsed ? 'Expand Sidebar' : 'Collapse Sidebar'}
           >
             {isCollapsed ? (
@@ -275,7 +273,7 @@ export const Sidebar: React.FC<SidebarProps> = ({
             <div key={idx} className="space-y-0.5">
               {/* SidebarGroupLabel */}
               {!isCollapsed && (
-                <div className="px-2.5 pb-1 text-[10px] font-bold tracking-wider text-slate-400 uppercase">
+                <div className="px-2.5 pb-1 text-[10px] font-bold tracking-wider text-slate-400 dark:text-slate-500 uppercase">
                   {section.title}
                 </div>
               )}
@@ -293,16 +291,16 @@ export const Sidebar: React.FC<SidebarProps> = ({
                       onClick={() => setActiveModule(item.id)}
                       className={`group relative flex w-full items-center gap-2.5 rounded-lg px-2.5 py-2 text-xs font-medium transition cursor-pointer ${
                         isActive
-                          ? 'bg-blue-50 text-blue-700 font-semibold border border-blue-100 shadow-xs'
-                          : 'text-slate-600 hover:bg-slate-100/70 hover:text-slate-900'
+                          ? 'bg-blue-50 dark:bg-blue-950/40 text-blue-700 dark:text-blue-400 font-semibold border border-blue-100 dark:border-blue-900/50 shadow-xs'
+                          : 'text-slate-600 dark:text-slate-300 hover:bg-slate-100/70 dark:hover:bg-slate-800/60 hover:text-slate-900 dark:hover:text-white'
                       } ${isCollapsed ? 'justify-center px-2' : ''}`}
                       title={isCollapsed ? item.label : undefined}
                     >
                       <Icon
                         className={`h-4 w-4 shrink-0 transition ${
                           isActive
-                            ? 'text-blue-600'
-                            : 'text-slate-400 group-hover:text-slate-700'
+                            ? 'text-blue-600 dark:text-blue-400'
+                            : 'text-slate-400 group-hover:text-slate-700 dark:group-hover:text-slate-200'
                         }`}
                       />
 
@@ -312,7 +310,7 @@ export const Sidebar: React.FC<SidebarProps> = ({
                           {item.badge !== null && (
                             <span
                               className={`rounded-md px-1.5 py-0.2 text-[10px] font-semibold shrink-0 ${
-                                item.badgeColor || 'bg-slate-100 text-slate-600 border border-slate-200'
+                                item.badgeColor || 'bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-300 border border-slate-200 dark:border-slate-700'
                               }`}
                             >
                               {item.badge}
@@ -334,15 +332,15 @@ export const Sidebar: React.FC<SidebarProps> = ({
         </div>
 
         {/* SidebarFooter (User Identity + Multi-Tenant Sync Card) */}
-        <div className="border-t border-slate-200 p-2.5 bg-slate-50/60">
+        <div className="border-t border-slate-200 dark:border-slate-800 p-2.5 bg-slate-50/60 dark:bg-slate-900/60">
           {!isCollapsed ? (
-            <div className="rounded-xl border border-slate-200 bg-white p-2.5 shadow-xs space-y-2">
+            <div className="rounded-xl border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-800/80 p-2.5 shadow-xs space-y-2">
               <div className="flex items-center gap-2.5">
                 <div className="flex h-8 w-8 shrink-0 items-center justify-center rounded-lg bg-blue-600 text-xs font-bold text-white shadow-xs">
                   {getInitials(user?.userName || 'User')}
                 </div>
                 <div className="min-w-0 flex-1">
-                  <div className="text-xs font-bold text-slate-900 truncate">
+                  <div className="text-xs font-bold text-slate-900 dark:text-slate-100 truncate">
                     {user?.userName || 'User'}
                   </div>
                   <div className="text-[10px] font-medium text-slate-400 capitalize truncate">
@@ -355,9 +353,9 @@ export const Sidebar: React.FC<SidebarProps> = ({
                 </span>
               </div>
 
-              <div className="pt-1.5 border-t border-slate-100 flex items-center justify-between text-[10px] text-slate-500 font-mono">
-                <span className="text-slate-400">Schema</span>
-                <span className="font-semibold text-slate-700">tenant_acme</span>
+              <div className="pt-1.5 border-t border-slate-100 dark:border-slate-700/60 flex items-center justify-between text-[10px] text-slate-500 dark:text-slate-400 font-mono">
+                <span className="text-slate-400 dark:text-slate-500">Schema</span>
+                <span className="font-semibold text-slate-700 dark:text-slate-300">tenant_acme</span>
               </div>
             </div>
           ) : (
