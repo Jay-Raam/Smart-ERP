@@ -20,19 +20,12 @@ import {
   RefreshCw,
 } from 'lucide-react';
 
-export interface NotificationItem {
-  id: string;
-  category: 'order' | 'invoice' | 'stock' | 'delivery' | 'system';
-  priority: 'critical' | 'high' | 'normal' | 'success';
-  title: string;
-  message: string;
-  branchCode: string;
-  branchName: string;
-  time: string;
-  read: boolean;
-  actionModule?: string;
-  actionLabel?: string;
-}
+import {
+  NotificationItem,
+  useNotificationStore,
+} from '../../store/notificationStore';
+
+export type { NotificationItem };
 
 interface NotificationDrawerProps {
   isOpen: boolean;
@@ -46,86 +39,22 @@ export const NotificationDrawer: React.FC<NotificationDrawerProps> = ({
   onNavigateModule,
 }) => {
   const [activeTab, setActiveTab] = useState<'all' | 'unread' | 'billing' | 'inventory' | 'system'>('all');
-  const [notifications, setNotifications] = useState<NotificationItem[]>([
-    {
-      id: 'n-1',
-      category: 'stock',
-      priority: 'critical',
-      title: 'Low Inventory Reorder Notice',
-      message: 'Platinized Titanium Mesh Anode Grade 1 (SMART-PLT-303) has only 8 units remaining in Central Store (Min Reorder Level: 10).',
-      branchCode: 'BR-CHN-01',
-      branchName: 'Chennai HQ',
-      time: '12m ago',
-      read: false,
-      actionModule: 'purchase',
-      actionLabel: 'Create PO',
-    },
-    {
-      id: 'n-2',
-      category: 'invoice',
-      priority: 'success',
-      title: 'Payment Received for INV-2026-001',
-      message: 'Bharat Heavy Electricals Ltd (BHEL) settled ₹3,39,840 against Tax Invoice #INV-2026-001 via NEFT (#UTR-2026-8841).',
-      branchCode: 'BR-CHN-01',
-      branchName: 'Chennai HQ',
-      time: '35m ago',
-      read: false,
-      actionModule: 'invoices',
-      actionLabel: 'View Invoice',
-    },
-    {
-      id: 'n-3',
-      category: 'order',
-      priority: 'high',
-      title: 'New Confirmed Sales Order #SO-2026-084',
-      message: 'Ashok Leyland Defence & Commercial issued production release for 1 unit MMO Titanium Anodes (₹2,95,000 incl. 18% GST).',
-      branchCode: 'BR-CHN-01',
-      branchName: 'Chennai HQ',
-      time: '2h ago',
-      read: true,
-      actionModule: 'sales',
-      actionLabel: 'View Order',
-    },
-    {
-      id: 'n-4',
-      category: 'delivery',
-      priority: 'normal',
-      title: 'Delivery Challan #DC-2026-002 Dispatched',
-      message: 'Consignment handed over to VRL Logistics for transit to Tata Motors Heavy Vehicle Division. E-Way Bill is active.',
-      branchCode: 'BR-CHN-01',
-      branchName: 'Chennai HQ',
-      time: '4h ago',
-      read: true,
-      actionModule: 'delivery',
-      actionLabel: 'Track DC',
-    },
-    {
-      id: 'n-5',
-      category: 'system',
-      priority: 'normal',
-      title: 'MongoDB Atlas Cloud Snapshot Verified',
-      message: 'Automated continuous telemetry backup and multi-branch replica sync verified on Atlas cluster.',
-      branchCode: 'GLOBAL',
-      branchName: 'All Branches',
-      time: '6h ago',
-      read: true,
-    },
-    {
-      id: 'n-6',
-      category: 'stock',
-      priority: 'success',
-      title: 'PO-2026-015 Inward Verified',
-      message: '150 Kgs Titanium Seamless Industrial Pipe inward received, inspected, and stock ledger updated at Coimbatore Works.',
-      branchCode: 'BR-CBE-02',
-      branchName: 'Coimbatore',
-      time: '1d ago',
-      read: true,
-      actionModule: 'store',
-      actionLabel: 'Inspect Stock',
-    },
-  ]);
+  const notifications = useNotificationStore((state) => state.notifications);
+  const markAsRead = useNotificationStore((state) => state.markAsRead);
+  const markAsUnread = useNotificationStore((state) => state.markAsUnread);
+  const toggleReadStatus = useNotificationStore((state) => state.toggleReadStatus);
+  const markAllAsRead = useNotificationStore((state) => state.markAllAsRead);
+  const markAllAsUnread = useNotificationStore((state) => state.markAllAsUnread);
 
   const unreadCount = notifications.filter((n) => !n.read).length;
+
+  const categoryCounts = useMemo(() => {
+    return {
+      billing: notifications.filter((n) => n.category === 'order' || n.category === 'invoice').length,
+      inventory: notifications.filter((n) => n.category === 'stock' || n.category === 'delivery').length,
+      system: notifications.filter((n) => n.category === 'system').length,
+    };
+  }, [notifications]);
 
   const filteredNotifications = useMemo(() => {
     return notifications.filter((n) => {
@@ -139,19 +68,9 @@ export const NotificationDrawer: React.FC<NotificationDrawerProps> = ({
 
   if (!isOpen) return null;
 
-  const markAllAsRead = () => {
-    setNotifications((prev) => prev.map((n) => ({ ...n, read: true })));
-  };
-
-  const markItemAsRead = (id: string) => {
-    setNotifications((prev) =>
-      prev.map((n) => (n.id === id ? { ...n, read: true } : n))
-    );
-  };
-
   const handleAction = (item: NotificationItem, e: React.MouseEvent) => {
     e.stopPropagation();
-    markItemAsRead(item.id);
+    markAsRead(item.id);
     if (item.actionModule && onNavigateModule) {
       onNavigateModule(item.actionModule);
       onClose();
@@ -266,15 +185,25 @@ export const NotificationDrawer: React.FC<NotificationDrawerProps> = ({
 
               {/* Header Right Actions */}
               <div className="flex items-center gap-1.5">
-                {unreadCount > 0 && (
+                {unreadCount > 0 ? (
                   <button
                     type="button"
                     onClick={markAllAsRead}
-                    className="flex items-center gap-1 rounded-xl border border-slate-200 bg-white px-2.5 py-1.5 text-xs font-semibold text-slate-700 hover:bg-slate-50 hover:text-blue-600 transition shadow-xs cursor-pointer"
+                    className="flex items-center gap-1 rounded-xl border border-blue-200 bg-blue-50 px-2.5 py-1.5 text-xs font-semibold text-blue-700 hover:bg-blue-100 hover:text-blue-800 transition shadow-xs cursor-pointer"
                     title="Mark all as read"
                   >
                     <CheckCheck className="h-3.5 w-3.5 text-blue-600" />
                     <span className="hidden sm:inline">Mark read</span>
+                  </button>
+                ) : (
+                  <button
+                    type="button"
+                    onClick={markAllAsUnread}
+                    className="flex items-center gap-1 rounded-xl border border-slate-200 bg-white px-2.5 py-1.5 text-xs font-semibold text-slate-600 hover:bg-slate-50 hover:text-slate-800 transition shadow-xs cursor-pointer"
+                    title="Mark all as unread"
+                  >
+                    <RefreshCw className="h-3.5 w-3.5 text-slate-500" />
+                    <span className="hidden sm:inline">Mark unread</span>
                   </button>
                 )}
                 <button
@@ -334,7 +263,7 @@ export const NotificationDrawer: React.FC<NotificationDrawerProps> = ({
                   : 'text-slate-600 hover:bg-slate-100'
               }`}
             >
-              Orders & Billing
+              Orders & Billing ({categoryCounts.billing})
             </button>
             <button
               type="button"
@@ -345,7 +274,7 @@ export const NotificationDrawer: React.FC<NotificationDrawerProps> = ({
                   : 'text-slate-600 hover:bg-slate-100'
               }`}
             >
-              Stock & Dispatch
+              Stock & Dispatch ({categoryCounts.inventory})
             </button>
             <button
               type="button"
@@ -356,7 +285,7 @@ export const NotificationDrawer: React.FC<NotificationDrawerProps> = ({
                   : 'text-slate-600 hover:bg-slate-100'
               }`}
             >
-              System
+              System ({categoryCounts.system})
             </button>
           </div>
 
@@ -391,7 +320,7 @@ export const NotificationDrawer: React.FC<NotificationDrawerProps> = ({
                 return (
                   <div
                     key={item.id}
-                    onClick={() => markItemAsRead(item.id)}
+                    onClick={() => markAsRead(item.id)}
                     className={`group relative flex flex-col gap-2 rounded-2xl border p-3.5 transition shadow-xs cursor-pointer ${
                       item.read
                         ? 'bg-white border-slate-200/80 hover:border-slate-300 hover:shadow-sm'
@@ -415,10 +344,31 @@ export const NotificationDrawer: React.FC<NotificationDrawerProps> = ({
                               {item.title}
                             </h4>
                           </div>
-                          <span className="flex items-center gap-1 font-mono text-[10px] text-slate-400 shrink-0">
-                            <Clock className="h-3 w-3" />
-                            {item.time}
-                          </span>
+                          <div className="flex items-center gap-1.5 shrink-0">
+                            <span className="flex items-center gap-1 font-mono text-[10px] text-slate-400">
+                              <Clock className="h-3 w-3" />
+                              {item.time}
+                            </span>
+                            <button
+                              type="button"
+                              onClick={(e) => {
+                                e.stopPropagation();
+                                toggleReadStatus(item.id);
+                              }}
+                              className={`p-1 rounded-lg transition cursor-pointer ${
+                                item.read
+                                  ? 'text-slate-300 hover:text-blue-600 hover:bg-slate-100'
+                                  : 'text-blue-600 hover:text-blue-800 hover:bg-blue-100/60'
+                              }`}
+                              title={item.read ? 'Mark as unread' : 'Mark as read'}
+                            >
+                              {item.read ? (
+                                <Check className="h-3.5 w-3.5" />
+                              ) : (
+                                <CheckCheck className="h-3.5 w-3.5 text-blue-600" />
+                              )}
+                            </button>
+                          </div>
                         </div>
 
                         {/* Message */}
@@ -474,10 +424,14 @@ export const NotificationDrawer: React.FC<NotificationDrawerProps> = ({
             </div>
             <button
               type="button"
-              onClick={markAllAsRead}
-              className="text-[11px] font-semibold text-blue-600 hover:underline cursor-pointer"
+              onClick={unreadCount > 0 ? markAllAsRead : markAllAsUnread}
+              className={`text-[11px] font-semibold transition cursor-pointer ${
+                unreadCount > 0
+                  ? 'text-blue-600 hover:underline'
+                  : 'text-slate-500 hover:text-blue-600 hover:underline'
+              }`}
             >
-              Clear all unread
+              {unreadCount > 0 ? 'Clear all unread' : 'Mark all unread'}
             </button>
           </div>
         </div>

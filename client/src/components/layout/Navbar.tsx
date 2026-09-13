@@ -16,6 +16,7 @@ import {
 } from 'lucide-react';
 import { useErpStore } from '../../store/erpStore';
 import { useAuthStore } from '../../store/authStore';
+import { useNotificationStore } from '../../store/notificationStore';
 
 interface NavbarProps {
   onOpenQuickAdd: (type: string) => void;
@@ -36,6 +37,8 @@ export const Navbar: React.FC<NavbarProps> = ({
 }) => {
   const { branches, activeBranchId, activeFinancialYear } = useErpStore();
   const { user } = useAuthStore();
+  const notifications = useNotificationStore((state) => state.notifications);
+  const unreadCount = notifications.filter((n) => !n.read).length;
   const [isQuickAddOpen, setIsQuickAddOpen] = useState(false);
 
   const activeBranch =
@@ -215,10 +218,14 @@ export const Navbar: React.FC<NavbarProps> = ({
           type="button"
           onClick={onOpenNotifications}
           className="relative rounded-lg p-1.5 sm:p-2 text-slate-500 hover:bg-slate-100 hover:text-slate-700 transition cursor-pointer shrink-0"
-          title="Open Notifications Drawer"
+          title={unreadCount > 0 ? `${unreadCount} unread operational alert${unreadCount > 1 ? 's' : ''}` : 'Notifications'}
         >
           <Bell className="h-4 w-4" />
-          <span className="absolute top-1.5 right-1.5 h-2 w-2 rounded-full bg-blue-600 ring-2 ring-white" />
+          {unreadCount > 0 && (
+            <span className="absolute top-1 right-1 flex h-4 min-w-4 items-center justify-center rounded-full bg-blue-600 px-1 text-[10px] font-bold text-white ring-2 ring-white animate-in zoom-in-50">
+              {unreadCount > 9 ? '9+' : unreadCount}
+            </span>
+          )}
         </button>
 
         {/* User Profile Avatar Trigger */}
