@@ -14,17 +14,24 @@ import {
   DeliveryChallan,
   UserAccount,
   AuditHistory,
+  BankAccount,
+  FinancialTransaction,
+  StockMovement,
 } from '../models/ErpModels';
 import { generateTokens, verifyAccessToken } from '../security/auth';
 import { calculateDocumentTaxes } from '../utils/taxCalculation';
 import { validateGSTIN, validateQuantity, validateCreditLimit } from '../utils/validation';
 import { logAuditAction } from '../utils/auditLogger';
 import { reportsRouter } from './reportsRoutes';
+import { bankingRouter } from './bankingRoutes';
+import { paymentRouter } from './paymentRoutes';
 
 export const erpRouter = Router();
 
-// Mount Super Admin Reports Router
+// Mount Sub-Routers
 erpRouter.use('/reports', reportsRouter);
+erpRouter.use(bankingRouter);
+erpRouter.use(paymentRouter);
 
 // ==========================================
 // 1. AUTHENTICATION (EMAIL OR MOBILE + PASSWORD)
@@ -226,6 +233,7 @@ erpRouter.get('/bootstrap', async (req: Request, res: Response) => {
       vendors,
       storeItems,
       deliveryChallans,
+      bankAccounts,
     ] = await Promise.all([
       Customer.find(custFilter).sort({ createdAt: -1 }),
       Product.find(finalOrgId ? { organisationId: finalOrgId } : {}).sort({ createdAt: -1 }),
@@ -235,6 +243,7 @@ erpRouter.get('/bootstrap', async (req: Request, res: Response) => {
       Vendor.find(finalOrgId ? { organisationId: finalOrgId } : {}).sort({ createdAt: -1 }),
       StoreItem.find(storeFilter).sort({ createdAt: -1 }),
       DeliveryChallan.find(txFilter).sort({ createdAt: -1 }),
+      BankAccount.find(finalOrgId ? { organisationId: finalOrgId } : {}).sort({ isPrimary: -1, createdAt: -1 }),
     ]);
 
     return res.json({
@@ -291,6 +300,7 @@ erpRouter.get('/bootstrap', async (req: Request, res: Response) => {
         currentStock: p.currentStock,
         minReorderLevel: p.minReorderLevel,
         taxRate: p.taxRate ?? 18,
+        status: p.status || 'ACTIVE',
         approvalStatus: p.approvalStatus || 'Approved',
         approvedBy: p.approvedBy || '',
         approvedAt: p.approvedAt,
@@ -320,6 +330,11 @@ erpRouter.get('/bootstrap', async (req: Request, res: Response) => {
         igstAmount: b.igstAmount || 0,
         taxAmount: b.taxAmount,
         totalAmount: b.totalAmount,
+        paidAmount: b.paidAmount || 0,
+        outstandingAmount: b.outstandingAmount !== undefined ? b.outstandingAmount : (b.totalAmount - (b.paidAmount || 0)),
+        advanceAdjusted: b.advanceAdjusted || 0,
+        paymentStatus: b.paymentStatus || (b.status === 'Paid' ? 'PAID' : 'UNPAID'),
+        storeMovementStatus: b.storeMovementStatus || 'NOT_MOVED',
         totalInWords: b.totalInWords || '',
         status: b.status,
         branchId: b.branchId,
@@ -352,6 +367,9 @@ erpRouter.get('/bootstrap', async (req: Request, res: Response) => {
         igstAmount: inv.igstAmount || 0,
         taxAmount: inv.taxAmount,
         totalAmount: inv.totalAmount,
+        paidAmount: inv.paidAmount || 0,
+        outstandingAmount: inv.outstandingAmount !== undefined ? inv.outstandingAmount : (inv.totalAmount - (inv.paidAmount || 0)),
+        paymentStatus: inv.paymentStatus || (inv.status === 'Paid' ? 'PAID' : 'UNPAID'),
         totalInWords: inv.totalInWords || '',
         status: inv.status,
       })),
@@ -381,8 +399,12 @@ erpRouter.get('/bootstrap', async (req: Request, res: Response) => {
         igstAmount: po.igstAmount || 0,
         taxAmount: po.taxAmount,
         totalAmount: po.totalAmount,
+        paidAmount: po.paidAmount || 0,
+        outstandingAmount: po.outstandingAmount !== undefined ? po.outstandingAmount : (po.totalAmount - (po.paidAmount || 0)),
+        paymentStatus: po.paymentStatus || (po.paidAmount && po.paidAmount >= po.totalAmount ? 'PAID' : 'UNPAID'),
         totalInWords: po.totalInWords || '',
         status: po.status,
+        isAutoReorder: po.isAutoReorder || false,
       })),
       vendors: vendors.map((v) => ({
         id: v._id.toString(),
@@ -400,6 +422,7 @@ erpRouter.get('/bootstrap', async (req: Request, res: Response) => {
         shippingState: v.shippingState || v.state || 'Tamil Nadu',
         gstin: v.gstin,
         pan: v.pan,
+        outstandingBalance: v.outstandingBalance || 0,
         organisationId: v.organisationId,
         branchId: v.branchId,
       })),
@@ -439,6 +462,22 @@ erpRouter.get('/bootstrap', async (req: Request, res: Response) => {
         branchId: dc.branchId,
         organisationId: dc.organisationId,
         financialYear: dc.financialYear,
+      })),
+      bankAccounts: bankAccounts.map((b) => ({
+        id: b._id.toString(),
+        accountName: b.accountName,
+        accountHolderName: b.accountHolderName,
+        bankName: b.bankName,
+        branch: b.branch,
+        accountNumber: b.accountNumber,
+        ifscCode: b.ifscCode,
+        accountType: b.accountType,
+        currency: b.currency,
+        isPrimary: b.isPrimary,
+        status: b.status,
+        balance: b.balance,
+        organisationId: b.organisationId,
+        branchId: b.branchId,
       })),
     });
   } catch (err: any) {
@@ -592,9 +631,71 @@ erpRouter.post('/bills', async (req: Request, res: Response) => {
         if (!prod) {
           return res.status(400).json({ error: `Product not found for item "${it.productName}".` });
         }
+        if (prod.status === 'INACTIVE') {
+          return res.status(422).json({
+            error: `Product "${prod.name}" is inactive and cannot be selected for new transactions.`,
+          });
+        }
         if (prod.approvalStatus !== 'Approved') {
           return res.status(400).json({ error: `Product "${prod.name}" is not approved.` });
         }
+      }
+    }
+
+    // Handle PO Conversion quantity tracking and advance reconciliation
+    let advanceToApply = 0;
+    let targetPo: any = null;
+
+    if (poId) {
+      targetPo = await PurchaseOrder.findById(poId);
+      if (!targetPo) {
+        return res.status(404).json({ error: `Referenced Purchase Order not found.` });
+      }
+
+      if (targetPo.status === 'FULLY_BILLED') {
+        return res.status(422).json({
+          error: `Purchase Order ${targetPo.poNumber} has already been fully billed and cannot be converted again.`,
+        });
+      }
+
+      // Quantity-aware conversion check per item
+      for (const billItem of items) {
+        const poLine = targetPo.items.find(
+          (pi: any) =>
+            (billItem.productId && pi.productId === billItem.productId) ||
+            pi.productName === billItem.productName
+        );
+
+        if (poLine) {
+          const ordered = poLine.orderedQuantity || poLine.quantity;
+          const alreadyBilled = poLine.billedQuantity || 0;
+          const remaining = poLine.remainingQuantity !== undefined ? poLine.remainingQuantity : Math.max(0, ordered - alreadyBilled);
+
+          if (billItem.quantity > remaining) {
+            return res.status(422).json({
+              error: `Cannot bill ${billItem.quantity} units for "${billItem.productName}". Remaining quantity available on PO ${targetPo.poNumber} is only ${remaining} units.`,
+            });
+          }
+
+          // Update PO Line
+          poLine.orderedQuantity = ordered;
+          poLine.billedQuantity = alreadyBilled + billItem.quantity;
+          poLine.remainingQuantity = Math.max(0, ordered - poLine.billedQuantity);
+        }
+      }
+
+      // Check if all lines are fully billed
+      const allLinesFullyBilled = targetPo.items.every(
+        (pi: any) => (pi.remainingQuantity !== undefined ? pi.remainingQuantity : (pi.quantity - (pi.billedQuantity || 0))) <= 0
+      );
+      targetPo.status = allLinesFullyBilled ? 'FULLY_BILLED' : 'PARTIALLY_BILLED';
+
+      // Vendor Advance Reconciliation
+      if (targetPo.paidAmount > 0) {
+        const priorBills = await Bill.find({ poId: targetPo._id.toString() });
+        const totalPriorAdjusted = priorBills.reduce((acc, b) => acc + (b.advanceAdjusted || 0), 0);
+        const remainingAdvance = Math.max(0, targetPo.paidAmount - totalPriorAdjusted);
+        advanceToApply = remainingAdvance;
       }
     }
 
@@ -604,10 +705,21 @@ erpRouter.post('/bills', async (req: Request, res: Response) => {
     const numShipping = Math.max(0, Number(shippingCharge) || 0);
     const taxResult = calculateDocumentTaxes(items, vendorState || 'Tamil Nadu', vendorGstin, numShipping);
 
+    const actualAdvanceAdjusted = Math.min(advanceToApply, taxResult.grandTotal);
+    const initialOutstanding = Math.max(0, taxResult.grandTotal - actualAdvanceAdjusted);
+    const initialPaymentStatus = initialOutstanding === 0 ? 'PAID' : 'UNPAID';
+
+    // Format line items with store movement tracking
+    const preparedItems = taxResult.items.map((it: any) => ({
+      ...it,
+      movedToStoreQuantity: 0,
+      remainingToMoveQuantity: it.quantity,
+    }));
+
     const bill = await Bill.create({
       ...req.body,
       billNumber,
-      items: taxResult.items,
+      items: preparedItems,
       subtotal: taxResult.subtotal,
       shippingCharge: taxResult.shippingCharge,
       shippingTax: taxResult.shippingTax,
@@ -617,11 +729,17 @@ erpRouter.post('/bills', async (req: Request, res: Response) => {
       igstAmount: taxResult.igstAmount,
       taxAmount: taxResult.totalTax,
       totalAmount: taxResult.grandTotal,
+      paidAmount: 0,
+      outstandingAmount: initialOutstanding,
+      advanceAdjusted: actualAdvanceAdjusted,
+      paymentStatus: initialPaymentStatus,
+      storeMovementStatus: 'NOT_MOVED',
       totalInWords: taxResult.totalInWords,
+      status: initialPaymentStatus === 'PAID' ? 'Paid' : 'Pending',
     });
 
-    if (poId) {
-      await PurchaseOrder.findByIdAndUpdate(poId, { status: 'Billed' });
+    if (targetPo) {
+      await targetPo.save();
     }
 
     logAuditAction(req, {
@@ -646,6 +764,19 @@ erpRouter.patch('/bills/:id', async (req: Request, res: Response) => {
     const prevBill = await Bill.findById(req.params.id);
     if (!prevBill) return res.status(404).json({ error: 'Bill not found' });
 
+    // Document Edit Lock Rules
+    if (prevBill.paidAmount > 0) {
+      return res.status(422).json({
+        error: 'This Bill cannot be edited because a payment has already been recorded.',
+      });
+    }
+
+    if (prevBill.storeMovementStatus && prevBill.storeMovementStatus !== 'NOT_MOVED') {
+      return res.status(422).json({
+        error: 'This Bill cannot be edited because stock has already been moved to Store.',
+      });
+    }
+
     const updated = await Bill.findByIdAndUpdate(req.params.id, req.body, { new: true });
     if (!updated) return res.status(404).json({ error: 'Bill not found' });
 
@@ -664,6 +795,262 @@ erpRouter.patch('/bills/:id', async (req: Request, res: Response) => {
     res.json({ ...updated.toObject(), id: updated._id.toString() });
   } catch (err: any) {
     res.status(400).json({ error: err.message });
+  }
+});
+
+/**
+ * POST /api/erp/bills/:id/move-to-store
+ * Move stock from vendor bill to store inventory with atomic transaction and auto-reorder trigger
+ */
+erpRouter.post('/bills/:id/move-to-store', async (req: Request, res: Response) => {
+  const session = await mongoose.startSession();
+  session.startTransaction();
+
+  try {
+    const {
+      lineIndex = 0,
+      productId,
+      quantity,
+      hasExpiry = false,
+      expiryDate = '',
+      warehouse = 'Chennai Central Warehouse',
+      binLocation = 'A1-BIN',
+      batchNumber,
+    } = req.body;
+
+    const moveQty = Number(quantity);
+    if (!moveQty || moveQty <= 0) {
+      await session.abortTransaction();
+      session.endSession();
+      return res.status(400).json({ error: 'Quantity to move must be greater than 0.' });
+    }
+
+    const bill = await Bill.findById(req.params.id).session(session);
+    if (!bill) {
+      await session.abortTransaction();
+      session.endSession();
+      return res.status(404).json({ error: 'Bill not found' });
+    }
+
+    const line = bill.items[lineIndex] || bill.items.find((i: any) => i.productId === productId);
+    if (!line) {
+      await session.abortTransaction();
+      session.endSession();
+      return res.status(404).json({ error: 'Line item not found on this Bill.' });
+    }
+
+    const currentMoved = line.movedToStoreQuantity || 0;
+    const remainingToMove =
+      line.remainingToMoveQuantity !== undefined
+        ? line.remainingToMoveQuantity
+        : Math.max(0, line.quantity - currentMoved);
+
+    if (moveQty > remainingToMove) {
+      await session.abortTransaction();
+      session.endSession();
+      return res.status(422).json({
+        error: `Cannot move ${moveQty} units. Maximum remaining quantity eligible for store movement is ${remainingToMove} units.`,
+      });
+    }
+
+    const movementDate = new Date().toISOString().split('T')[0];
+
+    // Expiry validation: Must be >= movementDate + 5 days
+    if (hasExpiry) {
+      if (!expiryDate) {
+        await session.abortTransaction();
+        session.endSession();
+        return res.status(400).json({ error: 'Expiry date is mandatory when Has Expiry is selected.' });
+      }
+
+      const moveDateObj = new Date(movementDate);
+      const minValidExpiry = new Date(moveDateObj.getTime() + 5 * 24 * 60 * 60 * 1000);
+      const chosenExpiry = new Date(expiryDate);
+
+      if (chosenExpiry < minValidExpiry) {
+        await session.abortTransaction();
+        session.endSession();
+        return res.status(422).json({
+          error: `Expiry date (${expiryDate}) must be at least 5 days after the store movement date (${movementDate}). Minimum valid expiry date is ${minValidExpiry.toISOString().split('T')[0]}.`,
+        });
+      }
+    }
+
+    // Check prior movement on this bill line for batch / expiry reuse
+    const prevMovement = await StockMovement.findOne({
+      billId: bill._id.toString(),
+      productId: line.productId || productId,
+    }).session(session);
+
+    const effectiveBatch =
+      batchNumber ||
+      (prevMovement ? prevMovement.batchNumber : `BATCH-${Date.now().toString().slice(-6)}`);
+    const effectiveExpiry =
+      prevMovement && prevMovement.hasExpiry ? prevMovement.expiryDate : expiryDate;
+    const effectiveHasExpiry = prevMovement ? prevMovement.hasExpiry : hasExpiry;
+
+    // 1. Create StockMovement
+    const movementCount = (await StockMovement.countDocuments().session(session)) + 1;
+    const movementNumber = `MOV-${Date.now().toString().slice(-4)}-${movementCount}`;
+
+    const stockMovement = new StockMovement({
+      movementNumber,
+      movementDate,
+      billId: bill._id.toString(),
+      billNumber: bill.billNumber,
+      productId: line.productId || productId,
+      productName: line.productName,
+      sku: line.sku || 'SKU-GEN',
+      quantity: moveQty,
+      uom: line.uom || 'Nos',
+      warehouse,
+      binLocation,
+      hasExpiry: effectiveHasExpiry,
+      expiryDate: effectiveExpiry,
+      batchNumber: effectiveBatch,
+      branchId: bill.branchId,
+      organisationId: bill.organisationId,
+      createdBy: (req.user as any)?.name || 'System',
+    });
+    await stockMovement.save({ session });
+
+    // 2. Update line item moved quantities
+    line.movedToStoreQuantity = currentMoved + moveQty;
+    line.remainingToMoveQuantity = Math.max(0, line.quantity - line.movedToStoreQuantity);
+
+    // 3. Update Bill storeMovementStatus
+    const allFullyMoved = bill.items.every(
+      (i: any) => (i.remainingToMoveQuantity !== undefined ? i.remainingToMoveQuantity : (i.quantity - (i.movedToStoreQuantity || 0))) <= 0
+    );
+    bill.storeMovementStatus = allFullyMoved ? 'FULLY_MOVED' : 'PARTIALLY_MOVED';
+    await bill.save({ session });
+
+    // 4. Update StoreItem stock
+    let storeItem = await StoreItem.findOne({
+      productId: line.productId || productId,
+      organisationId: bill.organisationId,
+    }).session(session);
+
+    if (storeItem) {
+      storeItem.availableStock += moveQty;
+      storeItem.status = storeItem.availableStock <= storeItem.minLevel ? 'Low Stock' : 'In Stock';
+      storeItem.lastAudited = movementDate;
+      await storeItem.save({ session });
+    } else {
+      storeItem = new StoreItem({
+        productId: line.productId || productId,
+        productName: line.productName,
+        sku: line.sku || 'SKU-STORE',
+        warehouse,
+        binLocation,
+        availableStock: moveQty,
+        minLevel: 10,
+        maxLevel: 100,
+        lastAudited: movementDate,
+        status: moveQty <= 10 ? 'Low Stock' : 'In Stock',
+        branchId: bill.branchId,
+        organisationId: bill.organisationId,
+      });
+      await storeItem.save({ session });
+    }
+
+    // 5. Update Product Master currentStock
+    if (line.productId) {
+      const prod = await Product.findById(line.productId).session(session);
+      if (prod) {
+        prod.currentStock = (prod.currentStock || 0) + moveQty;
+        await prod.save({ session });
+
+        // Auto-reorder trigger check:
+        if (prod.currentStock <= (prod.minReorderLevel || 10)) {
+          const existingAutoPo = await PurchaseOrder.findOne({
+            'items.productId': prod._id.toString(),
+            organisationId: bill.organisationId,
+            status: { $in: ['AUTO_REORDER_PENDING', 'APPROVED'] },
+          }).session(session);
+
+          if (!existingAutoPo) {
+            const autoCount = (await PurchaseOrder.countDocuments().session(session)) + 50;
+            const autoPoNumber = `PO-AUTO-${Date.now().toString().slice(-4)}-${autoCount}`;
+            const reorderQty = (prod.minReorderLevel || 10) * 2;
+            const subtotal = reorderQty * (prod.purchaseCost || prod.sellingPrice || 1000);
+            const gstRate = prod.taxRate || 18;
+            const taxAmount = (subtotal * gstRate) / 100;
+            const totalAmount = subtotal + taxAmount;
+
+            const autoPo = new PurchaseOrder({
+              poNumber: autoPoNumber,
+              vendorId: bill.vendorId,
+              vendorName: bill.vendorName,
+              vendorGstin: bill.vendorGstin || '33AAACB4146P1ZL',
+              vendorAddress: bill.billingAddress,
+              vendorState: bill.vendorState || 'Tamil Nadu',
+              billingAddress: bill.billingAddress,
+              shippingAddress: bill.shippingAddress,
+              poDate: movementDate,
+              expectedDate: new Date(Date.now() + 14 * 24 * 60 * 60 * 1000).toISOString().split('T')[0],
+              branchId: bill.branchId,
+              organisationId: bill.organisationId,
+              financialYear: bill.financialYear,
+              items: [
+                {
+                  productId: prod._id.toString(),
+                  productName: prod.name,
+                  sku: prod.sku,
+                  hsnCode: prod.hsnCode,
+                  quantity: reorderQty,
+                  orderedQuantity: reorderQty,
+                  billedQuantity: 0,
+                  remainingQuantity: reorderQty,
+                  unitPrice: prod.purchaseCost || prod.sellingPrice || 1000,
+                  taxRate: gstRate,
+                  taxableAmount: subtotal,
+                  cgstAmount: taxAmount / 2,
+                  sgstAmount: taxAmount / 2,
+                  igstAmount: 0,
+                  totalTax: taxAmount,
+                  totalAmount,
+                  uom: prod.uom || 'Nos',
+                },
+              ],
+              subtotal,
+              shippingCharge: 0,
+              shippingTax: 0,
+              taxableAmount: subtotal,
+              totalDiscount: 0,
+              cgstAmount: taxAmount / 2,
+              sgstAmount: taxAmount / 2,
+              igstAmount: 0,
+              taxAmount,
+              totalAmount,
+              paidAmount: 0,
+              outstandingAmount: totalAmount,
+              paymentStatus: 'UNPAID',
+              totalInWords: `${totalAmount} Rupees Only`,
+              status: 'AUTO_REORDER_PENDING',
+              isAutoReorder: true,
+            });
+            await autoPo.save({ session });
+          }
+        }
+      }
+    }
+
+    await session.commitTransaction();
+    session.endSession();
+
+    return res.status(200).json({
+      message: 'Stock successfully moved to Store.',
+      data: {
+        bill,
+        movement: stockMovement,
+        storeItem,
+      },
+    });
+  } catch (err: any) {
+    await session.abortTransaction();
+    session.endSession();
+    return res.status(500).json({ error: err.message });
   }
 });
 
@@ -743,6 +1130,11 @@ erpRouter.post('/invoices', async (req: Request, res: Response) => {
         if (!prod) {
           return res.status(400).json({ error: `Product not found for item "${it.productName}".` });
         }
+        if (prod.status === 'INACTIVE') {
+          return res.status(422).json({
+            error: `Product "${prod.name}" is inactive and cannot be selected for new transactions.`,
+          });
+        }
         if (prod.approvalStatus !== 'Approved') {
           return res.status(400).json({
             error: `Product "${prod.name}" is not approved. Only Super Admin approved products can be invoiced.`,
@@ -780,6 +1172,9 @@ erpRouter.post('/invoices', async (req: Request, res: Response) => {
       igstAmount: taxResult.igstAmount,
       taxAmount: taxResult.totalTax,
       totalAmount: taxResult.grandTotal,
+      paidAmount: 0,
+      outstandingAmount: taxResult.grandTotal,
+      paymentStatus: 'UNPAID',
       totalInWords: taxResult.totalInWords,
     });
 
@@ -814,6 +1209,13 @@ erpRouter.patch('/invoices/:id', async (req: Request, res: Response) => {
   try {
     const prevInvoice = await Invoice.findById(req.params.id);
     if (!prevInvoice) return res.status(404).json({ error: 'Invoice not found' });
+
+    // Document Edit Lock: If payment recorded, reject editing
+    if (prevInvoice.paidAmount > 0) {
+      return res.status(422).json({
+        error: 'This Invoice cannot be edited because a payment has already been recorded.',
+      });
+    }
 
     const updated = await Invoice.findByIdAndUpdate(req.params.id, req.body, { new: true });
     if (!updated) return res.status(404).json({ error: 'Invoice not found' });
@@ -911,6 +1313,11 @@ erpRouter.post('/purchase-orders', async (req: Request, res: Response) => {
         if (!prod) {
           return res.status(400).json({ error: `Product not found for item "${it.productName}".` });
         }
+        if (prod.status === 'INACTIVE') {
+          return res.status(422).json({
+            error: `Product "${prod.name}" is inactive and cannot be selected for new transactions.`,
+          });
+        }
         if (prod.approvalStatus !== 'Approved') {
           return res.status(400).json({
             error: `Product "${prod.name}" is not approved. Only Super Admin approved products can be purchased.`,
@@ -931,10 +1338,18 @@ erpRouter.post('/purchase-orders', async (req: Request, res: Response) => {
     const numShipping = Math.max(0, Number(shippingCharge) || 0);
     const taxResult = calculateDocumentTaxes(items, vendorState || 'Tamil Nadu', vendorGstin, numShipping);
 
+    // Initialize line item quantities for conversion tracking
+    const preparedItems = taxResult.items.map((it: any) => ({
+      ...it,
+      orderedQuantity: it.quantity,
+      billedQuantity: 0,
+      remainingQuantity: it.quantity,
+    }));
+
     const po = await PurchaseOrder.create({
       ...req.body,
       poNumber,
-      items: taxResult.items,
+      items: preparedItems,
       subtotal: taxResult.subtotal,
       shippingCharge: taxResult.shippingCharge,
       shippingTax: taxResult.shippingTax,
@@ -945,6 +1360,10 @@ erpRouter.post('/purchase-orders', async (req: Request, res: Response) => {
       igstAmount: taxResult.igstAmount,
       taxAmount: taxResult.totalTax,
       totalAmount: taxResult.grandTotal,
+      paidAmount: 0,
+      outstandingAmount: taxResult.grandTotal,
+      paymentStatus: 'UNPAID',
+      status: 'APPROVED',
       totalInWords: taxResult.totalInWords,
     });
 
@@ -970,6 +1389,19 @@ erpRouter.patch('/purchase-orders/:id', async (req: Request, res: Response) => {
     const prevPo = await PurchaseOrder.findById(req.params.id);
     if (!prevPo) return res.status(404).json({ error: 'Purchase Order not found' });
 
+    // Document Edit Lock Rules
+    if (prevPo.status === 'PARTIALLY_BILLED' || prevPo.status === 'FULLY_BILLED') {
+      return res.status(422).json({
+        error: 'This Purchase Order cannot be edited because it has already been converted to a Bill.',
+      });
+    }
+
+    if (prevPo.paidAmount > 0) {
+      return res.status(422).json({
+        error: 'This Purchase Order cannot be edited because a payment/vendor advance has already been recorded.',
+      });
+    }
+
     const updated = await PurchaseOrder.findByIdAndUpdate(req.params.id, req.body, { new: true });
     if (!updated) return res.status(404).json({ error: 'Purchase Order not found' });
 
@@ -988,6 +1420,45 @@ erpRouter.patch('/purchase-orders/:id', async (req: Request, res: Response) => {
     res.json({ ...updated.toObject(), id: updated._id.toString() });
   } catch (err: any) {
     res.status(400).json({ error: err.message });
+  }
+});
+
+/**
+ * POST /api/erp/purchase-orders/:id/approve-reorder
+ * Super Admin approval for system-generated auto-reorder POs
+ */
+erpRouter.post('/purchase-orders/:id/approve-reorder', async (req: Request, res: Response) => {
+  try {
+    const userRole = (req.user?.role || (req.headers['x-demo-role'] as string) || '').toLowerCase();
+    if (!userRole.includes('superadmin') && !userRole.includes('owner')) {
+      return res.status(403).json({ error: 'Only Super Admin can approve automatic reorder Purchase Orders.' });
+    }
+
+    const po = await PurchaseOrder.findById(req.params.id);
+    if (!po) return res.status(404).json({ error: 'Purchase Order not found' });
+
+    if (po.status !== 'AUTO_REORDER_PENDING') {
+      return res.status(400).json({ error: `Purchase Order is not in AUTO_REORDER_PENDING status (current: ${po.status}).` });
+    }
+
+    po.status = 'APPROVED';
+    await po.save();
+
+    logAuditAction(req, {
+      action: 'UPDATE',
+      entityType: 'Purchase Order',
+      entityId: po._id.toString(),
+      entityIdentifier: `${po.poNumber} (AUTO_REORDER_APPROVED)`,
+      previousData: { status: 'AUTO_REORDER_PENDING' },
+      newData: { status: 'APPROVED' },
+      organisationId: po.organisationId,
+      branchId: po.branchId,
+      financialYear: po.financialYear,
+    });
+
+    return res.json({ message: 'Auto-reorder Purchase Order approved successfully.', data: po });
+  } catch (err: any) {
+    return res.status(500).json({ error: err.message });
   }
 });
 
@@ -1106,6 +1577,42 @@ erpRouter.patch('/products/:id/reject', async (req: Request, res: Response) => {
       previousData: prevProduct,
       newData: updated,
       changedFields: ['approvalStatus', 'approvedBy', 'approvedAt'],
+      organisationId: updated.organisationId,
+      branchId: updated.branchId,
+    });
+
+    res.json({ ...updated.toObject(), id: updated._id.toString() });
+  } catch (err: any) {
+    res.status(400).json({ error: err.message });
+  }
+});
+
+erpRouter.patch('/products/:id/status', async (req: Request, res: Response) => {
+  try {
+    const { id } = req.params;
+    const { status } = req.body;
+    if (!status || !['ACTIVE', 'INACTIVE'].includes(status)) {
+      return res.status(400).json({ error: 'Status must be either ACTIVE or INACTIVE' });
+    }
+
+    const prevProduct = await Product.findById(id);
+    if (!prevProduct) return res.status(404).json({ error: 'Product not found' });
+
+    const updated = await Product.findByIdAndUpdate(
+      id,
+      { status },
+      { new: true }
+    );
+    if (!updated) return res.status(404).json({ error: 'Product not found' });
+
+    logAuditAction(req, {
+      action: 'UPDATE',
+      entityType: 'Product',
+      entityId: updated._id.toString(),
+      entityIdentifier: updated.sku,
+      previousData: prevProduct,
+      newData: updated,
+      changedFields: ['status'],
       organisationId: updated.organisationId,
       branchId: updated.branchId,
     });
