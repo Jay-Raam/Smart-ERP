@@ -462,7 +462,10 @@ export const useErpStore = create<ErpState>((set, get) => ({
           branchId: get().activeBranchId || localStorage.getItem('Branch'),
         }),
       });
-      if (!res.ok) throw new Error('Failed to create customer');
+      if (!res.ok) {
+        const errJson = await res.json().catch(() => ({}));
+        throw new Error(errJson.error || 'Failed to create customer');
+      }
       const created = await res.json();
       set((state) => ({ customers: [created, ...state.customers] }));
       showAppToast(`Customer ${created.name} registered`, 'success');
