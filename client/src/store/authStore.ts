@@ -37,6 +37,7 @@ interface AuthState {
   user: UserSession;
   currentTenant: TenantConfig;
   switchTenant: (id: string) => void;
+  checkSession: () => boolean;
   loginWithCredentials: (
     identifier: string,
     password: string
@@ -54,28 +55,42 @@ interface AuthState {
   setBranch: (branchId: string, branchName: string) => void;
 }
 
-// Check initial session from cookies or localStorage
-const savedToken = cookieUtils.get('authToken') || localStorage.getItem('token');
-const savedUser = localStorage.getItem('userName') || 'Jay Raam';
-const savedRole = (localStorage.getItem('userType') as UserRole) || 'SuperAdmin';
-const savedBranchId = localStorage.getItem('Branch') || '6aa641dd0aaf856b62c3b7dd';
-const savedBranchName = localStorage.getItem('BranchName') || 'Chennai Central HQ & Assembly Plant';
+// Ensure secret token is NEVER stored in localStorage
+localStorage.removeItem('token');
+
+// Strictly verify session from cookies (if cookie deleted, user is unauthenticated)
+const savedCookieToken = cookieUtils.get('authToken');
+
+const savedUser = savedCookieToken ? localStorage.getItem('userName') || 'Jay Raam' : '';
+const savedRole = savedCookieToken ? (localStorage.getItem('userType') as UserRole) || 'SuperAdmin' : 'Viewer';
+const savedBranchId = savedCookieToken ? localStorage.getItem('Branch') || '6aa641dd0aaf856b62c3b7dd' : '';
+const savedBranchName = savedCookieToken ? localStorage.getItem('BranchName') || 'Chennai Central HQ & Assembly Plant' : '';
 
 export const useAuthStore = create<AuthState>((set, get) => ({
-  isAuthenticated: !!savedToken,
-  token: savedToken || null,
+  isAuthenticated: !!savedCookieToken,
+  token: savedCookieToken || null,
   currentTenant: AVAILABLE_TENANTS[0],
   switchTenant: (id: string) => {
     const t = AVAILABLE_TENANTS.find((x) => x.id === id) || AVAILABLE_TENANTS[0];
     set({ currentTenant: t });
     showAppToast(`Switched schema to ${t.schemaName}`, 'info');
   },
+  checkSession: () => {
+    const token = cookieUtils.get('authToken');
+    if (!token) {
+      if (get().isAuthenticated) {
+        get().logout();
+      }
+      return false;
+    }
+    return true;
+  },
   user: {
-    userId: localStorage.getItem('UserID') || '6aa641dd0aaf856b62c3b7e1',
+    userId: savedCookieToken ? localStorage.getItem('UserID') || '6aa641dd0aaf856b62c3b7e1' : '',
     userName: savedUser,
-    email: localStorage.getItem('userEmail') || 'jay.raam@smart.com',
+    email: savedCookieToken ? localStorage.getItem('userEmail') || 'jay.raam@smart.com' : '',
     role: savedRole,
-    organisationId: localStorage.getItem('OrganizationId') || '6aa641dd0aaf856b62c3b7da',
+    organisationId: savedCookieToken ? localStorage.getItem('OrganizationId') || '6aa641dd0aaf856b62c3b7da' : '',
     organisationName: 'Smart Enterprise Industries Ltd.',
     branchId: savedBranchId,
     branchName: savedBranchName,
@@ -99,9 +114,10 @@ export const useAuthStore = create<AuthState>((set, get) => ({
       }
 
       const token = data.token;
+      // Secret token is saved ONLY in cookies (NEVER in localStorage)
       cookieUtils.set('authToken', token, 7);
 
-      localStorage.setItem('token', token);
+      // Non-sensitive harmless operational context saved in localStorage for user convenience
       localStorage.setItem('UserID', data.user.userId);
       localStorage.setItem('userName', data.user.userName);
       localStorage.setItem('userEmail', data.user.email);
@@ -138,9 +154,10 @@ export const useAuthStore = create<AuthState>((set, get) => ({
 
   login: (data) => {
     const token = `jwt_token_${Date.now()}_${Math.random().toString(36).slice(2, 8)}`;
+    // Secret token is saved ONLY in cookies (NEVER in localStorage)
     cookieUtils.set('authToken', token, 7);
 
-    localStorage.setItem('token', token);
+    // Non-sensitive harmless profile metadata in localStorage
     localStorage.setItem('UserID', '6aa641dd0aaf856b62c3b7e1');
     localStorage.setItem('userName', data.userName || 'Jay Raam');
     localStorage.setItem('userEmail', data.email);
@@ -170,15 +187,22 @@ export const useAuthStore = create<AuthState>((set, get) => ({
   logout: () => {
     cookieUtils.remove('authToken');
     localStorage.removeItem('token');
-    localStorage.removeItem('UserID');
-    localStorage.removeItem('userName');
-    localStorage.removeItem('userType');
-    localStorage.removeItem('OrganizationId');
-    localStorage.removeItem('Branch');
+    fetch('/api/erp/auth/logout', { method: 'POST' }).catch(() => {});
 
     set({
       isAuthenticated: false,
       token: null,
+      user: {
+        userId: '',
+        userName: '',
+        email: '',
+        role: 'Viewer',
+        organisationId: '',
+        organisationName: 'Smart Enterprise Industries Ltd.',
+        branchId: '',
+        branchName: '',
+        permissions: [],
+      },
     });
 
     showAppToast('You have been logged out safely.', 'info');

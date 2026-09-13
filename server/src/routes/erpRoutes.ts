@@ -11,7 +11,7 @@ import {
   DeliveryChallan,
   UserAccount,
 } from '../models/ErpModels';
-import { generateTokens } from '../security/auth';
+import { generateTokens, verifyAccessToken } from '../security/auth';
 
 export const erpRouter = Router();
 
@@ -75,6 +75,51 @@ erpRouter.post('/auth/login', async (req: Request, res: Response) => {
   } catch (err: any) {
     return res.status(500).json({ error: err.message });
   }
+});
+
+erpRouter.get('/auth/me', async (req: Request, res: Response) => {
+  try {
+    const token =
+      req.cookies?.authToken ||
+      (req.headers.authorization?.startsWith('Bearer ')
+        ? req.headers.authorization.substring(7)
+        : null);
+
+    if (!token) {
+      return res.status(401).json({ error: 'No active session cookie' });
+    }
+
+    const decoded = verifyAccessToken(token);
+    if (!decoded) {
+      return res.status(401).json({ error: 'Invalid or expired session token' });
+    }
+
+    const user = await UserAccount.findById(decoded.userId);
+    if (!user) {
+      return res.status(404).json({ error: 'User account not found' });
+    }
+
+    return res.json({
+      success: true,
+      user: {
+        userId: user._id.toString(),
+        userName: user.name,
+        email: user.email,
+        mobile: user.mobile,
+        role: user.role,
+        branchId: user.branchId,
+        branchName: user.branchName,
+        organisationId: user.organisationId,
+      },
+    });
+  } catch (err: any) {
+    return res.status(500).json({ error: err.message });
+  }
+});
+
+erpRouter.post('/auth/logout', (req: Request, res: Response) => {
+  res.clearCookie('authToken', { path: '/' });
+  return res.json({ success: true, message: 'Logged out successfully' });
 });
 
 // ==========================================

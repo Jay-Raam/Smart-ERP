@@ -20,7 +20,7 @@ import { DeliveryModule } from './components/modules/DeliveryModule';
 import { BranchModule } from './components/modules/BranchModule';
 
 export function App() {
-  const { isAuthenticated } = useAuthStore();
+  const { isAuthenticated, checkSession, logout } = useAuthStore();
   const { fetchBootstrap, isInitialized, isLoading } = useErpStore();
   const [activeModule, setActiveModule] = useState<ModuleType>('dashboard');
   const [isSidebarCollapsed, setIsSidebarCollapsed] = useState(false);
@@ -28,6 +28,27 @@ export function App() {
   const [isNotificationsOpen, setIsNotificationsOpen] = useState(false);
   const [isProfileOpen, setIsProfileOpen] = useState(false);
   const [quickAddType, setQuickAddType] = useState<string | null>(null);
+
+  // Strictly bind authentication to the presence of the authToken cookie
+  useEffect(() => {
+    const verifyCookiePresence = () => {
+      const hasCookie = checkSession();
+      if (!hasCookie && isAuthenticated) {
+        logout();
+      }
+    };
+
+    verifyCookiePresence();
+    const interval = setInterval(verifyCookiePresence, 500);
+    window.addEventListener('focus', verifyCookiePresence);
+    document.addEventListener('visibilitychange', verifyCookiePresence);
+
+    return () => {
+      clearInterval(interval);
+      window.removeEventListener('focus', verifyCookiePresence);
+      document.removeEventListener('visibilitychange', verifyCookiePresence);
+    };
+  }, [isAuthenticated, checkSession, logout]);
 
   useEffect(() => {
     if (isAuthenticated && !isInitialized) {
