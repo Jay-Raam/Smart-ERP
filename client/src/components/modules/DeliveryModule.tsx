@@ -9,10 +9,12 @@ import {
   Phone,
   X,
   FileText,
+  Download,
 } from 'lucide-react';
 import { useErpStore, DeliveryChallan } from '../../store/erpStore';
 import { DataTable, ColumnDef } from '../shared/DataTable';
 import { Combobox } from '../shared/Combobox';
+import { ExportModal, ExportColumn } from '../shared/ExportModal';
 
 interface DeliveryModuleProps {
   initialOpenAdd?: boolean;
@@ -24,6 +26,20 @@ export const DeliveryModule: React.FC<DeliveryModuleProps> = ({ initialOpenAdd =
   const [statusFilter, setStatusFilter] = useState('All');
   const [isAddModalOpen, setIsAddModalOpen] = useState(initialOpenAdd);
   const [viewDc, setViewDc] = useState<DeliveryChallan | null>(null);
+  const [isExportModalOpen, setIsExportModalOpen] = useState(false);
+
+  const exportColumns: ExportColumn<DeliveryChallan>[] = [
+    { key: 'dcNumber', label: 'Challan No' },
+    { key: 'dispatchDate', label: 'Dispatch Date' },
+    { key: 'invoiceNumber', label: 'Invoice No' },
+    { key: 'customerName', label: 'Customer Name' },
+    { key: 'transportMode', label: 'Transport Mode' },
+    { key: 'vehicleNumber', label: 'Vehicle Number' },
+    { key: 'ewayBillNumber', label: 'E-Way Bill No' },
+    { key: 'driverName', label: 'Driver Name' },
+    { key: 'driverPhone', label: 'Driver Phone' },
+    { key: 'status', label: 'Status' },
+  ];
 
   // Form State
   const [selectedInvoiceId, setSelectedInvoiceId] = useState(invoices[0]?.id || '');
@@ -154,13 +170,23 @@ export const DeliveryModule: React.FC<DeliveryModuleProps> = ({ initialOpenAdd =
           </p>
         </div>
 
-        <button
-          onClick={() => setIsAddModalOpen(true)}
-          className="flex items-center gap-1.5 rounded-lg bg-blue-600 px-3.5 py-2 text-xs font-semibold text-white hover:bg-blue-700 transition shadow-xs self-start"
-        >
-          <Plus className="h-4 w-4" />
-          <span>New Delivery Challan</span>
-        </button>
+        <div className="flex items-center gap-2 self-start">
+          <button
+            type="button"
+            onClick={() => setIsExportModalOpen(true)}
+            className="flex items-center gap-1.5 rounded-xl border border-slate-300 bg-white px-3.5 py-2 text-xs font-semibold text-slate-700 hover:bg-slate-50 transition shadow-xs cursor-pointer"
+          >
+            <Download className="h-4 w-4 text-slate-500" />
+            <span>Export</span>
+          </button>
+          <button
+            onClick={() => setIsAddModalOpen(true)}
+            className="flex items-center gap-1.5 rounded-xl bg-blue-600 px-3.5 py-2 text-xs font-semibold text-white hover:bg-blue-700 transition shadow-xs cursor-pointer"
+          >
+            <Plus className="h-4 w-4" />
+            <span>New Delivery Challan</span>
+          </button>
+        </div>
       </div>
 
       {/* Modern Smart ERP DataTable */}
@@ -284,6 +310,19 @@ export const DeliveryModule: React.FC<DeliveryModuleProps> = ({ initialOpenAdd =
           </div>
         </div>
       )}
+
+      {/* Reusable Export Modal */}
+      <ExportModal<DeliveryChallan>
+        show={isExportModalOpen}
+        onClose={() => setIsExportModalOpen(false)}
+        title="Export Delivery Challans"
+        filenamePrefix="Delivery-Challans"
+        columns={exportColumns}
+        data={deliveryChallans}
+        dateField="dispatchDate"
+        statusField="status"
+        statusOptions={statusOptions}
+      />
     </div>
   );
 };

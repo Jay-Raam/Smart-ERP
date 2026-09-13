@@ -13,12 +13,18 @@ import {
   StoreItem,
   DeliveryChallan,
   UserAccount,
+  AuditHistory,
 } from '../models/ErpModels';
 import { generateTokens, verifyAccessToken } from '../security/auth';
 import { calculateDocumentTaxes } from '../utils/taxCalculation';
 import { validateGSTIN, validateQuantity, validateCreditLimit } from '../utils/validation';
+import { logAuditAction } from '../utils/auditLogger';
+import { reportsRouter } from './reportsRoutes';
 
 export const erpRouter = Router();
+
+// Mount Super Admin Reports Router
+erpRouter.use('/reports', reportsRouter);
 
 // ==========================================
 // 1. AUTHENTICATION (EMAIL OR MOBILE + PASSWORD)
@@ -618,6 +624,17 @@ erpRouter.post('/bills', async (req: Request, res: Response) => {
       await PurchaseOrder.findByIdAndUpdate(poId, { status: 'Billed' });
     }
 
+    logAuditAction(req, {
+      action: 'CREATE',
+      entityType: 'Bill',
+      entityId: bill._id.toString(),
+      entityIdentifier: bill.billNumber,
+      newData: bill,
+      organisationId: bill.organisationId,
+      branchId: bill.branchId,
+      financialYear: bill.financialYear,
+    });
+
     res.status(201).json({ ...bill.toObject(), id: bill._id.toString() });
   } catch (err: any) {
     res.status(400).json({ error: err.message });
@@ -626,8 +643,24 @@ erpRouter.post('/bills', async (req: Request, res: Response) => {
 
 erpRouter.patch('/bills/:id', async (req: Request, res: Response) => {
   try {
+    const prevBill = await Bill.findById(req.params.id);
+    if (!prevBill) return res.status(404).json({ error: 'Bill not found' });
+
     const updated = await Bill.findByIdAndUpdate(req.params.id, req.body, { new: true });
     if (!updated) return res.status(404).json({ error: 'Bill not found' });
+
+    logAuditAction(req, {
+      action: 'UPDATE',
+      entityType: 'Bill',
+      entityId: updated._id.toString(),
+      entityIdentifier: updated.billNumber,
+      previousData: prevBill,
+      newData: updated,
+      organisationId: updated.organisationId,
+      branchId: updated.branchId,
+      financialYear: updated.financialYear,
+    });
+
     res.json({ ...updated.toObject(), id: updated._id.toString() });
   } catch (err: any) {
     res.status(400).json({ error: err.message });
@@ -749,7 +782,55 @@ erpRouter.post('/invoices', async (req: Request, res: Response) => {
       totalAmount: taxResult.grandTotal,
       totalInWords: taxResult.totalInWords,
     });
+
+    logAuditAction(req, {
+      action: 'CREATE',
+      entityType: 'Tax Invoice',
+      entityId: invoice._id.toString(),
+      entityIdentifier: invoice.invoiceNumber,
+      newData: invoice,
+      organisationId: invoice.organisationId,
+      branchId: invoice.branchId,
+      financialYear: invoice.financialYear,
+    });
+
     res.status(201).json({ ...invoice.toObject(), id: invoice._id.toString() });
+  } catch (err: any) {
+    res.status(400).json({ error: err.message });
+  }
+});
+
+erpRouter.get('/invoices/:id', async (req: Request, res: Response) => {
+  try {
+    const invoice = await Invoice.findById(req.params.id);
+    if (!invoice) return res.status(404).json({ error: 'Invoice not found' });
+    res.json({ ...invoice.toObject(), id: invoice._id.toString() });
+  } catch (err: any) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+erpRouter.patch('/invoices/:id', async (req: Request, res: Response) => {
+  try {
+    const prevInvoice = await Invoice.findById(req.params.id);
+    if (!prevInvoice) return res.status(404).json({ error: 'Invoice not found' });
+
+    const updated = await Invoice.findByIdAndUpdate(req.params.id, req.body, { new: true });
+    if (!updated) return res.status(404).json({ error: 'Invoice not found' });
+
+    logAuditAction(req, {
+      action: 'UPDATE',
+      entityType: 'Tax Invoice',
+      entityId: updated._id.toString(),
+      entityIdentifier: updated.invoiceNumber,
+      previousData: prevInvoice,
+      newData: updated,
+      organisationId: updated.organisationId,
+      branchId: updated.branchId,
+      financialYear: updated.financialYear,
+    });
+
+    res.json({ ...updated.toObject(), id: updated._id.toString() });
   } catch (err: any) {
     res.status(400).json({ error: err.message });
   }
@@ -866,7 +947,45 @@ erpRouter.post('/purchase-orders', async (req: Request, res: Response) => {
       totalAmount: taxResult.grandTotal,
       totalInWords: taxResult.totalInWords,
     });
+
+    logAuditAction(req, {
+      action: 'CREATE',
+      entityType: 'Purchase Order',
+      entityId: po._id.toString(),
+      entityIdentifier: po.poNumber,
+      newData: po,
+      organisationId: po.organisationId,
+      branchId: po.branchId,
+      financialYear: po.financialYear,
+    });
+
     res.status(201).json({ ...po.toObject(), id: po._id.toString() });
+  } catch (err: any) {
+    res.status(400).json({ error: err.message });
+  }
+});
+
+erpRouter.patch('/purchase-orders/:id', async (req: Request, res: Response) => {
+  try {
+    const prevPo = await PurchaseOrder.findById(req.params.id);
+    if (!prevPo) return res.status(404).json({ error: 'Purchase Order not found' });
+
+    const updated = await PurchaseOrder.findByIdAndUpdate(req.params.id, req.body, { new: true });
+    if (!updated) return res.status(404).json({ error: 'Purchase Order not found' });
+
+    logAuditAction(req, {
+      action: 'UPDATE',
+      entityType: 'Purchase Order',
+      entityId: updated._id.toString(),
+      entityIdentifier: updated.poNumber,
+      previousData: prevPo,
+      newData: updated,
+      organisationId: updated.organisationId,
+      branchId: updated.branchId,
+      financialYear: updated.financialYear,
+    });
+
+    res.json({ ...updated.toObject(), id: updated._id.toString() });
   } catch (err: any) {
     res.status(400).json({ error: err.message });
   }
@@ -910,6 +1029,17 @@ erpRouter.post('/products', async (req: Request, res: Response) => {
       branchId: req.body.branchId || '',
       organisationId: req.body.organisationId || '',
     });
+
+    logAuditAction(req, {
+      action: 'CREATE',
+      entityType: 'Product',
+      entityId: product._id.toString(),
+      entityIdentifier: product.sku,
+      newData: product,
+      organisationId: product.organisationId,
+      branchId: product.branchId,
+    });
+
     res.status(201).json({ ...product.toObject(), id: product._id.toString() });
   } catch (err: any) {
     res.status(400).json({ error: err.message });
@@ -919,6 +1049,9 @@ erpRouter.post('/products', async (req: Request, res: Response) => {
 erpRouter.patch('/products/:id/approve', async (req: Request, res: Response) => {
   try {
     const { id } = req.params;
+    const prevProduct = await Product.findById(id);
+    if (!prevProduct) return res.status(404).json({ error: 'Product not found' });
+
     const updated = await Product.findByIdAndUpdate(
       id,
       {
@@ -929,6 +1062,19 @@ erpRouter.patch('/products/:id/approve', async (req: Request, res: Response) => 
       { new: true }
     );
     if (!updated) return res.status(404).json({ error: 'Product not found' });
+
+    logAuditAction(req, {
+      action: 'UPDATE',
+      entityType: 'Product',
+      entityId: updated._id.toString(),
+      entityIdentifier: updated.sku,
+      previousData: prevProduct,
+      newData: updated,
+      changedFields: ['approvalStatus', 'approvedBy', 'approvedAt'],
+      organisationId: updated.organisationId,
+      branchId: updated.branchId,
+    });
+
     res.json({ ...updated.toObject(), id: updated._id.toString() });
   } catch (err: any) {
     res.status(400).json({ error: err.message });
@@ -938,6 +1084,9 @@ erpRouter.patch('/products/:id/approve', async (req: Request, res: Response) => 
 erpRouter.patch('/products/:id/reject', async (req: Request, res: Response) => {
   try {
     const { id } = req.params;
+    const prevProduct = await Product.findById(id);
+    if (!prevProduct) return res.status(404).json({ error: 'Product not found' });
+
     const updated = await Product.findByIdAndUpdate(
       id,
       {
@@ -948,6 +1097,19 @@ erpRouter.patch('/products/:id/reject', async (req: Request, res: Response) => {
       { new: true }
     );
     if (!updated) return res.status(404).json({ error: 'Product not found' });
+
+    logAuditAction(req, {
+      action: 'UPDATE',
+      entityType: 'Product',
+      entityId: updated._id.toString(),
+      entityIdentifier: updated.sku,
+      previousData: prevProduct,
+      newData: updated,
+      changedFields: ['approvalStatus', 'approvedBy', 'approvedAt'],
+      organisationId: updated.organisationId,
+      branchId: updated.branchId,
+    });
+
     res.json({ ...updated.toObject(), id: updated._id.toString() });
   } catch (err: any) {
     res.status(400).json({ error: err.message });
@@ -1023,6 +1185,17 @@ erpRouter.post('/customers', async (req: Request, res: Response) => {
       creditLimit: Number(creditLimit) || 10001,
       code,
     });
+
+    logAuditAction(req, {
+      action: 'CREATE',
+      entityType: 'Customer',
+      entityId: customer._id.toString(),
+      entityIdentifier: customer.code,
+      newData: customer,
+      organisationId: customer.organisationId,
+      branchId: customer.branchId,
+    });
+
     res.status(201).json({ ...customer.toObject(), id: customer._id.toString() });
   } catch (err: any) {
     res.status(400).json({ error: err.message });
@@ -1037,8 +1210,23 @@ erpRouter.patch('/customers/:id', async (req: Request, res: Response) => {
     if (req.body.gstin && !validateGSTIN(req.body.gstin)) {
       return res.status(400).json({ error: 'Invalid Customer GSTIN format' });
     }
+    const prevCustomer = await Customer.findById(req.params.id);
+    if (!prevCustomer) return res.status(404).json({ error: 'Customer not found' });
+
     const updated = await Customer.findByIdAndUpdate(req.params.id, req.body, { new: true });
     if (!updated) return res.status(404).json({ error: 'Customer not found' });
+
+    logAuditAction(req, {
+      action: 'UPDATE',
+      entityType: 'Customer',
+      entityId: updated._id.toString(),
+      entityIdentifier: updated.code,
+      previousData: prevCustomer,
+      newData: updated,
+      organisationId: updated.organisationId,
+      branchId: updated.branchId,
+    });
+
     res.json({ ...updated.toObject(), id: updated._id.toString() });
   } catch (err: any) {
     res.status(400).json({ error: err.message });
@@ -1073,6 +1261,17 @@ erpRouter.post('/vendors', async (req: Request, res: Response) => {
       ...req.body,
       code,
     });
+
+    logAuditAction(req, {
+      action: 'CREATE',
+      entityType: 'Vendor',
+      entityId: vendor._id.toString(),
+      entityIdentifier: vendor.code,
+      newData: vendor,
+      organisationId: vendor.organisationId,
+      branchId: vendor.branchId,
+    });
+
     res.status(201).json({ ...vendor.toObject(), id: vendor._id.toString() });
   } catch (err: any) {
     res.status(400).json({ error: err.message });
@@ -1084,8 +1283,23 @@ erpRouter.patch('/vendors/:id', async (req: Request, res: Response) => {
     if (req.body.gstin && !validateGSTIN(req.body.gstin)) {
       return res.status(400).json({ error: 'Invalid Vendor GSTIN format' });
     }
+    const prevVendor = await Vendor.findById(req.params.id);
+    if (!prevVendor) return res.status(404).json({ error: 'Vendor not found' });
+
     const updated = await Vendor.findByIdAndUpdate(req.params.id, req.body, { new: true });
     if (!updated) return res.status(404).json({ error: 'Vendor not found' });
+
+    logAuditAction(req, {
+      action: 'UPDATE',
+      entityType: 'Vendor',
+      entityId: updated._id.toString(),
+      entityIdentifier: updated.code,
+      previousData: prevVendor,
+      newData: updated,
+      organisationId: updated.organisationId,
+      branchId: updated.branchId,
+    });
+
     res.json({ ...updated.toObject(), id: updated._id.toString() });
   } catch (err: any) {
     res.status(400).json({ error: err.message });
@@ -1094,7 +1308,21 @@ erpRouter.patch('/vendors/:id', async (req: Request, res: Response) => {
 
 erpRouter.delete('/vendors/:id', async (req: Request, res: Response) => {
   try {
+    const prevVendor = await Vendor.findById(req.params.id);
+    if (!prevVendor) return res.status(404).json({ error: 'Vendor not found' });
+
     await Vendor.findByIdAndDelete(req.params.id);
+
+    logAuditAction(req, {
+      action: 'DELETE',
+      entityType: 'Vendor',
+      entityId: req.params.id,
+      entityIdentifier: prevVendor.code,
+      previousData: prevVendor,
+      organisationId: prevVendor.organisationId,
+      branchId: prevVendor.branchId,
+    });
+
     res.json({ success: true });
   } catch (err: any) {
     res.status(500).json({ error: err.message });
@@ -1138,6 +1366,18 @@ erpRouter.post('/delivery-challans', async (req: Request, res: Response) => {
       ...req.body,
       dcNumber,
     });
+
+    logAuditAction(req, {
+      action: 'CREATE',
+      entityType: 'Delivery Challan',
+      entityId: dc._id.toString(),
+      entityIdentifier: dc.dcNumber,
+      newData: dc,
+      organisationId: dc.organisationId,
+      branchId: dc.branchId,
+      financialYear: dc.financialYear,
+    });
+
     res.status(201).json({ ...dc.toObject(), id: dc._id.toString() });
   } catch (err: any) {
     res.status(400).json({ error: err.message });
@@ -1174,5 +1414,64 @@ erpRouter.get('/organisation', async (req: Request, res: Response) => {
     res.json(org);
   } catch (err: any) {
     res.status(500).json({ error: err.message });
+  }
+});
+
+// ==========================================
+// 11. AUDIT HISTORY (CHANGE TRACKING)
+// ==========================================
+erpRouter.get('/audit-history', async (req: Request, res: Response) => {
+  try {
+    const {
+      entityType,
+      entityId,
+      action,
+      userId,
+      organisationId,
+      branchId,
+      financialYear,
+      fromDate,
+      toDate,
+      page,
+      per_page,
+    } = req.query;
+
+    const query: any = {};
+    if (entityType) query.entityType = entityType;
+    if (entityId) query.entityId = entityId;
+    if (action) query.action = action;
+    if (userId) query.userId = userId;
+    if (organisationId) query.organisationId = organisationId;
+    if (branchId) query.branchId = branchId;
+    if (financialYear) query.financialYear = financialYear;
+
+    if (fromDate || toDate) {
+      query.createdAt = {};
+      if (fromDate) query.createdAt.$gte = new Date(String(fromDate));
+      if (toDate) {
+        const to = new Date(String(toDate));
+        to.setHours(23, 59, 59, 999);
+        query.createdAt.$lte = to;
+      }
+    }
+
+    const total = await AuditHistory.countDocuments(query);
+    const p = Math.max(1, Number(page) || 1);
+    const pp = Number(per_page) || 50;
+
+    const logs = await AuditHistory.find(query)
+      .sort({ createdAt: -1 })
+      .skip((p - 1) * pp)
+      .limit(pp);
+
+    return res.json({
+      message: 'success',
+      data: logs.map((l) => ({ ...l.toObject(), id: l._id.toString() })),
+      total,
+      page: p,
+      per_page: pp,
+    });
+  } catch (err: any) {
+    return res.status(500).json({ error: err.message });
   }
 });

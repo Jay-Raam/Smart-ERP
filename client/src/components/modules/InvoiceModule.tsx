@@ -18,6 +18,7 @@ import { DataTable, ColumnDef } from '../shared/DataTable';
 import { Combobox } from '../shared/Combobox';
 import { InvoicePrintModal } from './InvoicePrintModal';
 import { calculateDocumentTaxes, isStateTamilNadu } from '../../utils/taxCalculation';
+import { ExportModal, ExportColumn } from '../shared/ExportModal';
 
 interface InvoiceModuleProps {
   initialOpenAdd?: boolean;
@@ -27,6 +28,46 @@ export const InvoiceModule: React.FC<InvoiceModuleProps> = ({ initialOpenAdd = f
   const { invoices, customers, products, organisation, addInvoice } = useErpStore();
   const [isAddModalOpen, setIsAddModalOpen] = useState(false);
   const [viewInvoice, setViewInvoice] = useState<Invoice | null>(null);
+  const [isExportModalOpen, setIsExportModalOpen] = useState(false);
+
+  const exportColumns: ExportColumn<Invoice>[] = [
+    { key: 'invoiceNumber', label: 'Invoice No' },
+    { key: 'invoiceDate', label: 'Date' },
+    { key: 'customerName', label: 'Customer Name' },
+    { key: 'customerGstin', label: 'Customer GSTIN' },
+    { key: 'customerState', label: 'Place of Supply' },
+    {
+      key: 'taxableAmount',
+      label: 'Taxable Value',
+      transform: (v) => (v ? `₹${Number(v).toLocaleString('en-IN')}` : '₹0'),
+    },
+    {
+      key: 'cgstAmount',
+      label: 'CGST',
+      transform: (v) => (v ? `₹${Number(v).toLocaleString('en-IN')}` : '₹0'),
+    },
+    {
+      key: 'sgstAmount',
+      label: 'SGST',
+      transform: (v) => (v ? `₹${Number(v).toLocaleString('en-IN')}` : '₹0'),
+    },
+    {
+      key: 'igstAmount',
+      label: 'IGST',
+      transform: (v) => (v ? `₹${Number(v).toLocaleString('en-IN')}` : '₹0'),
+    },
+    {
+      key: 'shippingCharge',
+      label: 'Shipping',
+      transform: (v) => (v ? `₹${Number(v).toLocaleString('en-IN')}` : '₹0'),
+    },
+    {
+      key: 'totalAmount',
+      label: 'Grand Total',
+      transform: (v) => (v ? `₹${Number(v).toLocaleString('en-IN')}` : '₹0'),
+    },
+    { key: 'status', label: 'Status' },
+  ];
 
   useEffect(() => {
     if (initialOpenAdd) {
@@ -233,6 +274,14 @@ export const InvoiceModule: React.FC<InvoiceModuleProps> = ({ initialOpenAdd = f
         <div className="flex items-center gap-2">
           <button
             type="button"
+            onClick={() => setIsExportModalOpen(true)}
+            className="flex items-center gap-1.5 rounded-xl border border-slate-300 bg-white px-3.5 py-2 text-xs font-semibold text-slate-700 hover:bg-slate-50 transition shadow-xs cursor-pointer"
+          >
+            <Download className="h-4 w-4 text-slate-500" />
+            <span>Export</span>
+          </button>
+          <button
+            type="button"
             onClick={() => {
               window.history.pushState({}, '', '/invoices/new');
               window.dispatchEvent(new PopStateEvent('popstate'));
@@ -293,6 +342,23 @@ export const InvoiceModule: React.FC<InvoiceModuleProps> = ({ initialOpenAdd = f
           onClose={() => setViewInvoice(null)}
         />
       )}
+
+      {/* Reusable Export Modal for Tax Invoices */}
+      <ExportModal<Invoice>
+        show={isExportModalOpen}
+        onClose={() => setIsExportModalOpen(false)}
+        title="Export Tax Invoices"
+        filenamePrefix="Tax-Invoices"
+        columns={exportColumns}
+        data={invoices}
+        dateField="invoiceDate"
+        statusField="status"
+        statusOptions={[
+          { label: 'Paid', value: 'Paid' },
+          { label: 'Pending', value: 'Pending' },
+          { label: 'Overdue', value: 'Overdue' },
+        ]}
+      />
 
       {/* Generate Invoice Modal */}
       {isAddModalOpen && (

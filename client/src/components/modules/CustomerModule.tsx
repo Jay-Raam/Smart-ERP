@@ -12,12 +12,14 @@ import {
   CheckCircle2,
   AlertCircle,
   ExternalLink,
+  Download,
 } from 'lucide-react';
 import { useErpStore, Customer } from '../../store/erpStore';
 import { DataTable, ColumnDef } from '../shared/DataTable';
 import { Combobox } from '../shared/Combobox';
 import { useIndiaStates } from '../../utils/indiaStates';
 import { CustomerDetailsDrawer } from './customers/CustomerDetailsDrawer';
+import { ExportModal, ExportColumn } from '../shared/ExportModal';
 import {
   useFormValidation,
   isValidGSTIN,
@@ -54,6 +56,28 @@ export const CustomerModule: React.FC<CustomerModuleProps> = ({
   const { states: stateOptions, isLoading: isStatesLoading } = useIndiaStates();
   const [isAddModalOpen, setIsAddModalOpen] = useState(initialOpenAdd);
   const [selectedCustomer, setSelectedCustomer] = useState<Customer | null>(null);
+  const [isExportModalOpen, setIsExportModalOpen] = useState(false);
+
+  const exportColumns: ExportColumn<Customer>[] = [
+    { key: 'code', label: 'Customer Code' },
+    { key: 'name', label: 'Company / Customer Name' },
+    { key: 'contactPerson', label: 'Contact Person' },
+    { key: 'phone', label: 'Mobile Phone' },
+    { key: 'email', label: 'Email Address' },
+    { key: 'city', label: 'City' },
+    { key: 'billingState', label: 'Billing State' },
+    { key: 'gstin', label: 'GSTIN' },
+    {
+      key: 'creditLimit',
+      label: 'Credit Limit',
+      transform: (v) => (v ? `₹${Number(v).toLocaleString('en-IN')}` : '₹0'),
+    },
+    {
+      key: 'outstandingBalance',
+      label: 'Outstanding Balance',
+      transform: (v) => (v ? `₹${Number(v).toLocaleString('en-IN')}` : '₹0'),
+    },
+  ];
 
   // 3-Tier Form Validation Setup
   const {
@@ -253,14 +277,24 @@ export const CustomerModule: React.FC<CustomerModuleProps> = ({
           </p>
         </div>
 
-        <button
-          type="button"
-          onClick={() => setIsAddModalOpen(true)}
-          className="flex items-center gap-1.5 rounded-xl bg-blue-600 px-3.5 py-2 text-xs font-semibold text-white hover:bg-blue-700 transition shadow-xs self-start cursor-pointer"
-        >
-          <Plus className="h-4 w-4" />
-          <span>New Customer</span>
-        </button>
+        <div className="flex items-center gap-2 self-start">
+          <button
+            type="button"
+            onClick={() => setIsExportModalOpen(true)}
+            className="flex items-center gap-1.5 rounded-xl border border-slate-300 bg-white px-3.5 py-2 text-xs font-semibold text-slate-700 hover:bg-slate-50 transition shadow-xs cursor-pointer"
+          >
+            <Download className="h-4 w-4 text-slate-500" />
+            <span>Export</span>
+          </button>
+          <button
+            type="button"
+            onClick={() => setIsAddModalOpen(true)}
+            className="flex items-center gap-1.5 rounded-xl bg-blue-600 px-3.5 py-2 text-xs font-semibold text-white hover:bg-blue-700 transition shadow-xs cursor-pointer"
+          >
+            <Plus className="h-4 w-4" />
+            <span>New Customer</span>
+          </button>
+        </div>
       </div>
 
       {/* Main Table: Strictly 4 Columns with Interactive Row Click */}
@@ -588,6 +622,17 @@ export const CustomerModule: React.FC<CustomerModuleProps> = ({
           </div>
         </div>
       )}
+
+      {/* Reusable Export Modal */}
+      <ExportModal<Customer>
+        show={isExportModalOpen}
+        onClose={() => setIsExportModalOpen(false)}
+        title="Export Customers Master"
+        filenamePrefix="Customers"
+        columns={exportColumns}
+        data={customers}
+        dateField="createdAt"
+      />
     </div>
   );
 };

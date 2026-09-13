@@ -118,6 +118,10 @@ const CustomerSchema = new Schema<ICustomer>(
   { timestamps: true }
 );
 
+CustomerSchema.index({ organisationId: 1, branchId: 1, createdAt: -1 });
+CustomerSchema.index({ organisationId: 1, name: 1 });
+CustomerSchema.index({ gstin: 1 });
+
 // 5. Product
 export interface IProduct extends Document {
   sku: string;
@@ -161,6 +165,10 @@ const ProductSchema = new Schema<IProduct>(
   },
   { timestamps: true }
 );
+
+ProductSchema.index({ organisationId: 1, branchId: 1, approvalStatus: 1, createdAt: -1 });
+ProductSchema.index({ category: 1, approvalStatus: 1 });
+ProductSchema.index({ hsnCode: 1 });
 
 // 6. Document Line Item (Used for Invoices, Purchase Orders, Bills, and Delivery Challans)
 export interface IDocumentItem {
@@ -264,6 +272,13 @@ const InvoiceSchema = new Schema<IInvoice>(
   { timestamps: true }
 );
 
+InvoiceSchema.index({ organisationId: 1, branchId: 1, invoiceDate: -1 });
+InvoiceSchema.index({ customerId: 1, invoiceDate: -1 });
+InvoiceSchema.index({ status: 1, invoiceDate: -1 });
+InvoiceSchema.index({ 'items.hsnCode': 1, invoiceDate: -1 });
+InvoiceSchema.index({ 'items.productId': 1 });
+InvoiceSchema.index({ customerState: 1, invoiceDate: -1 });
+
 // 8. Vendor
 export interface IVendor extends Document {
   code: string;
@@ -305,6 +320,10 @@ const VendorSchema = new Schema<IVendor>(
   },
   { timestamps: true }
 );
+
+VendorSchema.index({ organisationId: 1, branchId: 1, createdAt: -1 });
+VendorSchema.index({ organisationId: 1, name: 1 });
+VendorSchema.index({ gstin: 1 });
 
 // 9. Purchase Order
 export interface IPurchaseOrder extends Document {
@@ -368,6 +387,10 @@ const PurchaseOrderSchema = new Schema<IPurchaseOrder>(
   { timestamps: true }
 );
 
+PurchaseOrderSchema.index({ organisationId: 1, branchId: 1, poDate: -1 });
+PurchaseOrderSchema.index({ vendorId: 1, poDate: -1 });
+PurchaseOrderSchema.index({ status: 1 });
+
 // 10. Bill (Vendor Invoices / Bills with or without PO)
 export interface IBill extends Document {
   billNumber: string;
@@ -430,6 +453,12 @@ const BillSchema = new Schema<IBill>(
   { timestamps: true }
 );
 
+BillSchema.index({ organisationId: 1, branchId: 1, billDate: -1 });
+BillSchema.index({ vendorId: 1, billDate: -1 });
+BillSchema.index({ poId: 1 });
+BillSchema.index({ status: 1, billDate: -1 });
+BillSchema.index({ 'items.hsnCode': 1 });
+
 // 11. Store Item
 export interface IStoreItem extends Document {
   productId: string;
@@ -463,6 +492,10 @@ const StoreItemSchema = new Schema<IStoreItem>(
   },
   { timestamps: true }
 );
+
+StoreItemSchema.index({ organisationId: 1, branchId: 1 });
+StoreItemSchema.index({ productId: 1 });
+StoreItemSchema.index({ status: 1 });
 
 // 12. Delivery Challan (Generated against Tax Invoice)
 export interface IDeliveryChallan extends Document {
@@ -512,6 +545,10 @@ const DeliveryChallanSchema = new Schema<IDeliveryChallan>(
   { timestamps: true }
 );
 
+DeliveryChallanSchema.index({ organisationId: 1, branchId: 1, dispatchDate: -1 });
+DeliveryChallanSchema.index({ invoiceId: 1 });
+DeliveryChallanSchema.index({ customerId: 1 });
+
 // 11. User Role Mapping
 export interface IUserRole {
   organisationId: string;
@@ -559,6 +596,56 @@ const UserAccountSchema = new Schema<IUserAccount>(
   { timestamps: true }
 );
 
+// 13. Audit History / Change Tracking
+export interface IAuditHistory extends Document {
+  userId: string;
+  userName: string;
+  userEmail: string;
+  userRole: string;
+  action: 'CREATE' | 'UPDATE' | 'DELETE';
+  entityType: string;
+  entityId: string;
+  entityIdentifier?: string;
+  previousData?: any;
+  newData?: any;
+  changedFields: string[];
+  organisationId: string;
+  branchId: string;
+  financialYear: string;
+  timestamp: Date;
+}
+
+const AuditHistorySchema = new Schema<IAuditHistory>(
+  {
+    userId: { type: String, default: '' },
+    userName: { type: String, default: 'System' },
+    userEmail: { type: String, default: '' },
+    userRole: { type: String, default: 'SuperAdmin' },
+    action: {
+      type: String,
+      enum: ['CREATE', 'UPDATE', 'DELETE'],
+      required: true,
+    },
+    entityType: { type: String, required: true },
+    entityId: { type: String, required: true },
+    entityIdentifier: { type: String, default: '' },
+    previousData: { type: Schema.Types.Mixed },
+    newData: { type: Schema.Types.Mixed },
+    changedFields: [{ type: String }],
+    organisationId: { type: String, default: '' },
+    branchId: { type: String, default: '' },
+    financialYear: { type: String, default: '2026-2027' },
+    timestamp: { type: Date, default: Date.now },
+  },
+  { timestamps: true }
+);
+
+AuditHistorySchema.index({ entityType: 1, entityId: 1, createdAt: -1 });
+AuditHistorySchema.index({ organisationId: 1, branchId: 1, createdAt: -1 });
+AuditHistorySchema.index({ userId: 1, createdAt: -1 });
+AuditHistorySchema.index({ action: 1, createdAt: -1 });
+AuditHistorySchema.index({ createdAt: -1 });
+
 // Export Models
 export const Organisation = mongoose.model<IOrganisation>('Organisation', OrganisationSchema);
 export const Branch = mongoose.model<IBranch>('Branch', BranchSchema);
@@ -572,3 +659,5 @@ export const Vendor = mongoose.model<IVendor>('Vendor', VendorSchema);
 export const StoreItem = mongoose.model<IStoreItem>('StoreItem', StoreItemSchema);
 export const DeliveryChallan = mongoose.model<IDeliveryChallan>('DeliveryChallan', DeliveryChallanSchema);
 export const UserAccount = mongoose.model<IUserAccount>('UserAccount', UserAccountSchema);
+export const AuditHistory = mongoose.model<IAuditHistory>('AuditHistory', AuditHistorySchema);
+

@@ -23,6 +23,7 @@ import { CustomerModule } from './components/modules/CustomerModule';
 import { DeliveryModule } from './components/modules/DeliveryModule';
 import { BranchModule } from './components/modules/BranchModule';
 import { FinancialYearModule } from './components/modules/FinancialYearModule';
+import { ReportsModule } from './components/modules/reports/ReportsModule';
 
 export function App() {
   const { isAuthenticated, checkSession, logout } = useAuthStore();
@@ -33,6 +34,7 @@ export function App() {
       if (p === '/bills') return 'bills';
       if (p === '/invoices') return 'invoices';
       if (p === '/purchase-orders') return 'purchase';
+      if (p === '/reports') return 'reports';
     }
     return 'dashboard';
   });
@@ -66,6 +68,7 @@ export function App() {
       if (path === '/bills') setActiveModule('bills');
       else if (path === '/invoices') setActiveModule('invoices');
       else if (path === '/purchase-orders') setActiveModule('purchase');
+      else if (path === '/reports') setActiveModule('reports');
     };
     window.addEventListener('popstate', handlePopState);
     return () => window.removeEventListener('popstate', handlePopState);
@@ -204,6 +207,7 @@ export function App() {
                 {activeModule === 'delivery' && <DeliveryModule />}
                 {activeModule === 'branches' && <BranchModule />}
                 {activeModule === 'financial-years' && <FinancialYearModule />}
+                {activeModule === 'reports' && <ReportsModule />}
               </>
             )}
           </div>
