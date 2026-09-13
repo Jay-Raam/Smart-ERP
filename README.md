@@ -83,6 +83,13 @@ The dedicated Financial Year Master module provides comprehensive accounting per
 
 ---
 
+### 7. Real-Time Operations & Alert Center (Notification Drawer)
+Modern slide-over notification hub providing live multi-branch telemetry, categorized alert filtering (`All`, `Unread`, `Orders & Billing`, `Stock & Dispatch`, `System`), priority chips (`Critical Alert`, `Payment Verified`, `High Priority`), and direct one-click workflow navigation (`Create PO`, `View Invoice`, `View Order`).
+
+![Operations & Alert Center](docs/images/07_notifications_drawer.png)
+
+---
+
 ## 🔄 End-to-End Request & Scoping Pipeline
 
 ```mermaid

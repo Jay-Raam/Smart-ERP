@@ -1,14 +1,37 @@
-import React, { useState } from 'react';
-import { X, CheckCheck, AlertCircle, ShoppingCart, Receipt, Package, Truck, Clock } from 'lucide-react';
+import React, { useState, useMemo } from 'react';
+import {
+  X,
+  CheckCheck,
+  AlertCircle,
+  ShoppingCart,
+  Receipt,
+  Package,
+  Truck,
+  Clock,
+  Bell,
+  Check,
+  ArrowRight,
+  ShieldCheck,
+  Building,
+  Radio,
+  CheckCircle2,
+  Trash2,
+  AlertTriangle,
+  RefreshCw,
+} from 'lucide-react';
 
-interface NotificationItem {
+export interface NotificationItem {
   id: string;
-  type: 'order' | 'invoice' | 'stock' | 'system';
+  category: 'order' | 'invoice' | 'stock' | 'delivery' | 'system';
+  priority: 'critical' | 'high' | 'normal' | 'success';
   title: string;
   message: string;
+  branchCode: string;
+  branchName: string;
   time: string;
   read: boolean;
-  actionUrl?: string;
+  actionModule?: string;
+  actionLabel?: string;
 }
 
 interface NotificationDrawerProps {
@@ -22,59 +45,99 @@ export const NotificationDrawer: React.FC<NotificationDrawerProps> = ({
   onClose,
   onNavigateModule,
 }) => {
-  const [activeTab, setActiveTab] = useState<'all' | 'unread' | 'system'>('all');
+  const [activeTab, setActiveTab] = useState<'all' | 'unread' | 'billing' | 'inventory' | 'system'>('all');
   const [notifications, setNotifications] = useState<NotificationItem[]>([
     {
       id: 'n-1',
-      type: 'stock',
-      title: 'Low Stock Threshold Reached',
-      message: 'Electrolyzer Sub-assembly Mesh (Item #TI-RAW-001) is down to 8 units in Central Store.',
-      time: '12 mins ago',
+      category: 'stock',
+      priority: 'critical',
+      title: 'Low Inventory Reorder Notice',
+      message: 'Platinized Titanium Mesh Anode Grade 1 (SMART-PLT-303) has only 8 units remaining in Central Store (Min Reorder Level: 10).',
+      branchCode: 'BR-CHN-01',
+      branchName: 'Chennai HQ',
+      time: '12m ago',
       read: false,
+      actionModule: 'purchase',
+      actionLabel: 'Create PO',
     },
     {
       id: 'n-2',
-      type: 'invoice',
-      title: 'Payment Received for INV-2026-089',
-      message: 'Adani Green Energy Ltd. settled ₹1,85,000 via NEFT reference #UTR9847120.',
-      time: '45 mins ago',
+      category: 'invoice',
+      priority: 'success',
+      title: 'Payment Received for INV-2026-001',
+      message: 'Bharat Heavy Electricals Ltd (BHEL) settled ₹3,39,840 against Tax Invoice #INV-2026-001 via NEFT (#UTR-2026-8841).',
+      branchCode: 'BR-CHN-01',
+      branchName: 'Chennai HQ',
+      time: '35m ago',
       read: false,
+      actionModule: 'invoices',
+      actionLabel: 'View Invoice',
     },
     {
       id: 'n-3',
-      type: 'order',
-      title: 'New High-Priority Sales Order #SO-2026-042',
-      message: 'Tata Projects dispatched purchase approval for 10 units MMO Titanium Anodes.',
-      time: '2 hours ago',
+      category: 'order',
+      priority: 'high',
+      title: 'New Confirmed Sales Order #SO-2026-084',
+      message: 'Ashok Leyland Defence & Commercial issued production release for 1 unit MMO Titanium Anodes (₹2,95,000 incl. 18% GST).',
+      branchCode: 'BR-CHN-01',
+      branchName: 'Chennai HQ',
+      time: '2h ago',
       read: true,
+      actionModule: 'sales',
+      actionLabel: 'View Order',
     },
     {
       id: 'n-4',
-      type: 'system',
-      title: 'PostgreSQL Isolated Schema Backup',
-      message: 'Automated snapshot backup completed for schema tenant_acme.',
-      time: '5 hours ago',
+      category: 'delivery',
+      priority: 'normal',
+      title: 'Delivery Challan #DC-2026-002 Dispatched',
+      message: 'Consignment handed over to VRL Logistics for transit to Tata Motors Heavy Vehicle Division. E-Way Bill is active.',
+      branchCode: 'BR-CHN-01',
+      branchName: 'Chennai HQ',
+      time: '4h ago',
       read: true,
+      actionModule: 'delivery',
+      actionLabel: 'Track DC',
     },
     {
       id: 'n-5',
-      type: 'stock',
-      title: 'PO-2026-015 Inward Delivery Accepted',
-      message: '150 Kgs Titanium Seamless Pipe inward verified at Coimbatore Works.',
-      time: '1 day ago',
+      category: 'system',
+      priority: 'normal',
+      title: 'MongoDB Atlas Cloud Snapshot Verified',
+      message: 'Automated continuous telemetry backup and multi-branch replica sync verified on Atlas cluster.',
+      branchCode: 'GLOBAL',
+      branchName: 'All Branches',
+      time: '6h ago',
       read: true,
+    },
+    {
+      id: 'n-6',
+      category: 'stock',
+      priority: 'success',
+      title: 'PO-2026-015 Inward Verified',
+      message: '150 Kgs Titanium Seamless Industrial Pipe inward received, inspected, and stock ledger updated at Coimbatore Works.',
+      branchCode: 'BR-CBE-02',
+      branchName: 'Coimbatore',
+      time: '1d ago',
+      read: true,
+      actionModule: 'store',
+      actionLabel: 'Inspect Stock',
     },
   ]);
 
-  if (!isOpen) return null;
-
-  const filteredNotifications = notifications.filter((n) => {
-    if (activeTab === 'unread') return !n.read;
-    if (activeTab === 'system') return n.type === 'system';
-    return true;
-  });
-
   const unreadCount = notifications.filter((n) => !n.read).length;
+
+  const filteredNotifications = useMemo(() => {
+    return notifications.filter((n) => {
+      if (activeTab === 'unread') return !n.read;
+      if (activeTab === 'billing') return n.category === 'order' || n.category === 'invoice';
+      if (activeTab === 'inventory') return n.category === 'stock' || n.category === 'delivery';
+      if (activeTab === 'system') return n.category === 'system';
+      return true;
+    });
+  }, [notifications, activeTab]);
+
+  if (!isOpen) return null;
 
   const markAllAsRead = () => {
     setNotifications((prev) => prev.map((n) => ({ ...n, read: true })));
@@ -86,154 +149,336 @@ export const NotificationDrawer: React.FC<NotificationDrawerProps> = ({
     );
   };
 
-  const getIcon = (type: NotificationItem['type']) => {
-    switch (type) {
+  const handleAction = (item: NotificationItem, e: React.MouseEvent) => {
+    e.stopPropagation();
+    markItemAsRead(item.id);
+    if (item.actionModule && onNavigateModule) {
+      onNavigateModule(item.actionModule);
+      onClose();
+    }
+  };
+
+  const getPriorityStyle = (priority: NotificationItem['priority']) => {
+    switch (priority) {
+      case 'critical':
+        return {
+          pill: 'bg-rose-50 text-rose-700 border-rose-200',
+          dot: 'bg-rose-500',
+          label: 'Critical Alert',
+        };
+      case 'high':
+        return {
+          pill: 'bg-amber-50 text-amber-700 border-amber-200',
+          dot: 'bg-amber-500',
+          label: 'High Priority',
+        };
+      case 'success':
+        return {
+          pill: 'bg-emerald-50 text-emerald-700 border-emerald-200',
+          dot: 'bg-emerald-500',
+          label: 'Payment / Verified',
+        };
+      case 'normal':
+      default:
+        return {
+          pill: 'bg-slate-100 text-slate-700 border-slate-200',
+          dot: 'bg-blue-500',
+          label: 'Operational',
+        };
+    }
+  };
+
+  const getCategoryIcon = (category: NotificationItem['category']) => {
+    switch (category) {
       case 'stock':
-        return <Package className="h-4 w-4 text-amber-500" />;
+        return (
+          <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-xl bg-amber-50 border border-amber-100 text-amber-600 shadow-xs">
+            <Package className="h-4 w-4" />
+          </div>
+        );
       case 'invoice':
-        return <Receipt className="h-4 w-4 text-emerald-500" />;
+        return (
+          <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-xl bg-emerald-50 border border-emerald-100 text-emerald-600 shadow-xs">
+            <Receipt className="h-4 w-4" />
+          </div>
+        );
       case 'order':
-        return <ShoppingCart className="h-4 w-4 text-blue-500" />;
+        return (
+          <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-xl bg-blue-50 border border-blue-100 text-blue-600 shadow-xs">
+            <ShoppingCart className="h-4 w-4" />
+          </div>
+        );
+      case 'delivery':
+        return (
+          <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-xl bg-indigo-50 border border-indigo-100 text-indigo-600 shadow-xs">
+            <Truck className="h-4 w-4" />
+          </div>
+        );
       case 'system':
       default:
-        return <AlertCircle className="h-4 w-4 text-violet-500" />;
+        return (
+          <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-xl bg-violet-50 border border-violet-100 text-violet-600 shadow-xs">
+            <ShieldCheck className="h-4 w-4" />
+          </div>
+        );
     }
   };
 
   return (
     <div className="fixed inset-0 z-50 overflow-hidden select-none">
-      {/* Backdrop */}
+      {/* Dimmed Backdrop */}
       <div
         className="absolute inset-0 bg-slate-900/40 backdrop-blur-xs transition-opacity duration-300 animate-in fade-in"
         onClick={onClose}
       />
 
-      {/* Slide-over Drawer Panel */}
-      <div className="fixed inset-y-0 right-0 flex max-w-full pl-10">
-        <div className="w-screen max-w-md transform bg-white shadow-2xl transition ease-in-out duration-300 flex flex-col">
+      {/* Slide-over Drawer Container */}
+      <div className="fixed inset-y-0 right-0 flex max-w-full pl-6 sm:pl-10">
+        <div className="w-screen max-w-md transform bg-white shadow-2xl transition ease-in-out duration-300 flex flex-col animate-in slide-in-from-right duration-200">
           {/* Header */}
-          <div className="flex items-center justify-between border-b border-slate-200 px-5 py-4 bg-slate-50/80">
-            <div>
-              <div className="flex items-center gap-2">
-                <h3 className="text-sm font-bold text-slate-900">Notifications</h3>
-                {unreadCount > 0 && (
-                  <span className="rounded-full bg-blue-100 px-2 py-0.5 text-[11px] font-bold text-blue-700">
-                    {unreadCount} new
-                  </span>
-                )}
+          <div className="border-b border-slate-200 px-5 py-4 bg-gradient-to-r from-slate-50 via-white to-slate-50/80">
+            <div className="flex items-center justify-between">
+              <div className="flex items-center gap-2.5">
+                <div className="flex h-9 w-9 items-center justify-center rounded-xl bg-blue-600 text-white shadow-sm">
+                  <Bell className="h-4 w-4" />
+                </div>
+                <div>
+                  <div className="flex items-center gap-2">
+                    <h2 className="text-sm font-bold text-slate-900 tracking-tight">
+                      Operational Alerts
+                    </h2>
+                    {unreadCount > 0 ? (
+                      <span className="inline-flex items-center gap-1 rounded-full bg-blue-100 px-2 py-0.5 text-[10px] font-bold text-blue-700">
+                        <span className="h-1.5 w-1.5 rounded-full bg-blue-600 animate-pulse" />
+                        {unreadCount} new
+                      </span>
+                    ) : (
+                      <span className="inline-flex items-center rounded-full bg-emerald-100 px-2 py-0.5 text-[10px] font-bold text-emerald-700">
+                        All caught up
+                      </span>
+                    )}
+                  </div>
+                  <p className="text-[11px] text-slate-500 mt-0.5">
+                    Real-time telemetry across operating branches
+                  </p>
+                </div>
               </div>
-              <p className="text-xs text-slate-500 mt-0.5">
-                Real-time activity across branches & operations
-              </p>
-            </div>
 
-            <div className="flex items-center gap-2">
-              {unreadCount > 0 && (
+              {/* Header Right Actions */}
+              <div className="flex items-center gap-1.5">
+                {unreadCount > 0 && (
+                  <button
+                    type="button"
+                    onClick={markAllAsRead}
+                    className="flex items-center gap-1 rounded-xl border border-slate-200 bg-white px-2.5 py-1.5 text-xs font-semibold text-slate-700 hover:bg-slate-50 hover:text-blue-600 transition shadow-xs cursor-pointer"
+                    title="Mark all as read"
+                  >
+                    <CheckCheck className="h-3.5 w-3.5 text-blue-600" />
+                    <span className="hidden sm:inline">Mark read</span>
+                  </button>
+                )}
                 <button
                   type="button"
-                  onClick={markAllAsRead}
-                  className="flex items-center gap-1 rounded-lg border border-slate-200 bg-white px-2.5 py-1 text-xs font-semibold text-slate-600 hover:bg-slate-100 transition cursor-pointer"
-                  title="Mark all as read"
+                  onClick={onClose}
+                  className="rounded-xl p-1.5 text-slate-400 hover:bg-slate-100 hover:text-slate-700 transition cursor-pointer"
+                  title="Close Notifications"
                 >
-                  <CheckCheck className="h-3.5 w-3.5 text-blue-600" />
-                  <span className="hidden sm:inline">Read all</span>
+                  <X className="h-5 w-5" />
                 </button>
-              )}
-              <button
-                type="button"
-                onClick={onClose}
-                className="rounded-lg p-1.5 text-slate-400 hover:bg-slate-200 hover:text-slate-600 transition cursor-pointer"
-              >
-                <X className="h-5 w-5" />
-              </button>
+              </div>
+            </div>
+
+            {/* Live Sync Status Pill */}
+            <div className="mt-3 flex items-center justify-between rounded-xl bg-slate-100/70 border border-slate-200/80 px-3 py-1.5 text-[11px] text-slate-600">
+              <div className="flex items-center gap-2">
+                <span className="relative flex h-2 w-2">
+                  <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-emerald-400 opacity-75" />
+                  <span className="relative inline-flex rounded-full h-2 w-2 bg-emerald-500" />
+                </span>
+                <span className="font-semibold text-slate-700">MongoDB Atlas Event Stream</span>
+              </div>
+              <span className="font-mono text-[10px] text-slate-400">18ms latency</span>
             </div>
           </div>
 
-          {/* Tab Navigation */}
-          <div className="flex border-b border-slate-200 px-5 pt-2 gap-4 bg-white text-xs font-semibold">
+          {/* Filter Tabs */}
+          <div className="border-b border-slate-200 bg-white px-3 py-2 flex items-center gap-1 overflow-x-auto scrollbar-none">
             <button
               type="button"
               onClick={() => setActiveTab('all')}
-              className={`pb-2.5 transition border-b-2 cursor-pointer ${
+              className={`px-3 py-1.5 rounded-lg text-xs font-semibold transition cursor-pointer whitespace-nowrap ${
                 activeTab === 'all'
-                  ? 'border-blue-600 text-blue-600'
-                  : 'border-transparent text-slate-500 hover:text-slate-800'
+                  ? 'bg-blue-600 text-white shadow-xs'
+                  : 'text-slate-600 hover:bg-slate-100'
               }`}
             >
-              All Activity ({notifications.length})
+              All ({notifications.length})
             </button>
             <button
               type="button"
               onClick={() => setActiveTab('unread')}
-              className={`pb-2.5 transition border-b-2 cursor-pointer ${
+              className={`px-3 py-1.5 rounded-lg text-xs font-semibold transition cursor-pointer whitespace-nowrap ${
                 activeTab === 'unread'
-                  ? 'border-blue-600 text-blue-600'
-                  : 'border-transparent text-slate-500 hover:text-slate-800'
+                  ? 'bg-blue-600 text-white shadow-xs'
+                  : 'text-slate-600 hover:bg-slate-100'
               }`}
             >
               Unread ({unreadCount})
             </button>
             <button
               type="button"
-              onClick={() => setActiveTab('system')}
-              className={`pb-2.5 transition border-b-2 cursor-pointer ${
-                activeTab === 'system'
-                  ? 'border-blue-600 text-blue-600'
-                  : 'border-transparent text-slate-500 hover:text-slate-800'
+              onClick={() => setActiveTab('billing')}
+              className={`px-3 py-1.5 rounded-lg text-xs font-semibold transition cursor-pointer whitespace-nowrap ${
+                activeTab === 'billing'
+                  ? 'bg-blue-600 text-white shadow-xs'
+                  : 'text-slate-600 hover:bg-slate-100'
               }`}
             >
-              System Logs
+              Orders & Billing
+            </button>
+            <button
+              type="button"
+              onClick={() => setActiveTab('inventory')}
+              className={`px-3 py-1.5 rounded-lg text-xs font-semibold transition cursor-pointer whitespace-nowrap ${
+                activeTab === 'inventory'
+                  ? 'bg-blue-600 text-white shadow-xs'
+                  : 'text-slate-600 hover:bg-slate-100'
+              }`}
+            >
+              Stock & Dispatch
+            </button>
+            <button
+              type="button"
+              onClick={() => setActiveTab('system')}
+              className={`px-3 py-1.5 rounded-lg text-xs font-semibold transition cursor-pointer whitespace-nowrap ${
+                activeTab === 'system'
+                  ? 'bg-blue-600 text-white shadow-xs'
+                  : 'text-slate-600 hover:bg-slate-100'
+              }`}
+            >
+              System
             </button>
           </div>
 
-          {/* Notification Items List */}
-          <div className="flex-1 overflow-y-auto divide-y divide-slate-100 p-2">
+          {/* Notifications List */}
+          <div className="flex-1 overflow-y-auto p-3 space-y-2.5 bg-slate-50/50">
             {filteredNotifications.length === 0 ? (
-              <div className="flex flex-col items-center justify-center h-64 text-center p-6 text-slate-400">
-                <CheckCheck className="h-8 w-8 mb-2 text-slate-300" />
-                <p className="text-xs font-semibold text-slate-600">No notifications</p>
-                <p className="text-[11px] text-slate-400 mt-0.5">
-                  You are all caught up with your operational alerts!
+              <div className="flex flex-col items-center justify-center h-80 text-center p-6 text-slate-400">
+                <div className="flex h-14 w-14 items-center justify-center rounded-2xl bg-slate-100 text-slate-400 mb-3 shadow-inner">
+                  <CheckCircle2 className="h-7 w-7 text-emerald-500" />
+                </div>
+                <h4 className="text-xs font-bold text-slate-800">
+                  {activeTab === 'unread' ? 'No Unread Notifications' : 'No Activity in this Category'}
+                </h4>
+                <p className="text-[11px] text-slate-500 mt-1 max-w-xs">
+                  {activeTab === 'unread'
+                    ? 'All operational alerts and transactional updates have been reviewed.'
+                    : 'Branch transactions and system logs will appear here in real-time.'}
                 </p>
+                {activeTab !== 'all' && (
+                  <button
+                    type="button"
+                    onClick={() => setActiveTab('all')}
+                    className="mt-3 text-xs font-semibold text-blue-600 hover:underline cursor-pointer"
+                  >
+                    View all activity
+                  </button>
+                )}
               </div>
             ) : (
-              filteredNotifications.map((item) => (
-                <div
-                  key={item.id}
-                  onClick={() => markItemAsRead(item.id)}
-                  className={`flex gap-3 p-3.5 rounded-xl transition cursor-pointer ${
-                    item.read
-                      ? 'bg-white hover:bg-slate-50/80 text-slate-600'
-                      : 'bg-blue-50/40 hover:bg-blue-50/80 text-slate-900 border-l-2 border-blue-600'
-                  }`}
-                >
-                  <div className="mt-0.5 flex h-8 w-8 shrink-0 items-center justify-center rounded-lg bg-slate-100">
-                    {getIcon(item.type)}
-                  </div>
-                  <div className="flex-1 min-w-0">
-                    <div className="flex items-center justify-between gap-1">
-                      <p className="text-xs font-bold truncate text-slate-800">
-                        {item.title}
-                      </p>
-                      <span className="flex items-center gap-1 text-[10px] text-slate-400 shrink-0">
-                        <Clock className="h-3 w-3" />
-                        {item.time}
-                      </span>
+              filteredNotifications.map((item) => {
+                const priorityInfo = getPriorityStyle(item.priority);
+                return (
+                  <div
+                    key={item.id}
+                    onClick={() => markItemAsRead(item.id)}
+                    className={`group relative flex flex-col gap-2 rounded-2xl border p-3.5 transition shadow-xs cursor-pointer ${
+                      item.read
+                        ? 'bg-white border-slate-200/80 hover:border-slate-300 hover:shadow-sm'
+                        : 'bg-blue-50/40 border-blue-200 hover:border-blue-300 hover:shadow-sm'
+                    }`}
+                  >
+                    {/* Top Row: Icon + Title + Timestamp */}
+                    <div className="flex items-start gap-3">
+                      {getCategoryIcon(item.category)}
+                      <div className="flex-1 min-w-0">
+                        <div className="flex items-center justify-between gap-1.5">
+                          <div className="flex items-center gap-1.5 min-w-0">
+                            {!item.read && (
+                              <span className="h-2 w-2 shrink-0 rounded-full bg-blue-600" />
+                            )}
+                            <h4
+                              className={`text-xs truncate ${
+                                item.read ? 'font-semibold text-slate-800' : 'font-bold text-blue-950'
+                              }`}
+                            >
+                              {item.title}
+                            </h4>
+                          </div>
+                          <span className="flex items-center gap-1 font-mono text-[10px] text-slate-400 shrink-0">
+                            <Clock className="h-3 w-3" />
+                            {item.time}
+                          </span>
+                        </div>
+
+                        {/* Message */}
+                        <p className="mt-1 text-xs text-slate-600 leading-relaxed line-clamp-2">
+                          {item.message}
+                        </p>
+                      </div>
                     </div>
-                    <p className="text-xs text-slate-600 mt-1 leading-relaxed">
-                      {item.message}
-                    </p>
+
+                    {/* Bottom Metadata & Action Bar */}
+                    <div className="flex items-center justify-between pt-1 border-t border-slate-100/80 text-[10px]">
+                      <div className="flex items-center gap-1.5 flex-wrap">
+                        {/* Branch Chip */}
+                        <span className="inline-flex items-center gap-1 rounded-md bg-slate-100 px-1.5 py-0.5 font-mono font-medium text-slate-600">
+                          <Building className="h-2.5 w-2.5" />
+                          {item.branchCode}
+                        </span>
+
+                        {/* Priority Badge */}
+                        <span
+                          className={`inline-flex items-center gap-1 rounded-full px-2 py-0.5 font-bold border ${priorityInfo.pill}`}
+                        >
+                          <span className={`h-1.5 w-1.5 rounded-full ${priorityInfo.dot}`} />
+                          {priorityInfo.label}
+                        </span>
+                      </div>
+
+                      {/* Optional Action Button */}
+                      {item.actionLabel && (
+                        <button
+                          type="button"
+                          onClick={(e) => handleAction(item, e)}
+                          className="inline-flex items-center gap-1 font-semibold text-blue-600 hover:text-blue-800 hover:underline transition cursor-pointer"
+                        >
+                          <span>{item.actionLabel}</span>
+                          <ArrowRight className="h-3 w-3" />
+                        </button>
+                      )}
+                    </div>
                   </div>
-                </div>
-              ))
+                );
+              })
             )}
           </div>
 
           {/* Footer */}
-          <div className="border-t border-slate-200 p-4 bg-slate-50 text-center">
-            <p className="text-[11px] text-slate-400">
-              Synced with Cloud Notification Queue &bull; Socket Active
-            </p>
+          <div className="border-t border-slate-200 px-4 py-3 bg-slate-50 flex items-center justify-between text-xs text-slate-500">
+            <div className="flex items-center gap-1.5">
+              <span className="h-2 w-2 rounded-full bg-emerald-500" />
+              <span className="text-[11px] font-medium text-slate-600">
+                Live Multi-Branch Alerts
+              </span>
+            </div>
+            <button
+              type="button"
+              onClick={markAllAsRead}
+              className="text-[11px] font-semibold text-blue-600 hover:underline cursor-pointer"
+            >
+              Clear all unread
+            </button>
           </div>
         </div>
       </div>

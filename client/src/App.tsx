@@ -171,6 +171,7 @@ export function App() {
       <NotificationDrawer
         isOpen={isNotificationsOpen}
         onClose={() => setIsNotificationsOpen(false)}
+        onNavigateModule={(m: string) => setActiveModule(m as ModuleType)}
       />
 
       {/* Slide-over Profile & Account Drawer */}
