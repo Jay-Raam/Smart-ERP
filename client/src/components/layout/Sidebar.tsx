@@ -14,6 +14,7 @@ import {
   ChevronRight,
   ShieldCheck,
   Zap,
+  BarChart3,
 } from 'lucide-react';
 import { useErpStore } from '../../store/erpStore';
 import { useAuthStore } from '../../store/authStore';
@@ -28,7 +29,8 @@ export type ModuleType =
   | 'products'
   | 'delivery'
   | 'branches'
-  | 'financial-years';
+  | 'financial-years'
+  | 'reports';
 
 interface NavItem {
   id: ModuleType;
@@ -137,6 +139,26 @@ export const Sidebar: React.FC<SidebarProps> = ({
       ],
     },
   ];
+
+  const isSuperAdmin = Boolean(
+    user?.role?.toLowerCase().replace(/\s+/g, '') === 'superadmin' ||
+      user?.role?.toLowerCase().includes('admin')
+  );
+
+  if (isSuperAdmin) {
+    navigationSections.push({
+      title: 'Analytics & Audit',
+      items: [
+        {
+          id: 'reports' as ModuleType,
+          label: 'Executive Reports',
+          icon: BarChart3,
+          badge: '7 Reports',
+          badgeColor: 'bg-blue-50 text-blue-700 border border-blue-200',
+        },
+      ],
+    });
+  }
 
   const getInitials = (name: string) => {
     return name
