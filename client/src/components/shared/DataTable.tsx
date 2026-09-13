@@ -313,7 +313,7 @@ export function DataTable<T extends Record<string, any>>({
               {paginatedData.length === 0 ? (
                 <tr>
                   <td colSpan={columns.length} className="py-16 text-center">
-                    {/* Tiaano ERP Style Empty State */}
+                    {/* Smart ERP Style Empty State */}
                     <div className="flex flex-col items-center justify-center max-w-sm mx-auto px-4">
                       <div className="flex h-16 w-16 items-center justify-center rounded-2xl bg-slate-100 text-slate-400 mb-3 shadow-inner">
                         <FolderX className="h-8 w-8 text-slate-400 stroke-[1.5]" />
