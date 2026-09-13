@@ -74,12 +74,12 @@ The dedicated Financial Year Master module provides comprehensive accounting per
 
 ---
 
-### 6. Dual Combobox Switchers & Financial Year Switcher Pill
-- **Organisation Combobox**: Switch enterprise tenant organizations.
-- **Branch Combobox**: Filtered strictly to branches permitted by the authenticated user's assigned roles (`user.roles`).
-- **Financial Year Switcher (`📅 2026-2027`)**: Top-bar calendar pill with an animated dropdown menu to switch accounting periods with a single click.
+### 6. Clean Header & Workspace Context Switcher Drawer
+- **Clean Responsive Header**: Streamlined navigation bar with zero layout crowding, featuring an interactive context pill (`🏢 Smart Enterprise • BR-CHN-01 · Chennai • FY 2026-2027 ⇄`), global search shortcut (`Ctrl+K`), quick create dropdown, and notification telemetry.
+- **Tenant & Workspace Switcher Drawer**: Clicking the header pill opens an elegant slide-over drawer allowing operators to switch Tenant Organisation, Operational Branch (scoped to authorized roles), and Financial Fiscal Year.
+- **Draft Selection & "Apply & Switch Context"**: Interactive card selection with draft state tracking and an explicit **"Apply & Switch Context"** action button that dynamically persists preferences to client storage (`localStorage`) and refreshes scoped MongoDB records.
 
-![Header Switchers & FY Dropdown](docs/images/06_header_switchers_dropdown.png)
+![Clean Header & Workspace Context Switcher Drawer](docs/images/06_header_switchers_dropdown.png)
 
 ---
 
@@ -95,8 +95,8 @@ Modern slide-over notification hub providing live multi-branch telemetry, catego
 ```mermaid
 flowchart LR
     subgraph Client ["Client Browser (React 19)"]
-        UI_Switchers["Dual Switchers (Org & Branch)"]
-        UI_FY["📅 FY Switcher Pill"]
+        UI_Switchers["Context Switcher Drawer (Org, Branch, FY)"]
+        UI_Header["Clean Header Context Pill"]
         UI_URL["URL Query State (?per_page=10...)"]
         CookieWatchdog["Cookie Watchdog (authToken)"]
     end
