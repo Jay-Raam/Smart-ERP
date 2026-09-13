@@ -162,7 +162,7 @@ export const DeliveryModule: React.FC<DeliveryModuleProps> = ({ initialOpenAdd =
         </button>
       </div>
 
-      {/* Modern Tiaano ERP DataTable */}
+      {/* Modern Smart ERP DataTable */}
       <DataTable
         data={deliveryChallans}
         columns={columns}

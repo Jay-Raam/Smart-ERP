@@ -152,7 +152,7 @@ export const CustomerModule: React.FC<CustomerModuleProps> = ({ initialOpenAdd =
         </button>
       </div>
 
-      {/* Modern Tiaano ERP DataTable */}
+      {/* Modern Smart ERP DataTable */}
       <DataTable
         data={customers}
         columns={columns}

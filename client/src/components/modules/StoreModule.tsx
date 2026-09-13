@@ -140,7 +140,7 @@ export const StoreModule: React.FC = () => {
         </div>
       </div>
 
-      {/* Modern Tiaano ERP DataTable */}
+      {/* Modern Smart ERP DataTable */}
       <DataTable
         data={storeItems}
         columns={columns}

@@ -162,7 +162,7 @@ export const Navbar: React.FC<NavbarProps> = ({
 
       {/* Right Section: Financial Year Switcher + Quick Add + Notifications + Profile */}
       <div className="flex items-center gap-2 sm:gap-2.5 shrink-0">
-        {/* 3. Financial Year Switcher (Tiaano ERP Style) */}
+        {/* 3. Financial Year Switcher (Smart ERP Style) */}
         <div className="relative shrink-0" ref={fyRef}>
           <button
             type="button"

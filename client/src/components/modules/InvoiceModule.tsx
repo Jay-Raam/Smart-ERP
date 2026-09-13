@@ -194,7 +194,7 @@ export const InvoiceModule: React.FC<InvoiceModuleProps> = ({ initialOpenAdd = f
         </div>
       </div>
 
-      {/* Modern Tiaano DataTable */}
+      {/* Modern Smart ERP DataTable */}
       <DataTable
         data={invoices}
         columns={columns}

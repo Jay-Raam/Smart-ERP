@@ -183,7 +183,7 @@ export const SalesModule: React.FC<SalesModuleProps> = ({ initialOpenAdd = false
         </button>
       </div>
 
-      {/* Modern Tiaano ERP DataTable */}
+      {/* Modern Smart ERP DataTable */}
       <DataTable
         data={salesOrders}
         columns={columns}

@@ -1,4 +1,4 @@
-// Centralized Error Handling inspired by Tiaano ERP (src/utils/handleApiError.js)
+// Centralized Error Handling for Smart ERP
 
 export interface ApiErrorEvent {
   message: string;
