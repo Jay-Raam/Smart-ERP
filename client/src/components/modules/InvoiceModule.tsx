@@ -250,9 +250,12 @@ export const InvoiceModule: React.FC<InvoiceModuleProps> = ({ initialOpenAdd = f
       key: 'actions',
       header: 'Actions',
       sortable: false,
-      align: 'right',
       render: (inv) => {
-        const out = inv.outstandingAmount !== undefined ? inv.outstandingAmount : (inv.status === 'Paid' ? 0 : inv.totalAmount);
+        const out = inv.status === 'Paid'
+          ? 0
+          : (inv.outstandingAmount !== undefined && inv.outstandingAmount > 0)
+            ? inv.outstandingAmount
+            : Math.max(0, inv.totalAmount - (inv.paidAmount || 0));
         return (
           <div className="flex items-center justify-end gap-1.5">
             {out > 0 && (
@@ -699,9 +702,11 @@ export const InvoiceModule: React.FC<InvoiceModuleProps> = ({ initialOpenAdd = f
           totalAmount={selectedInvoiceForPayment.totalAmount}
           paidAmount={selectedInvoiceForPayment.paidAmount || (selectedInvoiceForPayment.status === 'Paid' ? selectedInvoiceForPayment.totalAmount : 0)}
           outstandingAmount={
-            selectedInvoiceForPayment.outstandingAmount !== undefined
-              ? selectedInvoiceForPayment.outstandingAmount
-              : Math.max(0, selectedInvoiceForPayment.totalAmount - (selectedInvoiceForPayment.paidAmount || 0))
+            selectedInvoiceForPayment.status === 'Paid'
+              ? 0
+              : (selectedInvoiceForPayment.outstandingAmount !== undefined && selectedInvoiceForPayment.outstandingAmount > 0)
+                ? selectedInvoiceForPayment.outstandingAmount
+                : Math.max(0, selectedInvoiceForPayment.totalAmount - (selectedInvoiceForPayment.paidAmount || 0))
           }
         />
       )}

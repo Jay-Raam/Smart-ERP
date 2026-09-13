@@ -66,8 +66,11 @@ export const BillDetailPage: React.FC<BillDetailPageProps> = ({ billId, onBack }
     const minExpiryStr = minExpiryDate.toISOString().split('T')[0];
 
     const initial = (bill.items || []).map((item) => {
-      const moved = item.movedToStoreQuantity ?? 0;
-      const remaining = item.remainingToMoveQuantity ?? Math.max(0, item.quantity - moved);
+      const moved = item.movedToStoreQuantity || 0;
+      const remaining = (item.remainingToMoveQuantity !== undefined && item.remainingToMoveQuantity > 0)
+        ? item.remainingToMoveQuantity
+        : Math.max(0, item.quantity - moved);
+
       return {
         productId: item.productId,
         productName: item.productName,
@@ -78,24 +81,20 @@ export const BillDetailPage: React.FC<BillDetailPageProps> = ({ billId, onBack }
         expiryDate: minExpiryStr,
         batchNumber: `BATCH-${Date.now().toString().slice(-6)}`,
         warehouse: 'Main Warehouse',
-        binLocation: 'BIN-A1',
+        binLocation: 'A-01',
       };
     });
-    setMovementItems(initial);
 
-    // Fetch transactions linked to this bill
-    fetch(`/api/erp/transactions?billId=${bill.id || (bill as any)._id}`)
-      .then((res) => res.json())
-      .then((data) => {
-        if (data.transactions) setBillTransactions(data.transactions);
-      })
-      .catch(() => {});
+    setMovementItems(initial);
   }, [bill]);
 
   if (!bill) {
     return (
-      <div className="p-8 text-center space-y-4">
-        <p className="text-slate-500">Bill not found or has been removed.</p>
+      <div className="p-8 text-center">
+        <h2 className="text-lg font-bold text-slate-800">Bill Not Found</h2>
+        <p className="text-xs text-slate-500 mt-1 mb-4">
+          The requested vendor bill ID could not be loaded.
+        </p>
         <button
           type="button"
           onClick={onBack}
@@ -109,13 +108,22 @@ export const BillDetailPage: React.FC<BillDetailPageProps> = ({ billId, onBack }
   }
 
   const outstanding =
-    bill.outstandingAmount !== undefined
-      ? bill.outstandingAmount
-      : Math.max(0, bill.totalAmount - (bill.paidAmount || 0) - (bill.advanceAdjusted || 0));
+    bill.status === 'Paid'
+      ? 0
+      : (bill.outstandingAmount !== undefined && bill.outstandingAmount > 0)
+        ? bill.outstandingAmount
+        : Math.max(0, bill.totalAmount - (bill.paidAmount || 0) - (bill.advanceAdjusted || 0));
 
   const isFullyMoved =
     bill.storeMovementStatus === 'FULLY_MOVED' ||
-    (bill.items || []).every((i) => (i.remainingToMoveQuantity ?? 0) === 0 && (i.movedToStoreQuantity ?? 0) > 0);
+    ((bill.items || []).length > 0 &&
+      (bill.items || []).every((i) => {
+        const moved = i.movedToStoreQuantity || 0;
+        const rem = (i.remainingToMoveQuantity !== undefined && i.remainingToMoveQuantity > 0)
+          ? i.remainingToMoveQuantity
+          : Math.max(0, i.quantity - moved);
+        return rem === 0 && moved > 0;
+      }));
 
   const canMoveToStore = !isFullyMoved;
 
@@ -337,8 +345,10 @@ export const BillDetailPage: React.FC<BillDetailPageProps> = ({ billId, onBack }
             </thead>
             <tbody className="divide-y divide-slate-100 text-slate-700">
               {(bill.items || []).map((item, idx) => {
-                const moved = item.movedToStoreQuantity ?? 0;
-                const remaining = item.remainingToMoveQuantity ?? Math.max(0, item.quantity - moved);
+                const moved = item.movedToStoreQuantity || 0;
+                const remaining = (item.remainingToMoveQuantity !== undefined && item.remainingToMoveQuantity > 0)
+                  ? item.remainingToMoveQuantity
+                  : Math.max(0, item.quantity - moved);
 
                 return (
                   <tr key={idx} className="hover:bg-slate-50/70 transition">

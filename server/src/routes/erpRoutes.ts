@@ -467,6 +467,9 @@ erpRouter.get('/bootstrap', async (req: Request, res: Response) => {
         id: b._id.toString(),
         accountName: b.accountName,
         accountHolderName: b.accountHolderName,
+        accountHolderType: b.accountHolderType || 'ORGANISATION',
+        partyId: b.partyId || '',
+        partyName: b.partyName || '',
         bankName: b.bankName,
         branch: b.branch,
         accountNumber: b.accountNumber,
@@ -807,24 +810,6 @@ erpRouter.post('/bills/:id/move-to-store', async (req: Request, res: Response) =
   session.startTransaction();
 
   try {
-    const {
-      lineIndex = 0,
-      productId,
-      quantity,
-      hasExpiry = false,
-      expiryDate = '',
-      warehouse = 'Chennai Central Warehouse',
-      binLocation = 'A1-BIN',
-      batchNumber,
-    } = req.body;
-
-    const moveQty = Number(quantity);
-    if (!moveQty || moveQty <= 0) {
-      await session.abortTransaction();
-      session.endSession();
-      return res.status(400).json({ error: 'Quantity to move must be greater than 0.' });
-    }
-
     const bill = await Bill.findById(req.params.id).session(session);
     if (!bill) {
       await session.abortTransaction();
@@ -832,209 +817,245 @@ erpRouter.post('/bills/:id/move-to-store', async (req: Request, res: Response) =
       return res.status(404).json({ error: 'Bill not found' });
     }
 
-    const line = bill.items[lineIndex] || bill.items.find((i: any) => i.productId === productId);
-    if (!line) {
-      await session.abortTransaction();
-      session.endSession();
-      return res.status(404).json({ error: 'Line item not found on this Bill.' });
-    }
+    const rawItems = Array.isArray(req.body.items) && req.body.items.length > 0
+      ? req.body.items
+      : [{
+          lineIndex: req.body.lineIndex ?? 0,
+          productId: req.body.productId,
+          quantity: req.body.quantity,
+          hasExpiry: req.body.hasExpiry,
+          expiryDate: req.body.expiryDate,
+          warehouse: req.body.warehouse || 'Main Warehouse',
+          binLocation: req.body.binLocation || 'A-01',
+          batchNumber: req.body.batchNumber,
+        }];
 
-    const currentMoved = line.movedToStoreQuantity || 0;
-    const remainingToMove =
-      line.remainingToMoveQuantity !== undefined
-        ? line.remainingToMoveQuantity
-        : Math.max(0, line.quantity - currentMoved);
+    const movementDate = req.body.movementDate || new Date().toISOString().split('T')[0];
+    const createdMovements: any[] = [];
+    const updatedStoreItems: any[] = [];
 
-    if (moveQty > remainingToMove) {
-      await session.abortTransaction();
-      session.endSession();
-      return res.status(422).json({
-        error: `Cannot move ${moveQty} units. Maximum remaining quantity eligible for store movement is ${remainingToMove} units.`,
-      });
-    }
-
-    const movementDate = new Date().toISOString().split('T')[0];
-
-    // Expiry validation: Must be >= movementDate + 5 days
-    if (hasExpiry) {
-      if (!expiryDate) {
-        await session.abortTransaction();
-        session.endSession();
-        return res.status(400).json({ error: 'Expiry date is mandatory when Has Expiry is selected.' });
+    for (const itemPayload of rawItems) {
+      const moveQty = Number(itemPayload.quantity);
+      if (!moveQty || moveQty <= 0) {
+        continue;
       }
 
-      const moveDateObj = new Date(movementDate);
-      const minValidExpiry = new Date(moveDateObj.getTime() + 5 * 24 * 60 * 60 * 1000);
-      const chosenExpiry = new Date(expiryDate);
+      const line = (itemPayload.lineIndex !== undefined && bill.items[itemPayload.lineIndex])
+        ? bill.items[itemPayload.lineIndex]
+        : bill.items.find((i: any) => i.productId === itemPayload.productId);
 
-      if (chosenExpiry < minValidExpiry) {
+      if (!line) {
+        await session.abortTransaction();
+        session.endSession();
+        return res.status(404).json({ error: `Line item not found for product ${itemPayload.productId || 'unknown'}.` });
+      }
+
+      const currentMoved = line.movedToStoreQuantity || 0;
+      const remainingToMove =
+        (line.remainingToMoveQuantity !== undefined && line.remainingToMoveQuantity > 0)
+          ? line.remainingToMoveQuantity
+          : Math.max(0, line.quantity - currentMoved);
+
+      if (moveQty > remainingToMove) {
         await session.abortTransaction();
         session.endSession();
         return res.status(422).json({
-          error: `Expiry date (${expiryDate}) must be at least 5 days after the store movement date (${movementDate}). Minimum valid expiry date is ${minValidExpiry.toISOString().split('T')[0]}.`,
+          error: `Cannot move ${moveQty} units for ${line.productName}. Maximum remaining quantity eligible for store movement is ${remainingToMove} units.`,
         });
       }
-    }
 
-    // Check prior movement on this bill line for batch / expiry reuse
-    const prevMovement = await StockMovement.findOne({
-      billId: bill._id.toString(),
-      productId: line.productId || productId,
-    }).session(session);
+      // Expiry validation: Must be >= movementDate + 5 days
+      if (itemPayload.hasExpiry) {
+        if (!itemPayload.expiryDate) {
+          await session.abortTransaction();
+          session.endSession();
+          return res.status(400).json({ error: `Expiry date is mandatory for ${line.productName} when Has Expiry is selected.` });
+        }
 
-    const effectiveBatch =
-      batchNumber ||
-      (prevMovement ? prevMovement.batchNumber : `BATCH-${Date.now().toString().slice(-6)}`);
-    const effectiveExpiry =
-      prevMovement && prevMovement.hasExpiry ? prevMovement.expiryDate : expiryDate;
-    const effectiveHasExpiry = prevMovement ? prevMovement.hasExpiry : hasExpiry;
+        const moveDateObj = new Date(movementDate);
+        moveDateObj.setHours(0, 0, 0, 0);
+        const minValidExpiry = new Date(moveDateObj.getTime() + 5 * 24 * 60 * 60 * 1000);
+        const chosenExpiry = new Date(itemPayload.expiryDate);
+        chosenExpiry.setHours(0, 0, 0, 0);
 
-    // 1. Create StockMovement
-    const movementCount = (await StockMovement.countDocuments().session(session)) + 1;
-    const movementNumber = `MOV-${Date.now().toString().slice(-4)}-${movementCount}`;
+        if (chosenExpiry < minValidExpiry) {
+          await session.abortTransaction();
+          session.endSession();
+          return res.status(422).json({
+            error: `Expiry date (${itemPayload.expiryDate}) for ${line.productName} must be at least 5 days after the store movement date (${movementDate}). Minimum valid expiry date is ${minValidExpiry.toISOString().split('T')[0]}.`,
+          });
+        }
+      }
 
-    const stockMovement = new StockMovement({
-      movementNumber,
-      movementDate,
-      billId: bill._id.toString(),
-      billNumber: bill.billNumber,
-      productId: line.productId || productId,
-      productName: line.productName,
-      sku: line.sku || 'SKU-GEN',
-      quantity: moveQty,
-      uom: line.uom || 'Nos',
-      warehouse,
-      binLocation,
-      hasExpiry: effectiveHasExpiry,
-      expiryDate: effectiveExpiry,
-      batchNumber: effectiveBatch,
-      branchId: bill.branchId,
-      organisationId: bill.organisationId,
-      createdBy: (req.user as any)?.name || 'System',
-    });
-    await stockMovement.save({ session });
+      // Check prior movement on this bill line for batch / expiry reuse
+      const prevMovement = await StockMovement.findOne({
+        billId: bill._id.toString(),
+        productId: line.productId || itemPayload.productId,
+      }).session(session);
 
-    // 2. Update line item moved quantities
-    line.movedToStoreQuantity = currentMoved + moveQty;
-    line.remainingToMoveQuantity = Math.max(0, line.quantity - line.movedToStoreQuantity);
+      const effectiveBatch =
+        itemPayload.batchNumber ||
+        (prevMovement ? prevMovement.batchNumber : `BATCH-${Date.now().toString().slice(-6)}`);
+      const effectiveExpiry =
+        prevMovement && prevMovement.hasExpiry ? prevMovement.expiryDate : itemPayload.expiryDate;
+      const effectiveHasExpiry = prevMovement ? prevMovement.hasExpiry : itemPayload.hasExpiry;
 
-    // 3. Update Bill storeMovementStatus
-    const allFullyMoved = bill.items.every(
-      (i: any) => (i.remainingToMoveQuantity !== undefined ? i.remainingToMoveQuantity : (i.quantity - (i.movedToStoreQuantity || 0))) <= 0
-    );
-    bill.storeMovementStatus = allFullyMoved ? 'FULLY_MOVED' : 'PARTIALLY_MOVED';
-    await bill.save({ session });
+      // 1. Create StockMovement
+      const movementCount = (await StockMovement.countDocuments().session(session)) + 1;
+      const movementNumber = `MOV-${Date.now().toString().slice(-4)}-${movementCount}`;
 
-    // 4. Update StoreItem stock
-    let storeItem = await StoreItem.findOne({
-      productId: line.productId || productId,
-      organisationId: bill.organisationId,
-    }).session(session);
-
-    if (storeItem) {
-      storeItem.availableStock += moveQty;
-      storeItem.status = storeItem.availableStock <= storeItem.minLevel ? 'Low Stock' : 'In Stock';
-      storeItem.lastAudited = movementDate;
-      await storeItem.save({ session });
-    } else {
-      storeItem = new StoreItem({
-        productId: line.productId || productId,
+      const stockMovement = new StockMovement({
+        movementNumber,
+        movementDate,
+        billId: bill._id.toString(),
+        billNumber: bill.billNumber,
+        productId: line.productId || itemPayload.productId,
         productName: line.productName,
-        sku: line.sku || 'SKU-STORE',
-        warehouse,
-        binLocation,
-        availableStock: moveQty,
-        minLevel: 10,
-        maxLevel: 100,
-        lastAudited: movementDate,
-        status: moveQty <= 10 ? 'Low Stock' : 'In Stock',
+        sku: line.sku || 'SKU-GEN',
+        quantity: moveQty,
+        uom: line.uom || 'Nos',
+        warehouse: itemPayload.warehouse || 'Main Warehouse',
+        binLocation: itemPayload.binLocation || 'A-01',
+        hasExpiry: effectiveHasExpiry,
+        expiryDate: effectiveExpiry,
+        batchNumber: effectiveBatch,
         branchId: bill.branchId,
         organisationId: bill.organisationId,
+        createdBy: (req.user as any)?.name || 'System',
       });
-      await storeItem.save({ session });
-    }
+      await stockMovement.save({ session });
+      createdMovements.push(stockMovement);
 
-    // 5. Update Product Master currentStock
-    if (line.productId) {
-      const prod = await Product.findById(line.productId).session(session);
-      if (prod) {
-        prod.currentStock = (prod.currentStock || 0) + moveQty;
-        await prod.save({ session });
+      // 2. Update line item moved quantities
+      line.movedToStoreQuantity = currentMoved + moveQty;
+      line.remainingToMoveQuantity = Math.max(0, line.quantity - line.movedToStoreQuantity);
 
-        // Auto-reorder trigger check:
-        if (prod.currentStock <= (prod.minReorderLevel || 10)) {
-          const existingAutoPo = await PurchaseOrder.findOne({
-            'items.productId': prod._id.toString(),
-            organisationId: bill.organisationId,
-            status: { $in: ['AUTO_REORDER_PENDING', 'APPROVED'] },
-          }).session(session);
+      // 3. Update StoreItem stock
+      let storeItem = await StoreItem.findOne({
+        productId: line.productId || itemPayload.productId,
+        organisationId: bill.organisationId,
+      }).session(session);
 
-          if (!existingAutoPo) {
-            const autoCount = (await PurchaseOrder.countDocuments().session(session)) + 50;
-            const autoPoNumber = `PO-AUTO-${Date.now().toString().slice(-4)}-${autoCount}`;
-            const reorderQty = (prod.minReorderLevel || 10) * 2;
-            const subtotal = reorderQty * (prod.purchaseCost || prod.sellingPrice || 1000);
-            const gstRate = prod.taxRate || 18;
-            const taxAmount = (subtotal * gstRate) / 100;
-            const totalAmount = subtotal + taxAmount;
+      if (storeItem) {
+        storeItem.availableStock += moveQty;
+        storeItem.status = storeItem.availableStock <= storeItem.minLevel ? 'Low Stock' : 'In Stock';
+        storeItem.lastAudited = movementDate;
+        await storeItem.save({ session });
+        updatedStoreItems.push(storeItem);
+      } else {
+        storeItem = new StoreItem({
+          productId: line.productId || itemPayload.productId,
+          productName: line.productName,
+          sku: line.sku || 'SKU-STORE',
+          warehouse: itemPayload.warehouse || 'Main Warehouse',
+          binLocation: itemPayload.binLocation || 'A-01',
+          availableStock: moveQty,
+          minLevel: 10,
+          maxLevel: 100,
+          lastAudited: movementDate,
+          status: moveQty <= 10 ? 'Low Stock' : 'In Stock',
+          branchId: bill.branchId,
+          organisationId: bill.organisationId,
+        });
+        await storeItem.save({ session });
+        updatedStoreItems.push(storeItem);
+      }
 
-            const autoPo = new PurchaseOrder({
-              poNumber: autoPoNumber,
-              vendorId: bill.vendorId,
-              vendorName: bill.vendorName,
-              vendorGstin: bill.vendorGstin || '33AAACB4146P1ZL',
-              vendorAddress: bill.billingAddress,
-              vendorState: bill.vendorState || 'Tamil Nadu',
-              billingAddress: bill.billingAddress,
-              shippingAddress: bill.shippingAddress,
-              poDate: movementDate,
-              expectedDate: new Date(Date.now() + 14 * 24 * 60 * 60 * 1000).toISOString().split('T')[0],
-              branchId: bill.branchId,
+      // 4. Update Product Master currentStock & check auto-reorder
+      if (line.productId) {
+        const prod = await Product.findById(line.productId).session(session);
+        if (prod) {
+          prod.currentStock = (prod.currentStock || 0) + moveQty;
+          await prod.save({ session });
+
+          // Auto-reorder trigger check:
+          if (prod.currentStock <= (prod.minReorderLevel || 10)) {
+            const existingAutoPo = await PurchaseOrder.findOne({
+              'items.productId': prod._id.toString(),
               organisationId: bill.organisationId,
-              financialYear: bill.financialYear,
-              items: [
-                {
-                  productId: prod._id.toString(),
-                  productName: prod.name,
-                  sku: prod.sku,
-                  hsnCode: prod.hsnCode,
-                  quantity: reorderQty,
-                  orderedQuantity: reorderQty,
-                  billedQuantity: 0,
-                  remainingQuantity: reorderQty,
-                  unitPrice: prod.purchaseCost || prod.sellingPrice || 1000,
-                  taxRate: gstRate,
-                  taxableAmount: subtotal,
-                  cgstAmount: taxAmount / 2,
-                  sgstAmount: taxAmount / 2,
-                  igstAmount: 0,
-                  totalTax: taxAmount,
-                  totalAmount,
-                  uom: prod.uom || 'Nos',
-                },
-              ],
-              subtotal,
-              shippingCharge: 0,
-              shippingTax: 0,
-              taxableAmount: subtotal,
-              totalDiscount: 0,
-              cgstAmount: taxAmount / 2,
-              sgstAmount: taxAmount / 2,
-              igstAmount: 0,
-              taxAmount,
-              totalAmount,
-              paidAmount: 0,
-              outstandingAmount: totalAmount,
-              paymentStatus: 'UNPAID',
-              totalInWords: `${totalAmount} Rupees Only`,
-              status: 'AUTO_REORDER_PENDING',
-              isAutoReorder: true,
-            });
-            await autoPo.save({ session });
+              status: { $in: ['AUTO_REORDER_PENDING', 'APPROVED'] },
+            }).session(session);
+
+            if (!existingAutoPo) {
+              const autoCount = (await PurchaseOrder.countDocuments().session(session)) + 50;
+              const autoPoNumber = `PO-AUTO-${Date.now().toString().slice(-4)}-${autoCount}`;
+              const reorderQty = (prod.minReorderLevel || 10) * 2;
+              const subtotal = reorderQty * (prod.purchaseCost || prod.sellingPrice || 1000);
+              const gstRate = prod.taxRate || 18;
+              const taxAmount = (subtotal * gstRate) / 100;
+              const totalAmount = subtotal + taxAmount;
+
+              const autoPo = new PurchaseOrder({
+                poNumber: autoPoNumber,
+                vendorId: bill.vendorId,
+                vendorName: bill.vendorName,
+                vendorGstin: bill.vendorGstin || '33AAACB4146P1ZL',
+                vendorAddress: bill.billingAddress,
+                vendorState: bill.vendorState || 'Tamil Nadu',
+                billingAddress: bill.billingAddress,
+                shippingAddress: bill.shippingAddress,
+                poDate: movementDate,
+                expectedDate: new Date(Date.now() + 14 * 24 * 60 * 60 * 1000).toISOString().split('T')[0],
+                branchId: bill.branchId,
+                organisationId: bill.organisationId,
+                financialYear: bill.financialYear,
+                items: [
+                  {
+                    productId: prod._id.toString(),
+                    productName: prod.name,
+                    sku: prod.sku,
+                    hsnCode: prod.hsnCode,
+                    quantity: reorderQty,
+                    orderedQuantity: reorderQty,
+                    billedQuantity: 0,
+                    remainingQuantity: reorderQty,
+                    unitPrice: prod.purchaseCost || prod.sellingPrice || 1000,
+                    taxRate: gstRate,
+                    taxableAmount: subtotal,
+                    cgstAmount: taxAmount / 2,
+                    sgstAmount: taxAmount / 2,
+                    igstAmount: 0,
+                    totalTax: taxAmount,
+                    totalAmount,
+                    uom: prod.uom || 'Nos',
+                  },
+                ],
+                subtotal,
+                shippingCharge: 0,
+                shippingTax: 0,
+                taxableAmount: subtotal,
+                totalDiscount: 0,
+                cgstAmount: taxAmount / 2,
+                sgstAmount: taxAmount / 2,
+                igstAmount: 0,
+                taxAmount,
+                totalAmount,
+                paidAmount: 0,
+                outstandingAmount: totalAmount,
+                paymentStatus: 'UNPAID',
+                totalInWords: `${totalAmount} Rupees Only`,
+                status: 'AUTO_REORDER_PENDING',
+                isAutoReorder: true,
+              });
+              await autoPo.save({ session });
+            }
           }
         }
       }
     }
+
+    if (createdMovements.length === 0) {
+      await session.abortTransaction();
+      session.endSession();
+      return res.status(400).json({ error: 'Quantity to move must be greater than 0.' });
+    }
+
+    // 5. Update Bill storeMovementStatus
+    const allFullyMoved = bill.items.every(
+      (i: any) => Math.max(0, i.quantity - (i.movedToStoreQuantity || 0)) <= 0
+    );
+    bill.storeMovementStatus = allFullyMoved ? 'FULLY_MOVED' : 'PARTIALLY_MOVED';
+    await bill.save({ session });
 
     await session.commitTransaction();
     session.endSession();
@@ -1043,8 +1064,9 @@ erpRouter.post('/bills/:id/move-to-store', async (req: Request, res: Response) =
       message: 'Stock successfully moved to Store.',
       data: {
         bill,
-        movement: stockMovement,
-        storeItem,
+        movements: createdMovements,
+        movement: createdMovements[0],
+        storeItems: updatedStoreItems,
       },
     });
   } catch (err: any) {

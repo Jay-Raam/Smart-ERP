@@ -55,13 +55,17 @@ export const TransactionModule: React.FC = () => {
       const res = await fetch(`/api/erp/transactions?${query.toString()}`);
       if (!res.ok) throw new Error('Failed to load transaction ledger');
       const data = await res.json();
+      const txs = (data.data || data.transactions || []).map((t: any) => ({
+        ...t,
+        id: t.id || t._id,
+      }));
 
-      setTransactions(data.transactions || []);
+      setTransactions(txs);
       setSummary({
-        totalDebit: data.summary?.totalDebit || 0,
-        totalCredit: data.summary?.totalCredit || 0,
-        netFlow: data.summary?.netCashFlow || 0,
-        count: data.pagination?.total || 0,
+        totalDebit: data.totals?.totalDebit ?? data.summary?.totalDebit ?? 0,
+        totalCredit: data.totals?.totalCredit ?? data.summary?.totalCredit ?? 0,
+        netFlow: data.totals?.netBalance ?? data.summary?.netCashFlow ?? 0,
+        count: data.total ?? data.pagination?.total ?? txs.length,
       });
     } catch (err: any) {
       showAppToast('Error loading ledger: ' + err.message, 'error');
@@ -351,7 +355,7 @@ export const TransactionModule: React.FC = () => {
                       )}
                     </td>
                     <td className="py-3 px-4 text-right font-mono font-bold text-slate-900">
-                      ₹{tx.runningBalance.toLocaleString('en-IN', { minimumFractionDigits: 2 })}
+                      ₹{(Number(tx.runningBalance) || Number(tx.credit) || Number(tx.debit) || 0).toLocaleString('en-IN', { minimumFractionDigits: 2 })}
                     </td>
                     <td className="py-3 px-4 text-center">
                       {tx.status === 'POSTED' ? (
@@ -419,7 +423,7 @@ export const TransactionModule: React.FC = () => {
                 <div className="flex justify-between items-center text-[11px] text-slate-500">
                   <span>Balance After Entry:</span>
                   <span className="font-mono font-bold text-slate-800">
-                    ₹{selectedTx.runningBalance.toLocaleString('en-IN', { minimumFractionDigits: 2 })}
+                    ₹{(Number(selectedTx.runningBalance) || Number(selectedTx.credit) || Number(selectedTx.debit) || 0).toLocaleString('en-IN', { minimumFractionDigits: 2 })}
                   </span>
                 </div>
               </div>

@@ -197,7 +197,11 @@ export const BillModule: React.FC = () => {
       header: 'Actions',
       align: 'right',
       render: (b) => {
-        const out = b.outstandingAmount !== undefined ? b.outstandingAmount : (b.totalAmount - (b.paidAmount || 0) - (b.advanceAdjusted || 0));
+        const out = b.status === 'Paid'
+          ? 0
+          : (b.outstandingAmount !== undefined && b.outstandingAmount > 0)
+            ? b.outstandingAmount
+            : Math.max(0, b.totalAmount - (b.paidAmount || 0) - (b.advanceAdjusted || 0));
         return (
           <div className="flex items-center justify-end gap-1.5">
             <button
@@ -368,9 +372,11 @@ export const BillModule: React.FC = () => {
           totalAmount={selectedBillForPayment.totalAmount}
           paidAmount={(selectedBillForPayment.paidAmount || 0) + (selectedBillForPayment.advanceAdjusted || 0)}
           outstandingAmount={
-            selectedBillForPayment.outstandingAmount !== undefined
-              ? selectedBillForPayment.outstandingAmount
-              : Math.max(0, selectedBillForPayment.totalAmount - (selectedBillForPayment.paidAmount || 0) - (selectedBillForPayment.advanceAdjusted || 0))
+            selectedBillForPayment.status === 'Paid'
+              ? 0
+              : (selectedBillForPayment.outstandingAmount !== undefined && selectedBillForPayment.outstandingAmount > 0)
+                ? selectedBillForPayment.outstandingAmount
+                : Math.max(0, selectedBillForPayment.totalAmount - (selectedBillForPayment.paidAmount || 0) - (selectedBillForPayment.advanceAdjusted || 0))
           }
         />
       )}

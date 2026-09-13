@@ -30,7 +30,7 @@ export const RecordPaymentModal: React.FC<RecordPaymentModalProps> = ({
 }) => {
   const { bankAccounts, recordCustomerPayment, recordVendorPayment, recordVendorAdvance } = useErpStore();
 
-  const orgBanks = bankAccounts.filter((b) => b.accountHolderType === 'ORGANISATION');
+  const orgBanks = bankAccounts.filter((b) => !b.accountHolderType || b.accountHolderType === 'ORGANISATION');
   const defaultBank = orgBanks.find((b) => b.isPrimary) || orgBanks[0];
 
   const [bankAccountId, setBankAccountId] = useState(defaultBank?.id || '');

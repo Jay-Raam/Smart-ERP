@@ -55,19 +55,28 @@ bankingRouter.post('/bank-accounts', async (req: Request, res: Response) => {
     const {
       accountName,
       accountHolderName,
+      accountHolderType = 'ORGANISATION',
+      partyId = '',
+      partyName = '',
       bankName,
       branch,
+      branchName,
       accountNumber,
       ifscCode,
       accountType = 'Current',
       currency = 'INR',
       isPrimary = false,
       balance = 0,
+      openingBalance = 0,
       organisationId = req.tenant?.id || '',
       branchId = '',
     } = req.body;
 
-    if (!accountName || !accountHolderName || !bankName || !accountNumber || !ifscCode) {
+    const finalAccountName = accountName || `${bankName} - ${String(accountNumber).slice(-4)}`;
+    const finalBranch = branch || branchName || '';
+    const initialBalance = Number(balance) || Number(openingBalance) || 0;
+
+    if (!accountHolderName || !bankName || !accountNumber || !ifscCode) {
       await session.abortTransaction();
       session.endSession();
       return res.status(400).json({ error: 'Missing mandatory bank account details.' });
@@ -85,7 +94,7 @@ bankingRouter.post('/bank-accounts', async (req: Request, res: Response) => {
     const count = await BankAccount.countDocuments({ organisationId }).session(session);
     const shouldBePrimary = isPrimary || count === 0;
 
-    if (shouldBePrimary) {
+    if (shouldBePrimary && accountHolderType === 'ORGANISATION') {
       // Transactionally demote existing primary accounts
       await BankAccount.updateMany(
         { organisationId, isPrimary: true },
@@ -95,17 +104,20 @@ bankingRouter.post('/bank-accounts', async (req: Request, res: Response) => {
     }
 
     const newAccount = new BankAccount({
-      accountName,
+      accountName: finalAccountName,
       accountHolderName,
+      accountHolderType,
+      partyId,
+      partyName,
       bankName,
-      branch,
+      branch: finalBranch,
       accountNumber,
       ifscCode: ifscCode.toUpperCase().trim(),
       accountType,
       currency,
-      isPrimary: shouldBePrimary,
+      isPrimary: shouldBePrimary && accountHolderType === 'ORGANISATION',
       status: 'ACTIVE',
-      balance: Number(balance) || 0,
+      balance: initialBalance,
       organisationId,
       branchId,
       createdBy: user.name,

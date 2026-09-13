@@ -725,6 +725,9 @@ AuditHistorySchema.index({ createdAt: -1 });
 export interface IBankAccount extends Document {
   accountName: string;
   accountHolderName: string;
+  accountHolderType?: 'ORGANISATION' | 'CUSTOMER' | 'VENDOR';
+  partyId?: string;
+  partyName?: string;
   bankName: string;
   branch: string;
   accountNumber: string;
@@ -742,8 +745,11 @@ export interface IBankAccount extends Document {
 
 const BankAccountSchema = new Schema<IBankAccount>(
   {
-    accountName: { type: String, required: true },
+    accountName: { type: String, default: '' },
     accountHolderName: { type: String, required: true },
+    accountHolderType: { type: String, enum: ['ORGANISATION', 'CUSTOMER', 'VENDOR'], default: 'ORGANISATION' },
+    partyId: { type: String, default: '' },
+    partyName: { type: String, default: '' },
     bankName: { type: String, required: true },
     branch: { type: String, default: '' },
     accountNumber: { type: String, required: true },
