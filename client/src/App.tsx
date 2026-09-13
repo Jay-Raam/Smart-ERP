@@ -11,9 +11,12 @@ import { useErpStore } from './store/erpStore';
 
 // ERP Modules
 import { DashboardModule } from './components/modules/DashboardModule';
-import { SalesModule } from './components/modules/SalesModule';
+import { BillModule } from './components/modules/bills/BillModule';
+import { BillCreatePage } from './components/modules/bills/BillCreatePage';
 import { InvoiceModule } from './components/modules/InvoiceModule';
+import { InvoiceCreatePage } from './components/modules/invoices/InvoiceCreatePage';
 import { PurchaseModule } from './components/modules/PurchaseModule';
+import { PurchaseOrderCreatePage } from './components/modules/purchase/PurchaseOrderCreatePage';
 import { StoreModule } from './components/modules/StoreModule';
 import { ProductsModule } from './components/modules/ProductsModule';
 import { CustomerModule } from './components/modules/CustomerModule';
@@ -24,7 +27,18 @@ import { FinancialYearModule } from './components/modules/FinancialYearModule';
 export function App() {
   const { isAuthenticated, checkSession, logout } = useAuthStore();
   const { fetchBootstrap, isInitialized, isLoading } = useErpStore();
-  const [activeModule, setActiveModule] = useState<ModuleType>('dashboard');
+  const [activeModule, setActiveModule] = useState<ModuleType>(() => {
+    if (typeof window !== 'undefined') {
+      const p = window.location.pathname;
+      if (p === '/bills') return 'bills';
+      if (p === '/invoices') return 'invoices';
+      if (p === '/purchase-orders') return 'purchase';
+    }
+    return 'dashboard';
+  });
+  const [currentPath, setCurrentPath] = useState<string>(() => {
+    return typeof window !== 'undefined' ? window.location.pathname : '/';
+  });
   const [isSidebarCollapsed, setIsSidebarCollapsed] = useState(() => {
     return typeof window !== 'undefined' ? window.innerWidth < 1024 : false;
   });
@@ -42,6 +56,19 @@ export function App() {
     };
     window.addEventListener('resize', handleResize);
     return () => window.removeEventListener('resize', handleResize);
+  }, []);
+
+  // Listen to popstate for browser navigation (forward/back and history.pushState)
+  useEffect(() => {
+    const handlePopState = () => {
+      const path = window.location.pathname;
+      setCurrentPath(path);
+      if (path === '/bills') setActiveModule('bills');
+      else if (path === '/invoices') setActiveModule('invoices');
+      else if (path === '/purchase-orders') setActiveModule('purchase');
+    };
+    window.addEventListener('popstate', handlePopState);
+    return () => window.removeEventListener('popstate', handlePopState);
   }, []);
 
   // Strictly bind authentication to the presence of the authToken cookie
@@ -92,18 +119,24 @@ export function App() {
     );
   }
 
+  const navigateTo = (path: string, module?: ModuleType) => {
+    window.history.pushState({}, '', path);
+    setCurrentPath(path);
+    if (module) setActiveModule(module);
+  };
+
   const handleQuickAdd = (type: string) => {
     if (type === 'invoice') {
-      setActiveModule('invoices');
-      setQuickAddType('invoice');
-    } else if (type === 'sales') {
-      setActiveModule('sales');
-      setQuickAddType('sales');
+      navigateTo('/invoices/new', 'invoices');
+    } else if (type === 'bill') {
+      navigateTo('/bills/new', 'bills');
+    } else if (type === 'po' || type === 'purchase') {
+      navigateTo('/purchase-orders/new', 'purchase');
     } else if (type === 'customer') {
-      setActiveModule('customers');
+      navigateTo('/', 'customers');
       setQuickAddType('customer');
     } else if (type === 'product') {
-      setActiveModule('products');
+      navigateTo('/', 'products');
       setQuickAddType('product');
     }
   };
@@ -116,6 +149,9 @@ export function App() {
         setActiveModule={(m) => {
           setActiveModule(m);
           setQuickAddType(null);
+          if (currentPath !== '/') {
+            navigateTo('/', m);
+          }
           if (typeof window !== 'undefined' && window.innerWidth < 1024) {
             setIsSidebarCollapsed(true);
           }
@@ -139,26 +175,37 @@ export function App() {
         {/* Dynamic Module Content Canvas: ONLY THIS BODY SCROLLS */}
         <main className="flex-1 min-h-0 overflow-y-auto p-4 md:p-6">
           <div className="max-w-7xl w-full mx-auto pb-12">
-            {activeModule === 'dashboard' && (
-              <DashboardModule onNavigate={(m) => setActiveModule(m)} />
+            {/* Dedicated Full Pages */}
+            {currentPath === '/invoices/new' && <InvoiceCreatePage />}
+            {currentPath === '/purchase-orders/new' && <PurchaseOrderCreatePage />}
+            {currentPath === '/bills/new' && <BillCreatePage />}
+
+            {/* Standard Module Routes */}
+            {!['/invoices/new', '/purchase-orders/new', '/bills/new'].includes(currentPath) && (
+              <>
+                {activeModule === 'dashboard' && (
+                  <DashboardModule onNavigate={(m) => {
+                    setActiveModule(m);
+                    navigateTo('/', m);
+                  }} />
+                )}
+                {activeModule === 'invoices' && (
+                  <InvoiceModule initialOpenAdd={quickAddType === 'invoice'} />
+                )}
+                {activeModule === 'bills' && <BillModule />}
+                {activeModule === 'purchase' && <PurchaseModule />}
+                {activeModule === 'store' && <StoreModule />}
+                {activeModule === 'products' && (
+                  <ProductsModule initialOpenAdd={quickAddType === 'product'} />
+                )}
+                {activeModule === 'customers' && (
+                  <CustomerModule initialOpenAdd={quickAddType === 'customer'} />
+                )}
+                {activeModule === 'delivery' && <DeliveryModule />}
+                {activeModule === 'branches' && <BranchModule />}
+                {activeModule === 'financial-years' && <FinancialYearModule />}
+              </>
             )}
-            {activeModule === 'sales' && (
-              <SalesModule initialOpenAdd={quickAddType === 'sales'} />
-            )}
-            {activeModule === 'invoices' && (
-              <InvoiceModule initialOpenAdd={quickAddType === 'invoice'} />
-            )}
-            {activeModule === 'purchase' && <PurchaseModule />}
-            {activeModule === 'store' && <StoreModule />}
-            {activeModule === 'products' && (
-              <ProductsModule initialOpenAdd={quickAddType === 'product'} />
-            )}
-            {activeModule === 'customers' && (
-              <CustomerModule initialOpenAdd={quickAddType === 'customer'} />
-            )}
-            {activeModule === 'delivery' && <DeliveryModule />}
-            {activeModule === 'branches' && <BranchModule />}
-            {activeModule === 'financial-years' && <FinancialYearModule />}
           </div>
         </main>
       </div>
