@@ -21,7 +21,7 @@ declare global {
 }
 
 export function generateTokens(payload: UserPayload) {
-  const accessToken = jwt.sign(payload, ACCESS_SECRET, { expiresIn: '15m' });
+  const accessToken = jwt.sign(payload, ACCESS_SECRET, { expiresIn: '7d' });
   const refreshToken = jwt.sign(
     { userId: payload.userId, tenantId: payload.tenantId },
     REFRESH_SECRET,

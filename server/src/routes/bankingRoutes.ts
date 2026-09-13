@@ -260,17 +260,20 @@ bankingRouter.get('/transactions', async (req: Request, res: Response) => {
     if (orgId) query.organisationId = orgId;
     if (req.query.branchId) query.branchId = req.query.branchId;
     if (req.query.financialYear) query.financialYear = req.query.financialYear;
-    if (req.query.accountId) query.accountId = req.query.accountId;
-    if (req.query.transactionType && req.query.transactionType !== 'ALL') {
-      query.transactionType = req.query.transactionType;
+    const accountId = (req.query.accountId || req.query.bankAccountId) as string;
+    if (accountId && accountId !== 'ALL') query.accountId = accountId;
+
+    const txType = (req.query.transactionType || req.query.type) as string;
+    if (txType && txType !== 'ALL') {
+      query.transactionType = txType;
     }
     if (req.query.status && req.query.status !== 'ALL') {
       query.status = req.query.status;
     }
 
     // Date range filter
-    const fromDate = req.query.fromDate as string;
-    const toDate = req.query.toDate as string;
+    const fromDate = (req.query.fromDate || req.query.startDate) as string;
+    const toDate = (req.query.toDate || req.query.endDate) as string;
     if (fromDate && toDate) {
       if (fromDate > toDate) {
         return res.status(400).json({ error: 'From Date cannot be greater than To Date.' });
@@ -297,13 +300,23 @@ bankingRouter.get('/transactions', async (req: Request, res: Response) => {
     const page = Math.max(1, parseInt(req.query.page as string, 10) || 1);
     const perPage = Math.max(1, parseInt(req.query.per_page as string, 10) || 50);
 
-    const [total, transactions] = await Promise.all([
+    const [total, rawTransactions] = await Promise.all([
       FinancialTransaction.countDocuments(query),
       FinancialTransaction.find(query)
         .sort({ transactionDate: -1, createdAt: -1 })
         .skip((page - 1) * perPage)
         .limit(perPage),
     ]);
+
+    const transactions = rawTransactions.map((tx) => {
+      const doc = tx.toObject ? tx.toObject({ virtuals: true }) : tx;
+      return {
+        ...doc,
+        id: doc._id?.toString() || doc.id,
+        type: doc.transactionType || doc.type,
+        transactionType: doc.transactionType || doc.type,
+      };
+    });
 
     // Calculate debit / credit totals for the queried dataset
     const totalsAgg = await FinancialTransaction.aggregate([
@@ -323,6 +336,7 @@ bankingRouter.get('/transactions', async (req: Request, res: Response) => {
     return res.json({
       message: 'success',
       data: transactions,
+      transactions,
       total,
       page,
       per_page: perPage,
@@ -343,7 +357,14 @@ bankingRouter.get('/transactions/:id', async (req: Request, res: Response) => {
     if (!tx) {
       return res.status(404).json({ error: 'Financial transaction not found.' });
     }
-    return res.json({ message: 'success', data: tx });
+    const doc = tx.toObject ? tx.toObject({ virtuals: true }) : tx;
+    const formatted = {
+      ...doc,
+      id: doc._id?.toString() || doc.id,
+      type: doc.transactionType || doc.type,
+      transactionType: doc.transactionType || doc.type,
+    };
+    return res.json({ message: 'success', data: formatted });
   } catch (err: any) {
     return res.status(500).json({ error: err.message });
   }

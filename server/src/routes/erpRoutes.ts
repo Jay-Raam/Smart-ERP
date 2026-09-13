@@ -1,5 +1,6 @@
 import { Router, Request, Response } from 'express';
 import mongoose from 'mongoose';
+import bcrypt from 'bcryptjs';
 import {
   Organisation,
   Branch,
@@ -17,6 +18,8 @@ import {
   BankAccount,
   FinancialTransaction,
   StockMovement,
+  ItemCategory,
+  GstRateMaster,
 } from '../models/ErpModels';
 import { generateTokens, verifyAccessToken } from '../security/auth';
 import { calculateDocumentTaxes } from '../utils/taxCalculation';
@@ -25,6 +28,7 @@ import { logAuditAction } from '../utils/auditLogger';
 import { reportsRouter } from './reportsRoutes';
 import { bankingRouter } from './bankingRoutes';
 import { paymentRouter } from './paymentRoutes';
+import { userRouter } from './userRoutes';
 
 export const erpRouter = Router();
 
@@ -32,6 +36,7 @@ export const erpRouter = Router();
 erpRouter.use('/reports', reportsRouter);
 erpRouter.use(bankingRouter);
 erpRouter.use(paymentRouter);
+erpRouter.use(userRouter);
 
 // ==========================================
 // 1. AUTHENTICATION (EMAIL OR MOBILE + PASSWORD)
@@ -53,18 +58,37 @@ erpRouter.post('/auth/login', async (req: Request, res: Response) => {
       return res.status(401).json({ error: 'No account found with this email or mobile number.' });
     }
 
-    // Verify password (plain text match for demo password or hashed)
-    if (user.passwordHash !== password && password !== 'password123') {
+    // Immediate check: block inactive user
+    if (user.status === 'INACTIVE') {
+      return res.status(403).json({
+        error: 'Your account has been deactivated. Please contact your administrator.',
+      });
+    }
+
+    // Verify password (plain text match for demo password or bcrypt hashed)
+    let isPasswordValid = false;
+    if (user.passwordHash === password || password === 'password123') {
+      isPasswordValid = true;
+    } else {
+      try {
+        isPasswordValid = await bcrypt.compare(password, user.passwordHash);
+      } catch (e) {
+        isPasswordValid = false;
+      }
+    }
+
+    if (!isPasswordValid) {
       return res.status(401).json({ error: 'Invalid password. Please verify credentials.' });
     }
 
     // Generate real JWT token
+    const isSuperAdmin = user.role === 'SuperAdmin' || user.userType === 'SUPER_ADMIN';
     const tokenPayload = {
       userId: user._id.toString(),
       email: user.email,
       role: user.role,
       tenantId: user.organisationId,
-      permissions: user.role === 'SuperAdmin' ? ['*'] : ['sales:*', 'invoices:*'],
+      permissions: isSuperAdmin ? ['*'] : ['sales:*', 'invoices:*'],
     };
     const tokens = generateTokens(tokenPayload);
 
@@ -86,7 +110,7 @@ erpRouter.post('/auth/login', async (req: Request, res: Response) => {
               branchId: user.branchId,
               branchName: user.branchName,
               roleName: user.role,
-              userType: user.role,
+              userType: user.userType || user.role,
             },
           ];
 
@@ -96,9 +120,13 @@ erpRouter.post('/auth/login', async (req: Request, res: Response) => {
       user: {
         userId: user._id.toString(),
         userName: user.name,
+        name: user.name,
         email: user.email,
         mobile: user.mobile,
         role: user.role,
+        status: user.status || 'ACTIVE',
+        userType: user.userType || (user.role === 'SuperAdmin' ? 'SUPER_ADMIN' : 'STAFF'),
+        permissions: user.permissions || {},
         branchId: user.branchId,
         branchName: user.branchName,
         organisationId: user.organisationId,
@@ -132,6 +160,11 @@ erpRouter.get('/auth/me', async (req: Request, res: Response) => {
       return res.status(404).json({ error: 'User account not found' });
     }
 
+    if (user.status === 'INACTIVE') {
+      res.clearCookie('authToken', { path: '/' });
+      return res.status(403).json({ error: 'Your account has been deactivated. Please contact your administrator.' });
+    }
+
     const userRoles =
       user.roles && user.roles.length > 0
         ? user.roles
@@ -142,7 +175,7 @@ erpRouter.get('/auth/me', async (req: Request, res: Response) => {
               branchId: user.branchId,
               branchName: user.branchName,
               roleName: user.role,
-              userType: user.role,
+              userType: user.userType || user.role,
             },
           ];
 
@@ -151,9 +184,13 @@ erpRouter.get('/auth/me', async (req: Request, res: Response) => {
       user: {
         userId: user._id.toString(),
         userName: user.name,
+        name: user.name,
         email: user.email,
         mobile: user.mobile,
         role: user.role,
+        status: user.status || 'ACTIVE',
+        userType: user.userType || (user.role === 'SuperAdmin' ? 'SUPER_ADMIN' : 'STAFF'),
+        permissions: user.permissions || {},
         branchId: user.branchId,
         branchName: user.branchName,
         organisationId: user.organisationId,
@@ -489,12 +526,16 @@ erpRouter.get('/bootstrap', async (req: Request, res: Response) => {
 });
 
 // ==========================================
-// 3. FINANCIAL YEARS CRUD
+// 3. FINANCIAL YEARS CRUD (ORGANISATION + BRANCH SCOPED)
 // ==========================================
 erpRouter.get('/financial-years', async (req: Request, res: Response) => {
   try {
-    const { organisationId } = req.query as { organisationId?: string };
-    const filter = organisationId ? { organisationId } : {};
+    const { organisationId, branchId } = req.query as { organisationId?: string; branchId?: string };
+    const filter: any = {};
+    if (organisationId) filter.organisationId = organisationId;
+    if (branchId) {
+      filter.$or = [{ branchId }, { branchId: '' }, { branchId: { $exists: false } }];
+    }
     const years = await FinancialYear.find(filter).sort({ yearName: -1 });
     return res.json(years.map((y) => ({ ...y.toObject(), id: y._id.toString() })));
   } catch (err: any) {
@@ -504,22 +545,38 @@ erpRouter.get('/financial-years', async (req: Request, res: Response) => {
 
 erpRouter.post('/financial-years', async (req: Request, res: Response) => {
   try {
-    const { yearName, startDate, endDate, isCurrent, status, organisationId } = req.body;
+    const { yearName, startDate, endDate, isCurrent, status, organisationId, branchId } = req.body;
     if (!yearName || !startDate || !endDate) {
       return res.status(400).json({ error: 'yearName, startDate, and endDate are required.' });
     }
 
+    const orgId = organisationId || 'ORG-001';
+    const brId = branchId || 'BR-CHN-01';
+
+    // Unique per Organisation + Branch + yearName
+    const existing = await FinancialYear.findOne({
+      yearName: yearName.trim(),
+      organisationId: orgId,
+      branchId: brId,
+    });
+    if (existing) {
+      return res.status(400).json({
+        error: `Financial Year "${yearName}" already exists for this branch/organisation.`,
+      });
+    }
+
     if (isCurrent) {
-      await FinancialYear.updateMany({ organisationId }, { isCurrent: false });
+      await FinancialYear.updateMany({ organisationId: orgId, branchId: brId }, { isCurrent: false });
     }
 
     const created = await FinancialYear.create({
-      yearName,
+      yearName: yearName.trim(),
       startDate,
       endDate,
       isCurrent: !!isCurrent,
       status: status || 'Active',
-      organisationId: organisationId || '',
+      organisationId: orgId,
+      branchId: brId,
     });
 
     return res.status(201).json({ ...created.toObject(), id: created._id.toString() });
@@ -533,18 +590,190 @@ erpRouter.patch('/financial-years/:id', async (req: Request, res: Response) => {
     const { id } = req.params;
     const updates = req.body;
 
+    const existing = await FinancialYear.findById(id);
+    if (!existing) return res.status(404).json({ error: 'Financial Year not found' });
+
     if (updates.isCurrent) {
-      const existing = await FinancialYear.findById(id);
-      if (existing) {
-        await FinancialYear.updateMany({ organisationId: existing.organisationId }, { isCurrent: false });
-      }
+      await FinancialYear.updateMany(
+        { organisationId: existing.organisationId, branchId: existing.branchId },
+        { isCurrent: false }
+      );
     }
 
     const updated = await FinancialYear.findByIdAndUpdate(id, updates, { new: true });
-    if (!updated) return res.status(404).json({ error: 'Financial Year not found' });
-    return res.json({ ...updated.toObject(), id: updated._id.toString() });
+    return res.json({ ...updated!.toObject(), id: updated!._id.toString() });
   } catch (err: any) {
     return res.status(400).json({ error: err.message });
+  }
+});
+
+// ==========================================
+// 3B. ITEM CATEGORY MASTER & TAX MASTER
+// ==========================================
+const DEFAULT_CATEGORIES = [
+  { name: 'Raw Materials', code: 'RAW-MAT', description: 'Basic materials used in production or manufacturing' },
+  { name: 'Electronics & Components', code: 'ELEC-COMP', description: 'Electronic chips, circuits, capacitors, resistors' },
+  { name: 'Electrical Equipment', code: 'ELEC-EQP', description: 'Switchgears, transformers, power supplies, motors' },
+  { name: 'Computers & Hardware', code: 'IT-HW', description: 'Laptops, desktops, servers, workstations, monitors' },
+  { name: 'Software & Licenses', code: 'IT-SW', description: 'Enterprise operating systems, productivity software, SaaS' },
+  { name: 'Mechanical Parts & Fasteners', code: 'MECH-FAST', description: 'Bolts, nuts, screws, washers, brackets' },
+  { name: 'Industrial Machinery', code: 'IND-MACH', description: 'CNC machines, heavy lathes, cutting equipment' },
+  { name: 'Tools & Tooling', code: 'TOOLS', description: 'Hand tools, pneumatic tools, cutting dies, drill bits' },
+  { name: 'Chemicals & Solvents', code: 'CHEM-SOLV', description: 'Industrial grade chemicals, degreasers, acids' },
+  { name: 'Paints & Coatings', code: 'PAINT-COAT', description: 'Powder coating, industrial epoxy, primers, thinners' },
+  { name: 'Plastics & Polymers', code: 'PLAST-POLY', description: 'Resins, PVC, polyethylene, nylon pellets' },
+  { name: 'Metals & Alloys', code: 'MET-ALLOY', description: 'Stainless steel, aluminum, copper rods, sheet metal' },
+  { name: 'Rubber & Seals', code: 'RUB-SEAL', description: 'O-rings, gaskets, oil seals, rubber sheets' },
+  { name: 'Packaging Materials', code: 'PKG-MAT', description: 'Corrugated cartons, bubble wrap, stretch films, pallets' },
+  { name: 'Office Supplies & Stationery', code: 'OFF-SUP', description: 'Paper, toners, printing stationery, desk accessories' },
+  { name: 'Safety & PPE Equipment', code: 'SAFE-PPE', description: 'Helmets, safety goggles, gloves, harness, high-vis vests' },
+  { name: 'Laboratory & Testing Equipment', code: 'LAB-TEST', description: 'Calipers, gauges, spectrometry, quality testing sensors' },
+  { name: 'Automotive Spares', code: 'AUTO-SPARE', description: 'Brake pads, filters, spark plugs, timing belts' },
+  { name: 'Hydraulic & Pneumatic Systems', code: 'HYD-PNEU', description: 'Cylinders, valves, air hoses, pressure regulators' },
+  { name: 'Cables & Wiring', code: 'CAB-WIRE', description: 'Power cords, ethernet cables, harness assemblies' },
+  { name: 'Bearings & Bushings', code: 'BEAR-BUSH', description: 'Ball bearings, roller bearings, sleeve bushings' },
+  { name: 'Pipes & Fittings', code: 'PIPE-FIT', description: 'Flanges, elbows, stainless steel and PVC piping' },
+  { name: 'Valves & Pumps', code: 'VALVE-PUMP', description: 'Gate valves, centrifugal pumps, solenoid valves' },
+  { name: 'Consumables & Maintenance (MRO)', code: 'MRO-CONS', description: 'Lubricants, WD-40, rags, cutting fluids' },
+  { name: 'Cleaning & Janitorial Supplies', code: 'CLEAN-JAN', description: 'Industrial detergents, disinfectants, mops' },
+  { name: 'HVAC & Cooling Equipment', code: 'HVAC-COOL', description: 'Chillers, industrial fans, condenser units' },
+  { name: 'Logistics & Material Handling', code: 'LOG-HAND', description: 'Forklift accessories, hand trucks, conveyor rollers' },
+  { name: 'Textiles & Fabrics', code: 'TEX-FAB', description: 'Industrial canvas, filters, uniform textiles' },
+  { name: 'Printing & Publishing', code: 'PRINT-PUB', description: 'Inks, printing plates, packaging printing stock' },
+  { name: 'Furniture & Fixtures', code: 'FURN-FIX', description: 'Workbenches, modular tables, industrial racks' },
+  { name: 'Telecom Equipment', code: 'TEL-EQP', description: 'Routers, patch panels, optical fibers, modems' },
+  { name: 'Medical & Healthcare Supplies', code: 'MED-HLTH', description: 'First aid kits, sanitizers, thermal scanners' },
+  { name: 'Construction Materials', code: 'CONST-MAT', description: 'Cement, structural steel, scaffolding, fasteners' },
+  { name: 'Renewable Energy & Solar', code: 'SOLAR-REN', description: 'Solar panels, inverters, charge controllers' },
+  { name: 'Instrumentation & Sensors', code: 'INST-SENS', description: 'Flowmeters, RTDs, thermocouples, proximity sensors' },
+  { name: 'General Merchandise', code: 'GEN-MERCH', description: 'General operational merchandise and supplies' },
+];
+
+const DEFAULT_GST_RATES = [
+  { rate: 0, label: '0% GST (Nil Rated / Exempted)', cgstRate: 0, sgstRate: 0, igstRate: 0, description: 'Exempted goods and services', sortOrder: 1 },
+  { rate: 5, label: '5% GST (2.5% CGST + 2.5% SGST)', cgstRate: 2.5, sgstRate: 2.5, igstRate: 5, description: 'Essential goods, basic manufacturing supplies', sortOrder: 2 },
+  { rate: 12, label: '12% GST (6% CGST + 6% SGST)', cgstRate: 6, sgstRate: 6, igstRate: 12, description: 'Standard slab - processed foods, specified machinery', sortOrder: 3 },
+  { rate: 18, label: '18% GST (9% CGST + 9% SGST)', cgstRate: 9, sgstRate: 9, igstRate: 18, description: 'Primary standard slab - capital goods, industrial parts & IT', sortOrder: 4 },
+  { rate: 28, label: '28% GST (14% CGST + 14% SGST)', cgstRate: 14, sgstRate: 14, igstRate: 28, description: 'High-end capital equipment, heavy automotive', sortOrder: 5 },
+];
+
+/**
+ * GET /api/erp/item-categories
+ * Returns active item categories (auto-seeds if empty)
+ */
+erpRouter.get('/item-categories', async (req: Request, res: Response) => {
+  try {
+    let count = await ItemCategory.countDocuments({});
+    if (count === 0) {
+      await ItemCategory.insertMany(
+        DEFAULT_CATEGORIES.map((c) => ({
+          name: c.name,
+          code: c.code,
+          description: c.description,
+          isActive: true,
+          organisationId: 'ORG-001',
+        }))
+      );
+    }
+
+    const { search, organisationId } = req.query;
+    const query: any = { isActive: true };
+    if (organisationId) {
+      query.$or = [{ organisationId }, { organisationId: '' }, { organisationId: { $exists: false } }];
+    }
+    if (search) {
+      query.name = { $regex: String(search).trim(), $options: 'i' };
+    }
+
+    const categories = await ItemCategory.find(query).sort({ name: 1 });
+    return res.json({
+      success: true,
+      data: categories.map((c) => ({
+        id: c._id.toString(),
+        name: c.name,
+        code: c.code,
+        description: c.description,
+        isActive: c.isActive,
+      })),
+    });
+  } catch (err: any) {
+    return res.status(500).json({ error: err.message });
+  }
+});
+
+/**
+ * POST /api/erp/item-categories
+ * Allows creating a new custom category
+ */
+erpRouter.post('/item-categories', async (req: Request, res: Response) => {
+  try {
+    const { name, code, description, organisationId } = req.body;
+    if (!name || !name.trim()) {
+      return res.status(400).json({ error: 'Category name is required.' });
+    }
+
+    const cleanName = name.trim();
+    const cleanCode = (code || cleanName.substring(0, 4).toUpperCase().replace(/\s+/g, '-')).trim().toUpperCase();
+
+    const existing = await ItemCategory.findOne({
+      $or: [
+        { name: { $regex: `^${cleanName}$`, $options: 'i' } },
+        { code: cleanCode },
+      ],
+    });
+    if (existing) {
+      return res.status(400).json({ error: `Category "${cleanName}" already exists.` });
+    }
+
+    const created = await ItemCategory.create({
+      name: cleanName,
+      code: cleanCode,
+      description: description || '',
+      isActive: true,
+      organisationId: organisationId || 'ORG-001',
+    });
+
+    return res.status(201).json({
+      success: true,
+      category: {
+        id: created._id.toString(),
+        name: created.name,
+        code: created.code,
+        description: created.description,
+        isActive: created.isActive,
+      },
+    });
+  } catch (err: any) {
+    return res.status(500).json({ error: err.message });
+  }
+});
+
+/**
+ * GET /api/erp/tax-rates
+ * Returns Indian GST rate schedules (auto-seeds if empty)
+ */
+erpRouter.get('/tax-rates', async (req: Request, res: Response) => {
+  try {
+    let count = await GstRateMaster.countDocuments({});
+    if (count === 0) {
+      await GstRateMaster.insertMany(DEFAULT_GST_RATES.map((r) => ({ ...r, isActive: true })));
+    }
+
+    const rates = await GstRateMaster.find({ isActive: true }).sort({ sortOrder: 1, rate: 1 });
+    return res.json({
+      success: true,
+      data: rates.map((r) => ({
+        id: r._id.toString(),
+        rate: r.rate,
+        label: r.label,
+        cgstRate: r.cgstRate,
+        sgstRate: r.sgstRate,
+        igstRate: r.igstRate,
+        description: r.description,
+      })),
+    });
+  } catch (err: any) {
+    return res.status(500).json({ error: err.message });
   }
 });
 

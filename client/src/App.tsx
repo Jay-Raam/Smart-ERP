@@ -26,6 +26,7 @@ import { FinancialYearModule } from './components/modules/FinancialYearModule';
 import { ReportsModule } from './components/modules/reports/ReportsModule';
 import { BankModule } from './components/modules/banking/BankModule';
 import { TransactionModule } from './components/modules/banking/TransactionModule';
+import { UsersModule } from './components/modules/admin/UsersModule';
 
 export function App() {
   const { isAuthenticated, checkSession, logout } = useAuthStore();
@@ -39,6 +40,7 @@ export function App() {
       if (p === '/reports') return 'reports';
       if (p === '/bank') return 'bank';
       if (p === '/transactions') return 'transactions';
+      if (p === '/users') return 'users';
     }
     return 'dashboard';
   });
@@ -75,6 +77,7 @@ export function App() {
       else if (path === '/reports') setActiveModule('reports');
       else if (path === '/bank') setActiveModule('bank');
       else if (path === '/transactions') setActiveModule('transactions');
+      else if (path === '/users') setActiveModule('users');
     };
     window.addEventListener('popstate', handlePopState);
     return () => window.removeEventListener('popstate', handlePopState);
@@ -216,6 +219,7 @@ export function App() {
                 {activeModule === 'bank' && <BankModule />}
                 {activeModule === 'transactions' && <TransactionModule />}
                 {activeModule === 'reports' && <ReportsModule />}
+                {activeModule === 'users' && <UsersModule />}
               </>
             )}
           </div>

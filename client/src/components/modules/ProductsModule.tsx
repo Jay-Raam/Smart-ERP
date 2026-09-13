@@ -33,6 +33,43 @@ export const ProductsModule: React.FC<ProductsModuleProps> = ({ initialOpenAdd =
   const [isAddModalOpen, setIsAddModalOpen] = useState(initialOpenAdd);
   const [isExportModalOpen, setIsExportModalOpen] = useState(false);
 
+  const [categoriesList, setCategoriesList] = useState<{ value: string; label: string; sublabel?: string }[]>([]);
+  const [taxRatesList, setTaxRatesList] = useState<{ value: string; label: string; sublabel?: string }[]>([]);
+
+  React.useEffect(() => {
+    const fetchMasters = async () => {
+      try {
+        const [catRes, taxRes] = await Promise.all([
+          fetch('/api/erp/item-categories'),
+          fetch('/api/erp/tax-rates'),
+        ]);
+
+        if (catRes.ok) {
+          const catData = await catRes.json();
+          const cats = (catData.data || []).map((c: any) => ({
+            value: c.name,
+            label: c.name,
+            sublabel: c.code ? `Code: ${c.code}` : undefined,
+          }));
+          setCategoriesList(cats);
+        }
+
+        if (taxRes.ok) {
+          const taxData = await taxRes.json();
+          const rates = (taxData.data || []).map((r: any) => ({
+            value: String(r.rate),
+            label: r.label,
+            sublabel: r.cgstRate !== undefined ? `${r.cgstRate}% CGST + ${r.sgstRate}% SGST` : undefined,
+          }));
+          setTaxRatesList(rates);
+        }
+      } catch (err) {
+        console.error('Failed to load item categories or GST rates:', err);
+      }
+    };
+    fetchMasters();
+  }, []);
+
   const exportColumns: ExportColumn<Product>[] = [
     { key: 'sku', label: 'SKU' },
     { key: 'name', label: 'Product Name' },
@@ -61,7 +98,7 @@ export const ProductsModule: React.FC<ProductsModuleProps> = ({ initialOpenAdd =
   // Form State
   const [name, setName] = useState('');
   const [skuHsn, setSkuHsn] = useState('');
-  const [category, setCategory] = useState('');
+  const [category, setCategory] = useState('Raw Materials');
   const [uom, setUom] = useState('Nos');
   const [sellingPrice, setSellingPrice] = useState(15000);
   const [taxRate, setTaxRate] = useState(18);
@@ -92,7 +129,7 @@ export const ProductsModule: React.FC<ProductsModuleProps> = ({ initialOpenAdd =
       sku: skuVal,
       name,
       hsnCode: hsnVal,
-      category: category.trim() || 'General',
+      category: category.trim() || 'Raw Materials',
       uom,
       sellingPrice,
       purchaseCost: 0,
@@ -105,7 +142,7 @@ export const ProductsModule: React.FC<ProductsModuleProps> = ({ initialOpenAdd =
     setIsAddModalOpen(false);
     setName('');
     setSkuHsn('');
-    setCategory('');
+    setCategory('Raw Materials');
     setSellingPrice(15000);
     setTaxRate(18);
   };
@@ -270,11 +307,15 @@ export const ProductsModule: React.FC<ProductsModuleProps> = ({ initialOpenAdd =
 
   const categoryOptions = [
     { label: 'All Categories', value: 'ALL' },
-    { label: 'Titanium Anodes', value: 'Titanium Anodes' },
-    { label: 'Cathodic Protection', value: 'Cathodic Protection' },
-    { label: 'Raw Materials', value: 'Raw Materials' },
-    { label: 'Electronics & Control', value: 'Electronics & Control' },
-    { label: 'Flanges & Fittings', value: 'Flanges & Fittings' },
+    ...(categoriesList.length > 0
+      ? categoriesList.map((c) => ({ label: c.label, value: c.value }))
+      : [
+          { label: 'Titanium Anodes', value: 'Titanium Anodes' },
+          { label: 'Cathodic Protection', value: 'Cathodic Protection' },
+          { label: 'Raw Materials', value: 'Raw Materials' },
+          { label: 'Electronics & Control', value: 'Electronics & Control' },
+          { label: 'Flanges & Fittings', value: 'Flanges & Fittings' },
+        ]),
   ];
 
   return (
@@ -359,31 +400,43 @@ export const ProductsModule: React.FC<ProductsModuleProps> = ({ initialOpenAdd =
 
               <div className="grid grid-cols-2 gap-4">
                 <div>
-                  <label className="block font-semibold text-slate-700 mb-1">Category</label>
-                  <input
-                    type="text"
-                    required
-                    placeholder="e.g. Titanium Anodes"
+                  <label className="block font-semibold text-slate-700 mb-1">Item Category *</label>
+                  <Combobox
                     value={category}
-                    onChange={(e) => setCategory(e.target.value)}
-                    className="w-full rounded-lg border border-slate-200 p-2.5 outline-none focus:border-blue-500 text-slate-800"
+                    onChange={(val) => setCategory(val)}
+                    options={
+                      categoriesList.length > 0
+                        ? categoriesList
+                        : [
+                            { value: 'Raw Materials', label: 'Raw Materials' },
+                            { value: 'Electronics & Components', label: 'Electronics & Components' },
+                            { value: 'Industrial Machinery', label: 'Industrial Machinery' },
+                            { value: 'Chemicals & Solvents', label: 'Chemicals & Solvents' },
+                          ]
+                    }
+                    placeholder="Search or select category..."
+                    searchable={true}
                   />
                 </div>
                 <div>
-                  <label className="block font-semibold text-slate-700 mb-1">Product Tax (GST %)</label>
-                  <div className="relative">
-                    <input
-                      type="number"
-                      min="0"
-                      max="100"
-                      required
-                      placeholder="18"
-                      value={taxRate}
-                      onChange={(e) => setTaxRate(parseFloat(e.target.value) || 0)}
-                      className="w-full rounded-lg border border-slate-200 p-2.5 outline-none focus:border-blue-500 font-mono text-slate-800 pr-8"
-                    />
-                    <span className="absolute right-3 top-2.5 text-xs text-slate-400 font-semibold">%</span>
-                  </div>
+                  <label className="block font-semibold text-slate-700 mb-1">Product Tax (GST %) *</label>
+                  <Combobox
+                    value={String(taxRate)}
+                    onChange={(val) => setTaxRate(parseFloat(val) || 0)}
+                    options={
+                      taxRatesList.length > 0
+                        ? taxRatesList
+                        : [
+                            { value: '0', label: '0% GST (Nil Rated / Exempted)', sublabel: '0% CGST + 0% SGST' },
+                            { value: '5', label: '5% GST (Essential Goods)', sublabel: '2.5% CGST + 2.5% SGST' },
+                            { value: '12', label: '12% GST (Standard Slab)', sublabel: '6% CGST + 6% SGST' },
+                            { value: '18', label: '18% GST (Standard Rate - Capital & IT)', sublabel: '9% CGST + 9% SGST' },
+                            { value: '28', label: '28% GST (Heavy / Luxury Goods)', sublabel: '14% CGST + 14% SGST' },
+                          ]
+                    }
+                    placeholder="Select GST rate..."
+                    searchable={true}
+                  />
                 </div>
               </div>
 

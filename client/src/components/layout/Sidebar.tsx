@@ -34,7 +34,8 @@ export type ModuleType =
   | 'financial-years'
   | 'bank'
   | 'transactions'
-  | 'reports';
+  | 'reports'
+  | 'users';
 
 interface NavItem {
   id: ModuleType;
@@ -174,10 +175,32 @@ export const Sidebar: React.FC<SidebarProps> = ({
               badge: 'Super Admin',
               badgeColor: 'bg-purple-50 text-purple-700 border border-purple-200',
             },
+            {
+              id: 'users' as ModuleType,
+              label: 'Users & Roles',
+              icon: ShieldCheck,
+              badge: 'Super Admin',
+              badgeColor: 'bg-indigo-50 text-indigo-700 border border-indigo-200',
+            },
           ]
         : []),
     ],
   });
+
+  const filteredSections = navigationSections
+    .map((section) => ({
+      ...section,
+      items: section.items.filter((item) => {
+        if (isSuperAdmin) return true;
+        if (item.id === 'dashboard') return true;
+        const userPerms = (user as any)?.permissions;
+        if (!userPerms) return true;
+        const modPerm = userPerms[item.id];
+        if (modPerm && modPerm.view === false) return false;
+        return true;
+      }),
+    }))
+    .filter((section) => section.items.length > 0);
 
   const getInitials = (name: string) => {
     return name
@@ -248,7 +271,7 @@ export const Sidebar: React.FC<SidebarProps> = ({
 
         {/* SidebarContent */}
         <div className="flex-1 overflow-y-auto px-2.5 py-3 space-y-5">
-          {navigationSections.map((section, idx) => (
+          {filteredSections.map((section, idx) => (
             <div key={idx} className="space-y-0.5">
               {/* SidebarGroupLabel */}
               {!isCollapsed && (

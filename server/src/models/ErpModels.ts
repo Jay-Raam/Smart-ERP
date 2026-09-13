@@ -60,6 +60,7 @@ export interface IFinancialYear extends Document {
   isCurrent: boolean;
   status: 'Active' | 'Closed';
   organisationId: string;
+  branchId: string;
 }
 
 const FinancialYearSchema = new Schema<IFinancialYear>(
@@ -70,9 +71,12 @@ const FinancialYearSchema = new Schema<IFinancialYear>(
     isCurrent: { type: Boolean, default: false },
     status: { type: String, enum: ['Active', 'Closed'], default: 'Active' },
     organisationId: { type: String, default: '' },
+    branchId: { type: String, default: '' },
   },
   { timestamps: true }
 );
+
+FinancialYearSchema.index({ organisationId: 1, branchId: 1, yearName: 1 });
 
 // 4. Customer
 export interface ICustomer extends Document {
@@ -634,6 +638,15 @@ export interface IUserRole {
   userType: string;
 }
 
+export interface IUserModulePermission {
+  view: boolean;
+  add: boolean;
+  edit: boolean;
+  delete: boolean;
+  history: boolean;
+  approve: boolean;
+}
+
 // 12. User Account (Authentication)
 export interface IUserAccount extends Document {
   email: string;
@@ -641,6 +654,9 @@ export interface IUserAccount extends Document {
   passwordHash: string;
   name: string;
   role: string;
+  status: 'ACTIVE' | 'INACTIVE';
+  userType: 'SUPER_ADMIN' | 'ADMIN' | 'BRANCH_MANAGER' | 'STAFF' | 'VIEWER' | string;
+  permissions?: Record<string, IUserModulePermission>;
   branchId: string;
   branchName: string;
   organisationId: string;
@@ -654,6 +670,9 @@ const UserAccountSchema = new Schema<IUserAccount>(
     passwordHash: { type: String, required: true },
     name: { type: String, required: true },
     role: { type: String, required: true, default: 'Admin' },
+    status: { type: String, enum: ['ACTIVE', 'INACTIVE'], default: 'ACTIVE' },
+    userType: { type: String, default: 'STAFF' },
+    permissions: { type: Schema.Types.Mixed, default: {} },
     branchId: { type: String, required: true },
     branchName: { type: String, required: true },
     organisationId: { type: String, required: true },
@@ -670,6 +689,9 @@ const UserAccountSchema = new Schema<IUserAccount>(
   },
   { timestamps: true }
 );
+
+UserAccountSchema.index({ status: 1 });
+UserAccountSchema.index({ organisationId: 1, branchId: 1 });
 
 // 13. Audit History / Change Tracking
 export interface IAuditHistory extends Document {
@@ -783,6 +805,7 @@ export interface IFinancialTransaction extends Document {
     | 'ADJUSTMENT'
     | 'REVERSAL'
     | string;
+  type?: string;
   accountId: string;
   accountName: string;
   partyType: 'CUSTOMER' | 'VENDOR' | 'INTERNAL' | string;
@@ -854,8 +877,16 @@ const FinancialTransactionSchema = new Schema<IFinancialTransaction>(
     financialYear: { type: String, default: '2026-2027' },
     createdBy: { type: String, default: 'System' },
   },
-  { timestamps: true }
+  {
+    timestamps: true,
+    toJSON: { virtuals: true },
+    toObject: { virtuals: true },
+  }
 );
+
+FinancialTransactionSchema.virtual('type').get(function () {
+  return this.transactionType;
+});
 
 FinancialTransactionSchema.index({ organisationId: 1, transactionDate: -1 });
 FinancialTransactionSchema.index({ accountId: 1, transactionDate: -1 });
@@ -912,6 +943,58 @@ StockMovementSchema.index({ billId: 1 });
 StockMovementSchema.index({ productId: 1 });
 StockMovementSchema.index({ batchNumber: 1 });
 
+// 17. Item Category Master
+export interface IItemCategory extends Document {
+  name: string;
+  code: string;
+  description?: string;
+  isActive: boolean;
+  organisationId?: string;
+}
+
+const ItemCategorySchema = new Schema<IItemCategory>(
+  {
+    name: { type: String, required: true, trim: true },
+    code: { type: String, required: true, trim: true, uppercase: true },
+    description: { type: String, default: '' },
+    isActive: { type: Boolean, default: true },
+    organisationId: { type: String, default: '' },
+  },
+  { timestamps: true }
+);
+
+ItemCategorySchema.index({ organisationId: 1, name: 1 });
+ItemCategorySchema.index({ code: 1 });
+
+// 18. Indian GST Rate Master
+export interface IGstRateMaster extends Document {
+  rate: number;
+  label: string;
+  cgstRate: number;
+  sgstRate: number;
+  igstRate: number;
+  description?: string;
+  isActive: boolean;
+  sortOrder: number;
+}
+
+const GstRateMasterSchema = new Schema<IGstRateMaster>(
+  {
+    rate: { type: Number, required: true, unique: true },
+    label: { type: String, required: true },
+    cgstRate: { type: Number, required: true },
+    sgstRate: { type: Number, required: true },
+    igstRate: { type: Number, required: true },
+    description: { type: String, default: '' },
+    isActive: { type: Boolean, default: true },
+    sortOrder: { type: Number, default: 0 },
+  },
+  { timestamps: true }
+);
+
+GstRateMasterSchema.index({ rate: 1 });
+GstRateMasterSchema.index({ sortOrder: 1 });
+
 // Export Models
 export const Organisation = mongoose.model<IOrganisation>('Organisation', OrganisationSchema);
 export const Branch = mongoose.model<IBranch>('Branch', BranchSchema);
@@ -929,5 +1012,8 @@ export const AuditHistory = mongoose.model<IAuditHistory>('AuditHistory', AuditH
 export const BankAccount = mongoose.model<IBankAccount>('BankAccount', BankAccountSchema);
 export const FinancialTransaction = mongoose.model<IFinancialTransaction>('FinancialTransaction', FinancialTransactionSchema);
 export const StockMovement = mongoose.model<IStockMovement>('StockMovement', StockMovementSchema);
+export const ItemCategory = mongoose.model<IItemCategory>('ItemCategory', ItemCategorySchema);
+export const GstRateMaster = mongoose.model<IGstRateMaster>('GstRateMaster', GstRateMasterSchema);
+
 
 

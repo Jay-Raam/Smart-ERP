@@ -13,9 +13,11 @@ import {
   Receipt,
   FileCheck,
   CheckCircle2,
+  Download,
 } from 'lucide-react';
 import { useErpStore, FinancialTransaction } from '../../../store/erpStore';
 import { showAppToast } from '../../../utils/handleApiError';
+import { ExportModal, ExportColumn } from '../../shared/ExportModal';
 
 export const TransactionModule: React.FC = () => {
   const { bankAccounts, fetchTransactions } = useErpStore();
@@ -26,6 +28,7 @@ export const TransactionModule: React.FC = () => {
   const [isReverseModalOpen, setIsReverseModalOpen] = useState(false);
   const [reversalReason, setReversalReason] = useState('');
   const [isReversing, setIsReversing] = useState(false);
+  const [isExportModalOpen, setIsExportModalOpen] = useState(false);
 
   // Filters
   const [startDate, setStartDate] = useState('');
@@ -46,10 +49,22 @@ export const TransactionModule: React.FC = () => {
     try {
       setIsLoading(true);
       const params: Record<string, string> = {};
-      if (startDate) params.startDate = startDate;
-      if (endDate) params.endDate = endDate;
-      if (typeFilter !== 'ALL') params.type = typeFilter;
-      if (bankFilter !== 'ALL') params.bankAccountId = bankFilter;
+      if (startDate) {
+        params.startDate = startDate;
+        params.fromDate = startDate;
+      }
+      if (endDate) {
+        params.endDate = endDate;
+        params.toDate = endDate;
+      }
+      if (typeFilter !== 'ALL') {
+        params.type = typeFilter;
+        params.transactionType = typeFilter;
+      }
+      if (bankFilter !== 'ALL') {
+        params.bankAccountId = bankFilter;
+        params.accountId = bankFilter;
+      }
 
       const query = new URLSearchParams(params);
       const res = await fetch(`/api/erp/transactions?${query.toString()}`);
@@ -58,6 +73,8 @@ export const TransactionModule: React.FC = () => {
       const txs = (data.data || data.transactions || []).map((t: any) => ({
         ...t,
         id: t.id || t._id,
+        type: t.transactionType || t.type || 'ADJUSTMENT',
+        transactionType: t.transactionType || t.type || 'ADJUSTMENT',
       }));
 
       setTransactions(txs);
@@ -122,20 +139,53 @@ export const TransactionModule: React.FC = () => {
     );
   });
 
-  const getTypeBadge = (type: string) => {
-    switch (type) {
+  const exportColumns: ExportColumn<FinancialTransaction>[] = [
+    {
+      key: 'transactionDate',
+      label: 'Posting Date',
+      transform: (val) => (val ? new Date(val).toLocaleDateString('en-IN') : '—'),
+    },
+    { key: 'transactionNumber', label: 'Transaction #' },
+    {
+      key: 'type',
+      label: 'Type',
+      transform: (val, row) => (row.transactionType || row.type || 'ADJUSTMENT').replace(/_/g, ' '),
+    },
+    { key: 'bankName', label: 'Bank Account', transform: (val) => val || 'Enterprise Bank' },
+    { key: 'accountNumber', label: 'Account Number', transform: (val) => (val ? `..${val.slice(-4)}` : '—') },
+    { key: 'partyName', label: 'Party', transform: (val) => val || 'Direct / Internal' },
+    { key: 'referenceNumber', label: 'Reference / UTR', transform: (val) => val || '—' },
+    { key: 'debit', label: 'Debit (₹)', transform: (val) => (Number(val) || 0).toFixed(2) },
+    { key: 'credit', label: 'Credit (₹)', transform: (val) => (Number(val) || 0).toFixed(2) },
+    {
+      key: 'runningBalance',
+      label: 'Balance (₹)',
+      transform: (val, row) =>
+        (Number(val) || Number(row.credit) || Number(row.debit) || 0).toFixed(2),
+    },
+    { key: 'status', label: 'Status' },
+  ];
+
+  const getTypeBadge = (type?: string) => {
+    const t = type || 'ADJUSTMENT';
+    switch (t) {
       case 'CUSTOMER_PAYMENT':
         return <span className="bg-emerald-50 text-emerald-700 border border-emerald-200 px-2 py-0.5 rounded text-[10px] font-bold">Customer Payment</span>;
       case 'VENDOR_PAYMENT':
         return <span className="bg-amber-50 text-amber-700 border border-amber-200 px-2 py-0.5 rounded text-[10px] font-bold">Vendor Payment</span>;
       case 'VENDOR_ADVANCE':
         return <span className="bg-indigo-50 text-indigo-700 border border-indigo-200 px-2 py-0.5 rounded text-[10px] font-bold">Vendor Advance</span>;
+      case 'BANK_TRANSFER':
+      case 'TRANSFER':
+        return <span className="bg-blue-50 text-blue-700 border border-blue-200 px-2 py-0.5 rounded text-[10px] font-bold">Bank Transfer</span>;
       case 'REVERSAL':
         return <span className="bg-purple-50 text-purple-700 border border-purple-200 px-2 py-0.5 rounded text-[10px] font-bold">Ledger Reversal</span>;
       case 'ADJUSTMENT':
         return <span className="bg-slate-100 text-slate-700 border border-slate-300 px-2 py-0.5 rounded text-[10px] font-bold">Adjustment</span>;
+      case 'EXPENSE':
+        return <span className="bg-rose-50 text-rose-700 border border-rose-200 px-2 py-0.5 rounded text-[10px] font-bold">Expense</span>;
       default:
-        return <span className="bg-blue-50 text-blue-700 border border-blue-200 px-2 py-0.5 rounded text-[10px] font-bold">{type}</span>;
+        return <span className="bg-blue-50 text-blue-700 border border-blue-200 px-2 py-0.5 rounded text-[10px] font-bold">{t.replace(/_/g, ' ')}</span>;
     }
   };
 
@@ -156,6 +206,14 @@ export const TransactionModule: React.FC = () => {
         </div>
 
         <div className="flex items-center gap-2">
+          <button
+            type="button"
+            onClick={() => setIsExportModalOpen(true)}
+            className="inline-flex items-center gap-1.5 px-3 py-1.5 text-xs font-semibold rounded-lg border border-slate-300 hover:bg-slate-50 text-slate-700 transition cursor-pointer"
+          >
+            <Download className="h-3.5 w-3.5 text-slate-500" />
+            <span>Export Ledger</span>
+          </button>
           <button
             type="button"
             onClick={loadData}
@@ -240,6 +298,7 @@ export const TransactionModule: React.FC = () => {
               <option value="CUSTOMER_PAYMENT">Customer Payment</option>
               <option value="VENDOR_PAYMENT">Vendor Payment</option>
               <option value="VENDOR_ADVANCE">Vendor Advance</option>
+              <option value="BANK_TRANSFER">Bank Transfer</option>
               <option value="REVERSAL">Ledger Reversal</option>
               <option value="ADJUSTMENT">Adjustment</option>
             </select>
@@ -323,7 +382,7 @@ export const TransactionModule: React.FC = () => {
                       {tx.transactionDate ? new Date(tx.transactionDate).toLocaleDateString('en-IN') : '—'}
                     </td>
                     <td className="py-3 px-4 font-mono font-bold text-blue-700">{tx.transactionNumber}</td>
-                    <td className="py-3 px-4">{getTypeBadge(tx.type)}</td>
+                    <td className="py-3 px-4">{getTypeBadge(tx.transactionType || tx.type)}</td>
                     <td className="py-3 px-4">
                       <div className="font-medium text-slate-900">{tx.bankName || 'Enterprise Bank'}</div>
                       <div className="text-[10px] text-slate-400 font-mono">
@@ -402,7 +461,7 @@ export const TransactionModule: React.FC = () => {
               <div className="p-4 rounded-xl bg-slate-50 border border-slate-200 space-y-2">
                 <div className="flex justify-between items-center">
                   <span className="text-slate-500">Transaction Type</span>
-                  {getTypeBadge(selectedTx.type)}
+                  {getTypeBadge(selectedTx.transactionType || selectedTx.type)}
                 </div>
                 <div className="flex justify-between items-center">
                   <span className="text-slate-500">Ledger Status</span>
@@ -565,6 +624,22 @@ export const TransactionModule: React.FC = () => {
           </div>
         </div>
       )}
+
+      {/* Export Ledger Modal */}
+      <ExportModal<FinancialTransaction>
+        show={isExportModalOpen}
+        onClose={() => setIsExportModalOpen(false)}
+        title="Financial Transactions Ledger Export"
+        filenamePrefix="financial_transactions_ledger"
+        columns={exportColumns}
+        data={filteredTxs}
+        dateField="transactionDate"
+        statusField="status"
+        statusOptions={[
+          { value: 'POSTED', label: 'POSTED' },
+          { value: 'REVERSED', label: 'REVERSED' },
+        ]}
+      />
     </div>
   );
 };

@@ -22,6 +22,8 @@ export const FinancialYearModule: React.FC = () => {
     updateFinancialYear,
     fetchBootstrap,
     isLoading,
+    branches,
+    activeBranchId,
   } = useErpStore();
 
   const [isModalOpen, setIsModalOpen] = useState(false);
@@ -38,24 +40,32 @@ export const FinancialYearModule: React.FC = () => {
   const activeCount = financialYears.filter((fy) => fy.status === 'Active').length;
   const closedCount = financialYears.filter((fy) => fy.status === 'Closed').length;
 
+  const currentBranch = branches.find((b) => b.id === activeBranchId) || branches[0];
+
   const handleCreate = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!yearName || !startDate || !endDate) return;
 
-    setIsSubmitting(true);
-    await addFinancialYear({
-      yearName: yearName.trim(),
-      startDate,
-      endDate,
-      isCurrent,
-      status,
-    });
-    setIsSubmitting(false);
-    setIsModalOpen(false);
-    setYearName('');
-    setStartDate('');
-    setEndDate('');
-    setIsCurrent(false);
+    try {
+      setIsSubmitting(true);
+      await addFinancialYear({
+        yearName: yearName.trim(),
+        startDate,
+        endDate,
+        isCurrent,
+        status,
+        branchId: activeBranchId,
+      });
+      setIsModalOpen(false);
+      setYearName('');
+      setStartDate('');
+      setEndDate('');
+      setIsCurrent(false);
+    } catch (err) {
+      // Error toast is handled by store
+    } finally {
+      setIsSubmitting(false);
+    }
   };
 
   const handleSetCurrent = async (fy: FinancialYear) => {
@@ -177,6 +187,9 @@ export const FinancialYearModule: React.FC = () => {
             </h1>
             <span className="rounded-full bg-blue-100 text-blue-700 px-2.5 py-0.5 text-xs font-semibold">
               FY Management
+            </span>
+            <span className="rounded-full bg-indigo-50 text-indigo-700 border border-indigo-200 px-2.5 py-0.5 text-xs font-semibold">
+              Branch: {currentBranch ? currentBranch.name : 'All Branches'}
             </span>
           </div>
           <p className="text-xs lg:text-sm text-slate-500 mt-1">

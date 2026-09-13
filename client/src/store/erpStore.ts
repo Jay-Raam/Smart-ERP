@@ -21,6 +21,7 @@ export interface FinancialYear {
   isCurrent: boolean;
   status: 'Active' | 'Closed';
   organisationId?: string;
+  branchId?: string;
 }
 
 export interface Customer {
@@ -137,6 +138,7 @@ export interface FinancialTransaction {
   transactionNumber: string;
   transactionDate: string;
   type: 'CUSTOMER_PAYMENT' | 'VENDOR_PAYMENT' | 'EXPENSE' | 'TRANSFER' | 'ADJUSTMENT' | 'REVERSAL' | 'VENDOR_ADVANCE';
+  transactionType?: string;
   bankAccountId: string;
   bankName?: string;
   accountNumber?: string;
@@ -534,14 +536,20 @@ export const useErpStore = create<ErpState>((set, get) => ({
         body: JSON.stringify({
           ...fy,
           organisationId: get().activeOrganisationId || localStorage.getItem('OrganizationId'),
+          branchId: get().activeBranchId || localStorage.getItem('Branch'),
         }),
       });
-      if (!res.ok) throw new Error('Failed to create financial year');
+      if (!res.ok) {
+        const errData = await res.json().catch(() => ({}));
+        throw new Error(errData.error || 'Failed to create financial year');
+      }
       const created = await res.json();
       set((state) => ({ financialYears: [created, ...state.financialYears] }));
       showAppToast(`Financial Year ${created.yearName} created successfully`, 'success');
+      return created;
     } catch (err: any) {
       showAppToast('Error saving financial year: ' + err.message, 'error');
+      throw err;
     }
   },
 
