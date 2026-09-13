@@ -1,102 +1,103 @@
-# 🏢 Smart Enterprise ERP
+# Smart ERP
+
+A full-stack multi-tenant ERP application built with React 19, Node.js, Express, TypeScript, and MongoDB.
 
 <p align="center">
   <img src="docs/images/smart_erp_pipeline.svg" alt="Smart ERP Architecture Pipeline" width="100%" />
 </p>
 
-<p align="center">
-  <img src="https://img.shields.io/badge/Release-v2.0.0-blue.svg?style=flat-square" alt="Version" />
-  <img src="https://img.shields.io/badge/Architecture-Multi--Tenant-emerald.svg?style=flat-square" alt="Architecture" />
-  <img src="https://img.shields.io/badge/Auth-Cookie--Strict%20JWT-blueviolet.svg?style=flat-square" alt="Auth" />
-  <img src="https://img.shields.io/badge/Database-MongoDB%20Atlas-forestgreen.svg?style=flat-square" alt="Database" />
-  <img src="https://img.shields.io/badge/Frontend-React%2019%20✦%20Vite%20✦%20Tailwind-38bdf8.svg?style=flat-square" alt="Frontend" />
-  <img src="https://img.shields.io/badge/State-URL%20Query%20Sync-amber.svg?style=flat-square" alt="State" />
-</p>
+---
+
+## Overview
+
+I built Smart ERP to handle core operational workflows for manufacturing and distribution businesses. The main architectural focus was implementing multi-tenant and multi-branch data isolation while keeping the UI responsive and straightforward for users who frequently switch between branches and fiscal years.
+
+Every transactional record (Invoices, Bills, Purchase Orders, Store Movements, Delivery Challans) is strictly partitioned across three dimensions:
+- **Organisation**: The top-level tenant.
+- **Branch**: The physical operating location (e.g., Chennai HQ, Coimbatore Unit, Bengaluru Depot).
+- **Financial Year**: Fiscal accounting period (e.g., 2026-2027) with open/closed period controls.
+
+The frontend keeps table filters, search queries, pagination, and sorting synchronized directly with URL query parameters so links can be bookmarked or shared without losing context.
 
 ---
 
-## 📖 Executive Summary
+## Architecture & Key Features
 
-**Smart Enterprise ERP** is a modern, full-stack multi-tenant manufacturing and resource planning platform built for precision engineering, heavy manufacturing, and industrial distribution.
-
-The system features **three-dimensional data isolation** across **Organisation**, **Operating Branch**, and **Financial Year**, ensuring every transaction, ledger entry, stock movement, and customer balance is strictly partitioned while allowing executives seamless switching between multi-branch entities and accounting periods.
+- **Multi-Tenant & Multi-Branch Scoping**: All queries run through scoping middleware that automatically filters by `organisationId`, `branchId`, and `financialYear`.
+- **Financial Year Management**: Supports creating, activating, and closing accounting periods. Closed periods lock transactions against further edits.
+- **URL-Synchronized State (`useUrlTableState`)**: Search terms, status filters, sort columns, and pagination are reflected in the URL query string.
+- **Clean Empty States**: Switching to a branch or historical year with no data renders an informative empty state with quick-reset buttons rather than breaking the table.
+- **HttpOnly Cookie Authentication**: JWTs are stored in secure cookies rather than `localStorage`, mitigating token theft via XSS. `localStorage` only retains non-sensitive UI preferences (current branch name, selected fiscal year).
+- **Structured Vector PDF Generation**: Tax invoices are rendered as native vector PDFs via `@react-pdf/renderer`, ensuring crisp typography and consistent margins across print and download.
+- **Procurement & Inventory Tracking**:
+  - Purchase Orders track remaining quantities per line item when converted to Bills to prevent over-billing.
+  - Inward store movements validate batch numbers, warehouse rack/shelf locations, and require expiry dates to be at least 5 days into the future when applicable.
+  - Low-stock items trigger auto-reorder drafts pending administrator approval.
+- **Banking & Double-Entry Ledger**:
+  - Institutional bank accounts with single-primary enforcement.
+  - Double-entry ledger tracking debits, credits, running balances, and reversals.
+  - Payment modal shared across Invoices, Bills, and PO advances.
 
 ---
 
-## 🎯 Key Architectural Pillars
+## Screenshots & Core Workflows
 
-1. **Strict Multi-Tenant & Multi-Branch Scoping**: All transactional entities (Customers, Sales Orders, Tax Invoices, Purchase Orders, Store Inventory, Delivery Challans) are isolated by the triad: `organisationId` + `branchId` + `financialYear`.
-2. **Dedicated Financial Year Master**: Multi-year fiscal accounting management supporting active, closed, and current operating years with period locking and period transitions.
-3. **URL-Synchronized Table State Engine (`useUrlTableState`)**: Every search keyword, status filter (`filter_by=status.<val>`), sort column, sort order, page number, and page size are bidirectionally bound to browser URL query parameters.
-4. **Intelligent "NO DATA FOUND" Empty States**: When switching to a newly opened branch or a closed historical year with zero records, the interface dynamically displays a dedicated empty state with clear guidance, one-click filter resets, and manual data reload triggers.
-5. **Zero Token in LocalStorage**: Authentication tokens are strictly transmitted and verified through secure cookies (`authToken`). Non-sensitive operational metadata (`Branch`, `BranchName`, `OrganizationId`, `FinancialYear`, `UserID`, `userName`) resides in `localStorage` for UI continuity, but grants zero system access without the cookie.
-6. **Real-World MongoDB Atlas Cloud Database**: Seeded with real industrial manufacturing data including Cathodic Protection MMO Anodes, Platinized Titanium Substrates, and genuine enterprise clients (BHEL, Ashok Leyland, Tata Motors, L&T).
-
----
-
-## 🖼️ System Walkthrough & Visual Results
-
-### 1. Streamlined Authentication (Cookie-Only Security)
-The login portal requires only **Email or Mobile Number** and **Password**. It establishes a secure session via the `authToken` cookie and initializes the user's permitted role assignments across operating branches.
+### 1. Authentication
+Login supports email or mobile number with password. The backend sets an `authToken` cookie and returns user permissions scoped to authorized branches.
 
 ![Authentication & Login](docs/images/01_login_authentication.png)
 
 ---
 
-### 2. Executive Management Dashboard
-Live telemetry dashboard displaying real-time branch revenue, sales order status breakdowns, GST invoice calculations, purchase requisitions, and inventory reorder alerts tailored to the currently active branch and fiscal year.
+### 2. Operational Dashboard
+Displays branch revenue, order status distributions, GST tax totals, purchase orders, and inventory reorder alerts scoped to the active branch and fiscal year.
 
-![Executive Dashboard](docs/images/02_executive_dashboard.png)
-
----
-
-### 3. Scoped Sales Orders & Transactional Grid
-Interactive DataTable featuring live search, status filters (`Completed`, `Dispatched`, `In Production`), date tracking, and total calculations with 18% GST breakdown.
-
-![Sales Orders Master](docs/images/03_sales_orders_chennai.png)
+![Dashboard](docs/images/02_executive_dashboard.png)
 
 ---
 
-### 4. Intelligent Empty State ("NO DATA FOUND")
-When a branch with zero records (e.g., Bengaluru Tech & Distribution Depot `BR-BLR-03`) or a closed historical fiscal year is selected, the UI gracefully renders a clean empty state with one-click filter resets and data reloads.
+### 3. Scoped Sales & Order Records
+Interactive data table with real-time search, status filters, date tracking, and GST breakdowns.
 
-![Empty State - No Data Found](docs/images/04_empty_state_bengaluru.png)
+![Sales Orders](docs/images/03_sales_orders_chennai.png)
 
 ---
 
-### 5. Financial Year Master Management
-The dedicated Financial Year Master module provides comprehensive accounting period controls:
-- **KPI Summary Cards**: Total Recorded Fiscal Years, Current Operational Year, Active FY Periods, and Closed/Audited Periods.
-- **Period Operations**: **Set as Current**, **Close Period** (locks transactions), and **Reopen Period**.
-- **New Financial Year Creation**: Modal with full date-range validation and accounting year designation.
+### 4. Zero-Record State Handling
+When a newly opened branch or a closed historical year contains no records, the UI presents an empty state with quick actions to reload or clear filters.
+
+![Empty State](docs/images/04_empty_state_bengaluru.png)
+
+---
+
+### 5. Financial Year Master
+Allows administrators to manage accounting periods: create new fiscal years, toggle active periods, designate the current operating year, and lock closed years.
 
 ![Financial Year Master](docs/images/05_financial_year_master.png)
 
 ---
 
-### 6. Clean Header & Workspace Context Switcher Drawer
-- **Clean Responsive Header**: Streamlined navigation bar with zero layout crowding, featuring an interactive context pill (`🏢 Smart Enterprise • BR-CHN-01 · Chennai • FY 2026-2027 ⇄`), global search shortcut (`Ctrl+K`), quick create dropdown, and notification telemetry.
-- **Tenant & Workspace Switcher Drawer**: Clicking the header pill opens an elegant slide-over drawer allowing operators to switch Tenant Organisation, Operational Branch (scoped to authorized roles), and Financial Fiscal Year.
-- **Draft Selection & "Apply & Switch Context"**: Interactive card selection with draft state tracking and an explicit **"Apply & Switch Context"** action button that dynamically persists preferences to client storage (`localStorage`) and refreshes scoped MongoDB records.
+### 6. Workspace & Branch Switcher
+A slide-over drawer in the header lets users switch tenant organisation, branch, and financial year without navigating away from their current screen.
 
-![Clean Header & Workspace Context Switcher Drawer](docs/images/06_header_switchers_dropdown.png)
+![Workspace Switcher](docs/images/06_header_switchers_dropdown.png)
 
 ---
 
-### 7. Real-Time Operations & Alert Center (Notification Drawer)
-Modern slide-over notification hub providing live multi-branch telemetry, categorized alert filtering (`All`, `Unread`, `Orders & Billing`, `Stock & Dispatch`, `System`), priority chips (`Critical Alert`, `Payment Verified`, `High Priority`), and direct one-click workflow navigation (`Create PO`, `View Invoice`, `View Order`).
+### 7. Notification & Alert Drawer
+Slide-over drawer providing categorized operational alerts (orders, billing, low stock, system updates) with direct navigation to the relevant documents.
 
-![Operations & Alert Center](docs/images/07_notifications_drawer.png)
+![Notification Drawer](docs/images/07_notifications_drawer.png)
 
 ---
 
-## 🔄 End-to-End Request & Scoping Pipeline
+## Request & Scoping Pipeline
 
 ```mermaid
 flowchart LR
     subgraph Client ["Client Browser (React 19)"]
         UI_Switchers["Context Switcher Drawer (Org, Branch, FY)"]
-        UI_Header["Clean Header Context Pill"]
+        UI_Header["Header Context Pill"]
         UI_URL["URL Query State (?per_page=10...)"]
         CookieWatchdog["Cookie Watchdog (authToken)"]
     end
@@ -114,15 +115,14 @@ flowchart LR
         EmptyCheck{"Records Found?"}
     end
 
-    subgraph Database ["MongoDB Atlas Cloud"]
+    subgraph Database ["MongoDB Atlas"]
         Col_FY["FinancialYears"]
-        Col_Sales["SalesOrders"]
-        Col_Inv["TaxInvoices"]
-        Col_Stock["Store & Purchase"]
+        Col_Sales["SalesOrders / Invoices"]
+        Col_Bills["Bills & Purchases"]
+        Col_Stock["Store & Inventory"]
     end
 
     UI_Switchers --> AuthMiddleware
-    UI_FY --> AuthMiddleware
     UI_URL --> AuthMiddleware
     CookieWatchdog -.->|If Cookie Removed| Logout[Immediate Logout]
 
@@ -135,40 +135,44 @@ flowchart LR
     FYFilter --> Database
     Database --> EmptyCheck
     EmptyCheck -- Yes --> RenderGrid[Render DataTable Records]
-    EmptyCheck -- No --> RenderEmpty[Render 'NO DATA FOUND' Empty State]
+    EmptyCheck -- No --> RenderEmpty[Render Empty State]
 ```
 
 ---
 
-## 🗄️ Multi-Tenant Database Architecture
+## Database Models
 
-### Data Models (`server/src/models/ErpModels.ts`)
+Core schemas defined in `server/src/models/ErpModels.ts`:
 
 | Model | Key Fields | Multi-Tenant Scope |
 | :--- | :--- | :--- |
-| **`Organisation`** | `name`, `code`, `currency`, `taxIdentifier` | Root multi-tenant entity |
+| **`Organisation`** | `name`, `code`, `currency`, `taxIdentifier` | Root tenant entity |
 | **`Branch`** | `organisationId`, `branchCode`, `branchName`, `city`, `address` | Sub-tenant operating location |
 | **`FinancialYear`** | `yearName`, `startDate`, `endDate`, `isCurrent`, `status`, `organisationId` | Fiscal accounting periods |
 | **`UserAccount`** | `name`, `email`, `mobile`, `passwordHash`, `roles: IUserRole[]` | Multi-branch role assignments |
-| **`Customer`** | `name`, `customerCode`, `company`, `gstin`, `creditLimit`, `branchId` | Scoped by branch & org |
-| **`SalesOrder`** | `soNumber`, `customerId`, `branchId`, `financialYear`, `items`, `status` | Scoped by branch, org, & FY |
-| **`Invoice`** | `invoiceNumber`, `salesOrderId`, `branchId`, `financialYear`, `amount`, `gst` | Scoped by branch, org, & FY |
-| **`PurchaseOrder`** | `poNumber`, `vendorName`, `branchId`, `financialYear`, `totalAmount` | Scoped by branch, org, & FY |
-| **`StoreItem`** | `itemCode`, `itemName`, `branchId`, `quantity`, `minReorderLevel` | Scoped by branch & org |
-| **`DeliveryChallan`** | `dcNumber`, `salesOrderId`, `branchId`, `financialYear`, `status` | Scoped by branch, org, & FY |
+| **`Customer`** | `name`, `customerCode`, `companyName`, `gstin`, `creditLimit`, `branchId` | Scoped by branch & org |
+| **`Vendor`** | `name`, `vendorCode`, `companyName`, `gstin`, `paymentTerms`, `branchId` | Scoped by branch & org |
+| **`Product`** | `name`, `itemCode`, `hsnCode`, `unitPrice`, `minReorderLevel`, `isActive` | Scoped by branch & org |
+| **`PurchaseOrder`** | `poNumber`, `vendorId`, `branchId`, `financialYear`, `items`, `status` | Scoped by branch, org, & FY |
+| **`Bill`** | `billNumber`, `vendorId`, `purchaseOrderId`, `items`, `paidAmount`, `status` | Scoped by branch, org, & FY |
+| **`Invoice`** | `invoiceNumber`, `customerId`, `branchId`, `financialYear`, `items`, `status` | Scoped by branch, org, & FY |
+| **`StoreItem`** | `productId`, `branchId`, `quantity`, `batchNumber`, `expiryDate` | Scoped by branch & org |
+| **`DeliveryChallan`**| `challanNumber`, `invoiceId`, `branchId`, `financialYear`, `status` | Scoped by branch, org, & FY |
+| **`BankAccount`** | `accountNumber`, `bankName`, `ifscCode`, `balance`, `isPrimary` | Scoped by org |
+| **`FinancialTransaction`** | `transactionNumber`, `bankAccountId`, `type`, `debit`, `credit`, `balance` | Scoped by org & branch |
 
 ---
 
-## 🔐 Security & Session Protocol
+## Authentication & Session Security
 
 ```
 +-------------------------------------------------------------------------+
-|                       HTTP COOKIE STORAGE ONLY                          |
+|                       HTTP COOKIE STORAGE                               |
 |                       Cookie: authToken=<JWT>                           |
-|                       Path=/; SameSite=Lax                              |
+|                       Path=/; SameSite=Lax; HttpOnly                    |
 +-------------------------------------------------------------------------+
                                     ▲
-                                    │ (Checked every turn)
+                                    │ (Verified on API requests)
 +-----------------------------------+-------------------------------------+
 |                      CLIENT-SIDE STORAGE AUDIT                          |
 |  [ALLOWED] localStorage:                                                |
@@ -179,35 +183,41 @@ flowchart LR
 |    - BranchName: "Chennai HQ"     (Current branch label)                |
 |    - FinancialYear: "2026-2027"   (Current active fiscal year)          |
 |                                                                         |
-|  [FORBIDDEN] localStorage.getItem('token') === NULL (Never stored!)     |
+|  [FORBIDDEN] Auth token is never stored in localStorage / sessionStorage|
 +-------------------------------------------------------------------------+
 ```
 
 ---
 
-## 📡 API Endpoint Reference
+## API Endpoints
 
-### Multi-Tenant Bootstrap & Core
-- `GET /api/erp/bootstrap` — Fetches scoped organization metadata, active branches, financial years, customers, orders, invoices, inventory, and purchase records based on `organisationId`, `branchId`, and `financialYear`.
+### Multi-Tenant Bootstrap
+- `GET /api/erp/bootstrap` — Returns organisation metadata, active branches, fiscal years, customers, vendors, products, and documents scoped to the user active session.
 
-### Authentication & Profile
-- `POST /api/erp/auth/login` — Verifies email/mobile + password, issues `authToken` cookie, returns non-sensitive user profile with `roles: IUserRole[]`.
-- `GET /api/erp/auth/me` — Reads `authToken` cookie and returns authenticated session metadata.
-- `POST /api/erp/auth/logout` — Clears `authToken` cookie and terminates session.
+### Authentication
+- `POST /api/erp/auth/login` — Validates credentials, sets `authToken` cookie, returns non-sensitive user metadata.
+- `GET /api/erp/auth/me` — Verifies current cookie session and returns profile details.
+- `POST /api/erp/auth/logout` — Clears the session cookie.
 
-### Financial Year Master
-- `GET /api/erp/financial-years` — Lists all fiscal years for the organization.
-- `POST /api/erp/financial-years` — Creates a new fiscal accounting period.
-- `PATCH /api/erp/financial-years/:id` — Updates period status (`Active` / `Closed`) or sets as system current year.
+### Financial Year Management
+- `GET /api/erp/financial-years` — Lists fiscal accounting periods.
+- `POST /api/erp/financial-years` — Creates a new fiscal period with date validation.
+- `PATCH /api/erp/financial-years/:id` — Updates period status (`Active` / `Closed`) or sets as current.
+
+### Documents & Transactions
+- `POST /api/erp/purchase-orders/:id/convert-to-bill` — Converts PO line items to a bill with quantity validation.
+- `POST /api/erp/bills/:id/move-to-store` — Inwards bill items to warehouse inventory, updates stock counts, and logs movement audits.
+- `POST /api/erp/payments` — Records payments against Invoices, Bills, or PO advances and updates the double-entry ledger.
+- `GET /api/erp/banking/transactions` — Lists immutable ledger entries with server-side filters.
 
 ---
 
-## ⚙️ Quick Start & Installation
+## Getting Started
 
 ### Prerequisites
 - **Node.js**: v18.0 or higher
 - **npm**: v9.0 or higher
-- **MongoDB**: MongoDB Atlas connection URI or local MongoDB instance
+- **MongoDB**: Local MongoDB instance or MongoDB Atlas connection URI
 
 ### 1. Clone the Repository
 ```bash
@@ -220,53 +230,56 @@ Create a `.env` file in `server/`:
 ```env
 PORT=4000
 MONGODB_URI=mongodb+srv://<username>:<password>@<cluster>.mongodb.net/smart_erp?retryWrites=true&w=majority
-JWT_SECRET=your_super_secret_jwt_key_here
+JWT_SECRET=your_jwt_secret_key_here
 COOKIE_SECRET=your_cookie_signing_secret_here
 NODE_ENV=development
 ```
 
 ### 3. Install Dependencies
 ```bash
-# Install root, backend, and frontend packages
+# Installs root, client, and server dependencies
 npm run install:all
 ```
 
-### 4. Seed Real Industrial Data
+### 4. Seed Development Data
+The database comes with sample seed data modeled after industrial manufacturing operations (cathodic protection equipment, multi-branch depots, vendors, and customers) to test multi-branch filtering, document generation, and stock movements out of the box:
 ```bash
 cd server
 npm run seed
 ```
 
-### 5. Start Development Servers
+### 5. Start the Application
 ```bash
-# Start backend API (Port 4000) and frontend Vite dev server (Port 5173) concurrently:
+# Starts Express backend (Port 4000) and Vite frontend (Port 5173) concurrently:
 npm run dev
 ```
 
-Visit `http://localhost:5173` in your browser.
+Open `http://localhost:5173` in your browser.
 
 ---
 
-## 🧪 Default Test Credentials
+## Demo Credentials
 
-| Full Name | Role | Email | Password | Branch Access |
+| Name | Role | Email | Password | Branch Access |
 | :--- | :--- | :--- | :--- | :--- |
-| **Jay Raam** | SuperAdmin | `jayraam@smarterp.in` | `Smart@2026` | Chennai HQ, Coimbatore, Bengaluru (All) |
+| **Jay Raam** | SuperAdmin | `jayraam@smarterp.in` | `Smart@2026` | All Branches (Chennai HQ, Coimbatore, Bengaluru) |
 | **Priya Sharma** | Branch Manager | `priya.s@smarterp.in` | `Smart@2026` | Coimbatore Heavy Fabrication Unit |
 
 ---
 
-## 🛠️ Developer Workflow & Git Standards
+## Tech Stack
 
-This repository strictly enforces professional engineering workflow guidelines governed by [AGENTS.md](AGENTS.md) and [.agents/skills/professional-git-workflow](.agents/skills/professional-git-workflow/SKILL.md):
-
-- **Dedicated Branches**: All development occurs on isolated branches (`feature/*`, `fix/*`, `refactor/*`, `chore/*`).
-- **Imperative Commit Messages**: Authentic, human-written messages (`Add ...`, `Fix ...`, `Update ...`, `Refactor ...`).
-- **Milestone History**: Changes are broken down into logical engineering milestones (Implementation $\rightarrow$ Validation $\rightarrow$ Edge Cases $\rightarrow$ API Refactor $\rightarrow$ Testing).
-- **Pre-Push Review**: Automatic validation ensuring `npm run build` passes, zero secrets or `.env` files are committed, and tests pass before remote pushes.
+- **Frontend**: React 19, TypeScript, Vite, Tailwind CSS, Lucide React, `@react-pdf/renderer`
+- **Backend**: Node.js, Express, TypeScript, Mongoose (MongoDB)
+- **Authentication**: JWT via HttpOnly Cookies, Role-Based Access Control (RBAC)
+- **Data Export**: RFC-4180 CSV export and vector PDF generation
 
 ---
 
-<p align="center">
-  <b>Smart Enterprise ERP</b> ✦ Engineered for Precision Manufacturing &amp; Multi-Branch Excellence.
-</p>
+## Known Limitations & Next Steps
+
+A few architectural improvements and features I plan to work on next:
+- **Automated Test Coverage**: While core business rules (quantity checks, credit limits, date constraints) are enforced at the API layer, adding an automated end-to-end test suite (Playwright or Cypress) for the complete PO → Bill → Store movement lifecycle would improve regression safety.
+- **Asynchronous Report Generation**: Generating large PDF reports or exporting thousands of ledger entries is currently handled synchronously. Moving heavy export jobs to an asynchronous queue (e.g., BullMQ with Redis) would prevent request timeouts under higher concurrency.
+- **Soft Deletes**: Currently, deletions on master items use status flags (`isActive: false`) or direct document removal. Implementing a consistent soft-delete pattern across all transactional tables with an undo window would be a safer design.
+- **OAuth / SSO Integration**: Adding Google Workspace or SAML SSO alongside the existing email/mobile cookie authentication for enterprise environments.
