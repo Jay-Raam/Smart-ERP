@@ -1,58 +1,14 @@
 import React, { useState } from 'react';
-import { Shield, Lock, User, ArrowRight, Sparkles, Phone, Mail } from 'lucide-react';
-import { useAuthStore, UserRole } from '../../store/authStore';
+import { Lock, User, ArrowRight, Sparkles } from 'lucide-react';
+import { useAuthStore } from '../../store/authStore';
 import { useErpStore } from '../../store/erpStore';
-
-interface PredefinedUser {
-  identifier: string; // email or mobile
-  name: string;
-  role: UserRole;
-  branchId: string;
-  branchName: string;
-  organisationId: string;
-}
-
-const REGISTERED_USERS: PredefinedUser[] = [
-  {
-    identifier: 'jay.raam@smart.com',
-    name: 'Jay Raam',
-    role: 'SuperAdmin',
-    branchId: 'br-1',
-    branchName: 'Chennai Central HQ & Assembly Plant',
-    organisationId: 'org-01',
-  },
-  {
-    identifier: '9840199882',
-    name: 'Jay Raam',
-    role: 'SuperAdmin',
-    branchId: 'br-1',
-    branchName: 'Chennai Central HQ & Assembly Plant',
-    organisationId: 'org-01',
-  },
-  {
-    identifier: 'priya.sharma@smart.com',
-    name: 'Priya Sharma',
-    role: 'Manager',
-    branchId: 'br-2',
-    branchName: 'Coimbatore Heavy Fabrication Unit',
-    organisationId: 'org-01',
-  },
-  {
-    identifier: '9840112345',
-    name: 'Priya Sharma',
-    role: 'Manager',
-    branchId: 'br-2',
-    branchName: 'Coimbatore Heavy Fabrication Unit',
-    organisationId: 'org-01',
-  },
-];
 
 export const LoginScreen: React.FC = () => {
   const { loginWithCredentials } = useAuthStore();
   const { organisation, fetchBootstrap } = useErpStore();
 
-  const [identifier, setIdentifier] = useState('jay.raam@smart.com');
-  const [password, setPassword] = useState('password123');
+  const [identifier, setIdentifier] = useState('');
+  const [password, setPassword] = useState('');
   const [rememberMe, setRememberMe] = useState(true);
   const [isLoading, setIsLoading] = useState(false);
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
@@ -218,47 +174,6 @@ export const LoginScreen: React.FC = () => {
               )}
             </button>
           </form>
-
-          {/* Seeded Accounts Shortcuts */}
-          <div className="pt-4 border-t border-slate-800">
-            <div className="text-center mb-3">
-              <span className="text-[11px] font-semibold text-slate-500 uppercase tracking-wider">
-                Seeded Accounts (Click to Fill)
-              </span>
-            </div>
-
-            <div className="grid grid-cols-2 gap-2.5">
-              <button
-                type="button"
-                onClick={() => {
-                  setIdentifier('jay.raam@smart.com');
-                  setPassword('password123');
-                }}
-                className="flex flex-col items-start p-2.5 rounded-xl border border-slate-800 bg-slate-900 hover:border-blue-600/50 hover:bg-blue-600/5 transition text-left cursor-pointer"
-              >
-                <div className="flex items-center gap-1.5 text-xs font-bold text-white">
-                  <Mail className="h-3.5 w-3.5 text-blue-400" />
-                  <span>jay.raam@smart.com</span>
-                </div>
-                <div className="text-[11px] text-slate-400 mt-0.5">Super Admin Profile</div>
-              </button>
-
-              <button
-                type="button"
-                onClick={() => {
-                  setIdentifier('9840199882');
-                  setPassword('password123');
-                }}
-                className="flex flex-col items-start p-2.5 rounded-xl border border-slate-800 bg-slate-900 hover:border-emerald-600/50 hover:bg-emerald-600/5 transition text-left cursor-pointer"
-              >
-                <div className="flex items-center gap-1.5 text-xs font-bold text-white">
-                  <Phone className="h-3.5 w-3.5 text-emerald-400" />
-                  <span>9840199882</span>
-                </div>
-                <div className="text-[11px] text-slate-400 mt-0.5">Mobile Login Profile</div>
-              </button>
-            </div>
-          </div>
         </div>
       </div>
     </div>
