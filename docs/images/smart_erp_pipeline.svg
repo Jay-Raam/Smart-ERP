@@ -1,0 +1,172 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1100 520" width="1100" height="520">
+  <defs>
+    <linearGradient id="canvasBg" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" stop-color="#0b1329" />
+      <stop offset="100%" stop-color="#1e293b" />
+    </linearGradient>
+    <linearGradient id="cardGrad" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" stop-color="#1e293b" />
+      <stop offset="100%" stop-color="#0f172a" />
+    </linearGradient>
+    <linearGradient id="blueHeader" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" stop-color="#2563eb" />
+      <stop offset="100%" stop-color="#1d4ed8" />
+    </linearGradient>
+    <linearGradient id="emeraldHeader" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" stop-color="#059669" />
+      <stop offset="100%" stop-color="#047857" />
+    </linearGradient>
+    <linearGradient id="amberHeader" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" stop-color="#d97706" />
+      <stop offset="100%" stop-color="#b45309" />
+    </linearGradient>
+    <linearGradient id="indigoHeader" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" stop-color="#4f46e5" />
+      <stop offset="100%" stop-color="#4338ca" />
+    </linearGradient>
+    <filter id="softShadow" x="-10%" y="-10%" width="120%" height="120%">
+      <feDropShadow dx="0" dy="8" stdDeviation="10" flood-color="#000000" flood-opacity="0.5" />
+    </filter>
+  </defs>
+
+  <!-- Background -->
+  <rect width="1100" height="520" rx="20" fill="url(#canvasBg)" />
+  <rect width="1096" height="516" x="2" y="2" rx="19" fill="none" stroke="#334155" stroke-width="1.5" />
+
+  <!-- System Header -->
+  <g transform="translate(45, 30)">
+    <rect width="40" height="40" rx="10" fill="#2563eb" />
+    <text x="20" y="27" fill="#ffffff" font-family="-apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif" font-size="20" font-weight="bold" text-anchor="middle">S</text>
+    <text x="56" y="23" fill="#f8fafc" font-family="-apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif" font-size="20" font-weight="700">Smart ERP Enterprise Architecture &amp; Data Pipeline</text>
+    <text x="56" y="41" fill="#94a3b8" font-family="-apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif" font-size="13">Multi-Tenant Scoping, Financial Year Engine, Cookie Authentication &amp; Atlas Cloud Pipeline</text>
+  </g>
+
+  <!-- Connecting Lines -->
+  <path d="M 270 260 L 320 260" stroke="#38bdf8" stroke-width="3" stroke-dasharray="6,4" />
+  <polygon points="325,260 316,254 316,266" fill="#38bdf8" />
+
+  <path d="M 545 260 L 595 260" stroke="#34d399" stroke-width="3" stroke-dasharray="6,4" />
+  <polygon points="600,260 591,254 591,266" fill="#34d399" />
+
+  <path d="M 820 260 L 870 260" stroke="#fbbf24" stroke-width="3" stroke-dasharray="6,4" />
+  <polygon points="875,260 866,254 866,266" fill="#fbbf24" />
+
+  <!-- Stage 1: UI & Presentation Layer -->
+  <g transform="translate(45, 100)" filter="url(#softShadow)">
+    <rect width="225" height="320" rx="14" fill="url(#cardGrad)" stroke="#334155" stroke-width="1.5" />
+    <rect width="225" height="42" rx="14" fill="url(#blueHeader)" />
+    <text x="112" y="27" fill="#ffffff" font-family="sans-serif" font-size="13" font-weight="700" text-anchor="middle">1. FRONTEND CLIENT</text>
+
+    <!-- Block 1 -->
+    <rect x="15" y="58" width="195" height="52" rx="8" fill="#1e293b" stroke="#334155" stroke-width="1" />
+    <text x="25" y="78" fill="#f8fafc" font-family="sans-serif" font-size="12" font-weight="600">Dual Switchers</text>
+    <text x="25" y="96" fill="#94a3b8" font-family="sans-serif" font-size="10">Org &amp; Branch Comboboxes</text>
+
+    <!-- Block 2 -->
+    <rect x="15" y="120" width="195" height="52" rx="8" fill="#1e293b" stroke="#334155" stroke-width="1" />
+    <text x="25" y="140" fill="#f8fafc" font-family="sans-serif" font-size="12" font-weight="600">FY Switcher Pill</text>
+    <text x="25" y="158" fill="#94a3b8" font-family="sans-serif" font-size="10">📅 2026-2027 Fast Toggle</text>
+
+    <!-- Block 3 -->
+    <rect x="15" y="182" width="195" height="52" rx="8" fill="#1e293b" stroke="#334155" stroke-width="1" />
+    <text x="25" y="202" fill="#f8fafc" font-family="sans-serif" font-size="12" font-weight="600">URL Query Sync</text>
+    <text x="25" y="220" fill="#94a3b8" font-family="sans-serif" font-size="10">?per_page=10&amp;filter_by=...</text>
+
+    <!-- Block 4 -->
+    <rect x="15" y="244" width="195" height="52" rx="8" fill="#1e293b" stroke="#334155" stroke-width="1" />
+    <text x="25" y="264" fill="#38bdf8" font-family="sans-serif" font-size="12" font-weight="600">Cookie Watchdog</text>
+    <text x="25" y="282" fill="#94a3b8" font-family="sans-serif" font-size="10">Zero JWT in LocalStorage</text>
+  </g>
+
+  <!-- Stage 2: Express Security Gateway -->
+  <g transform="translate(320, 100)" filter="url(#softShadow)">
+    <rect width="225" height="320" rx="14" fill="url(#cardGrad)" stroke="#334155" stroke-width="1.5" />
+    <rect width="225" height="42" rx="14" fill="url(#emeraldHeader)" />
+    <text x="112" y="27" fill="#ffffff" font-family="sans-serif" font-size="13" font-weight="700" text-anchor="middle">2. SECURITY GATEWAY</text>
+
+    <!-- Block 1 -->
+    <rect x="15" y="58" width="195" height="52" rx="8" fill="#1e293b" stroke="#334155" stroke-width="1" />
+    <text x="25" y="78" fill="#f8fafc" font-family="sans-serif" font-size="12" font-weight="600">Cookie Parser</text>
+    <text x="25" y="96" fill="#94a3b8" font-family="sans-serif" font-size="10">Extracts authToken (Strict)</text>
+
+    <!-- Block 2 -->
+    <rect x="15" y="120" width="195" height="52" rx="8" fill="#1e293b" stroke="#334155" stroke-width="1" />
+    <text x="25" y="140" fill="#f8fafc" font-family="sans-serif" font-size="12" font-weight="600">JWT Authentication</text>
+    <text x="25" y="158" fill="#94a3b8" font-family="sans-serif" font-size="10">Cryptographic token verify</text>
+
+    <!-- Block 3 -->
+    <rect x="15" y="182" width="195" height="52" rx="8" fill="#1e293b" stroke="#334155" stroke-width="1" />
+    <text x="25" y="202" fill="#f8fafc" font-family="sans-serif" font-size="12" font-weight="600">Role-Based Access</text>
+    <text x="25" y="220" fill="#94a3b8" font-family="sans-serif" font-size="10">Validates user.roles branch</text>
+
+    <!-- Block 4 -->
+    <rect x="15" y="244" width="195" height="52" rx="8" fill="#1e293b" stroke="#334155" stroke-width="1" />
+    <text x="25" y="264" fill="#34d399" font-family="sans-serif" font-size="12" font-weight="600">Safe ID Fallback</text>
+    <text x="25" y="282" fill="#94a3b8" font-family="sans-serif" font-size="10">Auto-resolves unseeded IDs</text>
+  </g>
+
+  <!-- Stage 3: Data Scoping & Business Logic Engine -->
+  <g transform="translate(595, 100)" filter="url(#softShadow)">
+    <rect width="225" height="320" rx="14" fill="url(#cardGrad)" stroke="#334155" stroke-width="1.5" />
+    <rect width="225" height="42" rx="14" fill="url(#amberHeader)" />
+    <text x="112" y="27" fill="#ffffff" font-family="sans-serif" font-size="13" font-weight="700" text-anchor="middle">3. DATA SCOPING ENGINE</text>
+
+    <!-- Block 1 -->
+    <rect x="15" y="58" width="195" height="52" rx="8" fill="#1e293b" stroke="#334155" stroke-width="1" />
+    <text x="25" y="78" fill="#f8fafc" font-family="sans-serif" font-size="12" font-weight="600">Organisation Isolation</text>
+    <text x="25" y="96" fill="#94a3b8" font-family="sans-serif" font-size="10">Multi-tenant boundary</text>
+
+    <!-- Block 2 -->
+    <rect x="15" y="120" width="195" height="52" rx="8" fill="#1e293b" stroke="#334155" stroke-width="1" />
+    <text x="25" y="140" fill="#f8fafc" font-family="sans-serif" font-size="12" font-weight="600">Branch Scoping</text>
+    <text x="25" y="158" fill="#94a3b8" font-family="sans-serif" font-size="10">CHN-01, CBE-02, BLR-03</text>
+
+    <!-- Block 3 -->
+    <rect x="15" y="182" width="195" height="52" rx="8" fill="#1e293b" stroke="#334155" stroke-width="1" />
+    <text x="25" y="202" fill="#f8fafc" font-family="sans-serif" font-size="12" font-weight="600">Financial Year Filter</text>
+    <text x="25" y="220" fill="#94a3b8" font-family="sans-serif" font-size="10">2026-2027 / 2025-2026</text>
+
+    <!-- Block 4 -->
+    <rect x="15" y="244" width="195" height="52" rx="8" fill="#1e293b" stroke="#334155" stroke-width="1" />
+    <text x="25" y="264" fill="#fbbf24" font-family="sans-serif" font-size="12" font-weight="600">Empty State Engine</text>
+    <text x="25" y="282" fill="#94a3b8" font-family="sans-serif" font-size="10">NO DATA FOUND state</text>
+  </g>
+
+  <!-- Stage 4: MongoDB Atlas Cloud Storage -->
+  <g transform="translate(870, 100)" filter="url(#softShadow)">
+    <rect width="185" height="320" rx="14" fill="url(#cardGrad)" stroke="#334155" stroke-width="1.5" />
+    <rect width="185" height="42" rx="14" fill="url(#indigoHeader)" />
+    <text x="92" y="27" fill="#ffffff" font-family="sans-serif" font-size="13" font-weight="700" text-anchor="middle">4. ATLAS CLOUD DB</text>
+
+    <!-- Collection 1 -->
+    <rect x="12" y="58" width="161" height="40" rx="6" fill="#1e293b" stroke="#334155" stroke-width="1" />
+    <text x="20" y="82" fill="#f8fafc" font-family="sans-serif" font-size="11" font-weight="600">📅 FinancialYears</text>
+
+    <!-- Collection 2 -->
+    <rect x="12" y="106" width="161" height="40" rx="6" fill="#1e293b" stroke="#334155" stroke-width="1" />
+    <text x="20" y="130" fill="#f8fafc" font-family="sans-serif" font-size="11" font-weight="600">🛒 Sales Orders</text>
+
+    <!-- Collection 3 -->
+    <rect x="12" y="154" width="161" height="40" rx="6" fill="#1e293b" stroke="#334155" stroke-width="1" />
+    <text x="20" y="178" fill="#f8fafc" font-family="sans-serif" font-size="11" font-weight="600">📄 Tax Invoices</text>
+
+    <!-- Collection 4 -->
+    <rect x="12" y="202" width="161" height="40" rx="6" fill="#1e293b" stroke="#334155" stroke-width="1" />
+    <text x="20" y="226" fill="#f8fafc" font-family="sans-serif" font-size="11" font-weight="600">📦 Store &amp; Purchases</text>
+
+    <!-- Connection Indicator -->
+    <g transform="translate(16, 260)">
+      <rect width="153" height="36" rx="8" fill="#064e3b" stroke="#059669" stroke-width="1" />
+      <circle cx="20" cy="18" r="4" fill="#34d399" />
+      <text x="32" y="22" fill="#a7f3d0" font-family="sans-serif" font-size="11" font-weight="600">Atlas Live Seeded</text>
+    </g>
+  </g>
+
+  <!-- Bottom Footer Status -->
+  <g transform="translate(45, 445)">
+    <rect width="1010" height="45" rx="10" fill="#0f172a" stroke="#334155" stroke-width="1" />
+    <text x="30" y="27" fill="#94a3b8" font-family="sans-serif" font-size="12">Security: <tspan fill="#38bdf8" font-weight="700">Strict Cookie (Zero LocalStorage Token)</tspan></text>
+    <text x="350" y="27" fill="#94a3b8" font-family="sans-serif" font-size="12">Scoping: <tspan fill="#34d399" font-weight="700">Organisation + Branch + Financial Year</tspan></text>
+    <text x="730" y="27" fill="#94a3b8" font-family="sans-serif" font-size="12">Repository: <tspan fill="#fbbf24" font-weight="700">Smart-ERP (Production Ready)</tspan></text>
+  </g>
+</svg>
