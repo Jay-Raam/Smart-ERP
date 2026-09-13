@@ -15,6 +15,7 @@ import {
   MapPin,
   Mail,
   Phone,
+  Download,
 } from 'lucide-react';
 import { useErpStore, PurchaseOrder, Vendor, DocumentItem } from '../../store/erpStore';
 import { DataTable, ColumnDef } from '../shared/DataTable';
@@ -23,6 +24,7 @@ import { PurchasePrintModal } from './PurchasePrintModal';
 import { calculateDocumentTaxes, isStateTamilNadu } from '../../utils/taxCalculation';
 import { INDIA_STATES_LIST } from '../../utils/indiaStates';
 import { useFormValidation, isValidGSTIN, EMAIL_REGEX, PHONE_REGEX } from '../../utils/validation';
+import { ExportModal, ExportColumn } from '../shared/ExportModal';
 
 interface VendorFormData {
   name: string;
@@ -57,6 +59,59 @@ export const PurchaseModule: React.FC<PurchaseModuleProps> = ({ initialOpenAdd =
   const [isAddPOModalOpen, setIsAddPOModalOpen] = useState(initialOpenAdd);
   const [isAddVendorModalOpen, setIsAddVendorModalOpen] = useState(false);
   const [selectedPO, setSelectedPO] = useState<PurchaseOrder | null>(null);
+  const [isExportModalOpen, setIsExportModalOpen] = useState(false);
+
+  const poExportColumns: ExportColumn<PurchaseOrder>[] = [
+    { key: 'poNumber', label: 'PO Number' },
+    { key: 'poDate', label: 'PO Date' },
+    { key: 'expectedDate', label: 'Expected Date' },
+    { key: 'vendorName', label: 'Vendor Name' },
+    { key: 'vendorGstin', label: 'Vendor GSTIN' },
+    { key: 'vendorState', label: 'State' },
+    {
+      key: 'taxableAmount',
+      label: 'Taxable Value',
+      transform: (v) => (v ? `₹${Number(v).toLocaleString('en-IN')}` : '₹0'),
+    },
+    {
+      key: 'cgstAmount',
+      label: 'CGST',
+      transform: (v) => (v ? `₹${Number(v).toLocaleString('en-IN')}` : '₹0'),
+    },
+    {
+      key: 'sgstAmount',
+      label: 'SGST',
+      transform: (v) => (v ? `₹${Number(v).toLocaleString('en-IN')}` : '₹0'),
+    },
+    {
+      key: 'igstAmount',
+      label: 'IGST',
+      transform: (v) => (v ? `₹${Number(v).toLocaleString('en-IN')}` : '₹0'),
+    },
+    {
+      key: 'shippingCharge',
+      label: 'Shipping',
+      transform: (v) => (v ? `₹${Number(v).toLocaleString('en-IN')}` : '₹0'),
+    },
+    {
+      key: 'totalAmount',
+      label: 'Total PO Value',
+      transform: (v) => (v ? `₹${Number(v).toLocaleString('en-IN')}` : '₹0'),
+    },
+    { key: 'status', label: 'Status' },
+  ];
+
+  const vendorExportColumns: ExportColumn<Vendor>[] = [
+    { key: 'code', label: 'Vendor Code' },
+    { key: 'name', label: 'Vendor / Company Name' },
+    { key: 'contactPerson', label: 'Contact Person' },
+    { key: 'phone', label: 'Mobile Phone' },
+    { key: 'email', label: 'Email Address' },
+    { key: 'city', label: 'City' },
+    { key: 'state', label: 'State' },
+    { key: 'gstin', label: 'GSTIN' },
+    { key: 'pan', label: 'PAN' },
+  ];
 
   // Filter ONLY Approved products for Purchase Order item selection
   const approvedProducts = useMemo(() => {
@@ -418,10 +473,19 @@ export const PurchaseModule: React.FC<PurchaseModuleProps> = ({ initialOpenAdd =
 
         {/* Action Buttons */}
         <div className="flex items-center gap-2">
+          <button
+            type="button"
+            onClick={() => setIsExportModalOpen(true)}
+            className="flex items-center gap-1.5 rounded-xl border border-slate-300 bg-white px-3.5 py-2 text-xs font-semibold text-slate-700 hover:bg-slate-50 transition shadow-xs cursor-pointer"
+          >
+            <Download className="h-4 w-4 text-slate-500" />
+            <span>Export {activeTab === 'vendors' ? 'Vendors' : 'Purchase Orders'}</span>
+          </button>
+
           {activeTab === 'vendors' ? (
             <button
               onClick={() => setIsAddVendorModalOpen(true)}
-              className="flex items-center gap-1.5 rounded-lg bg-blue-600 px-3.5 py-2 text-xs font-semibold text-white hover:bg-blue-700 transition shadow-xs cursor-pointer"
+              className="flex items-center gap-1.5 rounded-xl bg-blue-600 px-3.5 py-2 text-xs font-semibold text-white hover:bg-blue-700 transition shadow-xs cursor-pointer"
             >
               <Plus className="h-4 w-4" />
               <span>Register Vendor</span>
@@ -429,7 +493,7 @@ export const PurchaseModule: React.FC<PurchaseModuleProps> = ({ initialOpenAdd =
           ) : (
             <button
               onClick={() => setIsAddPOModalOpen(true)}
-              className="flex items-center gap-1.5 rounded-lg bg-blue-600 px-3.5 py-2 text-xs font-semibold text-white hover:bg-blue-700 transition shadow-xs cursor-pointer"
+              className="flex items-center gap-1.5 rounded-xl bg-blue-600 px-3.5 py-2 text-xs font-semibold text-white hover:bg-blue-700 transition shadow-xs cursor-pointer"
             >
               <Plus className="h-4 w-4" />
               <span>New Purchase Order</span>
@@ -1018,6 +1082,31 @@ export const PurchaseModule: React.FC<PurchaseModuleProps> = ({ initialOpenAdd =
             </form>
           </div>
         </div>
+      )}
+
+      {/* Reusable Export Modal */}
+      {activeTab === 'vendors' ? (
+        <ExportModal<Vendor>
+          show={isExportModalOpen}
+          onClose={() => setIsExportModalOpen(false)}
+          title="Export Registered Vendors"
+          filenamePrefix="Vendors"
+          columns={vendorExportColumns}
+          data={vendors}
+          dateField="createdAt"
+        />
+      ) : (
+        <ExportModal<PurchaseOrder>
+          show={isExportModalOpen}
+          onClose={() => setIsExportModalOpen(false)}
+          title="Export Purchase Orders"
+          filenamePrefix="Purchase-Orders"
+          columns={poExportColumns}
+          data={purchaseOrders}
+          dateField="poDate"
+          statusField="status"
+          statusOptions={poStatusOptions}
+        />
       )}
     </div>
   );

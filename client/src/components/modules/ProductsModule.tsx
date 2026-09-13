@@ -11,11 +11,13 @@ import {
   XCircle,
   Clock,
   ShieldCheck,
+  Download,
 } from 'lucide-react';
 import { useErpStore, Product } from '../../store/erpStore';
 import { useAuthStore } from '../../store/authStore';
 import { DataTable, ColumnDef } from '../shared/DataTable';
 import { Combobox } from '../shared/Combobox';
+import { ExportModal, ExportColumn } from '../shared/ExportModal';
 
 interface ProductsModuleProps {
   initialOpenAdd?: boolean;
@@ -29,6 +31,32 @@ export const ProductsModule: React.FC<ProductsModuleProps> = ({ initialOpenAdd =
   const [searchQuery, setSearchQuery] = useState('');
   const [categoryFilter, setCategoryFilter] = useState('All');
   const [isAddModalOpen, setIsAddModalOpen] = useState(initialOpenAdd);
+  const [isExportModalOpen, setIsExportModalOpen] = useState(false);
+
+  const exportColumns: ExportColumn<Product>[] = [
+    { key: 'sku', label: 'SKU' },
+    { key: 'name', label: 'Product Name' },
+    { key: 'category', label: 'Category' },
+    { key: 'hsnCode', label: 'HSN / SAC Code' },
+    { key: 'uom', label: 'UOM' },
+    {
+      key: 'sellingPrice',
+      label: 'Selling Price',
+      transform: (v) => (v ? `₹${Number(v).toLocaleString('en-IN')}` : '₹0'),
+    },
+    {
+      key: 'purchaseCost',
+      label: 'Purchase Cost',
+      transform: (v) => (v ? `₹${Number(v).toLocaleString('en-IN')}` : '₹0'),
+    },
+    { key: 'currentStock', label: 'Current Stock' },
+    {
+      key: 'taxRate',
+      label: 'GST Rate',
+      transform: (v) => `${v ?? 18}%`,
+    },
+    { key: 'approvalStatus', label: 'Approval Status' },
+  ];
 
   // Form State
   const [name, setName] = useState('');
@@ -229,13 +257,23 @@ export const ProductsModule: React.FC<ProductsModuleProps> = ({ initialOpenAdd =
           </p>
         </div>
 
-        <button
-          onClick={() => setIsAddModalOpen(true)}
-          className="flex items-center gap-1.5 rounded-lg bg-blue-600 px-3.5 py-2 text-xs font-semibold text-white hover:bg-blue-700 transition shadow-xs self-start"
-        >
-          <Plus className="h-4 w-4" />
-          <span>New Product Item</span>
-        </button>
+        <div className="flex items-center gap-2 self-start">
+          <button
+            type="button"
+            onClick={() => setIsExportModalOpen(true)}
+            className="flex items-center gap-1.5 rounded-xl border border-slate-300 bg-white px-3.5 py-2 text-xs font-semibold text-slate-700 hover:bg-slate-50 transition shadow-xs cursor-pointer"
+          >
+            <Download className="h-4 w-4 text-slate-500" />
+            <span>Export</span>
+          </button>
+          <button
+            onClick={() => setIsAddModalOpen(true)}
+            className="flex items-center gap-1.5 rounded-xl bg-blue-600 px-3.5 py-2 text-xs font-semibold text-white hover:bg-blue-700 transition shadow-xs cursor-pointer"
+          >
+            <Plus className="h-4 w-4" />
+            <span>New Product Item</span>
+          </button>
+        </div>
       </div>
 
       {/* Modern Smart ERP DataTable */}
@@ -385,6 +423,23 @@ export const ProductsModule: React.FC<ProductsModuleProps> = ({ initialOpenAdd =
           </div>
         </div>
       )}
+
+      {/* Reusable Export Modal */}
+      <ExportModal<Product>
+        show={isExportModalOpen}
+        onClose={() => setIsExportModalOpen(false)}
+        title="Export Products Catalog Master"
+        filenamePrefix="Products-Master"
+        columns={exportColumns}
+        data={products}
+        dateField="createdAt"
+        statusField="approvalStatus"
+        statusOptions={[
+          { label: 'Approved', value: 'Approved' },
+          { label: 'Pending', value: 'Pending' },
+          { label: 'Rejected', value: 'Rejected' },
+        ]}
+      />
     </div>
   );
 };
