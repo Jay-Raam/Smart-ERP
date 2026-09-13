@@ -1,0 +1,50 @@
+/* Tiaano Smart ERP - Enterprise Design System Tokens */
+:root {
+  /* Slate / Navy Corporate Palette */
+  --color-primary: #2563eb;         /* Royal Enterprise Blue */
+  --color-primary-hover: #1d4ed8;
+  --color-primary-light: #eff6ff;
+
+  --bg-app: #f8fafc;                /* Clean Slate 50 */
+  --bg-surface: #ffffff;            /* Pure White Surface */
+  --bg-surface-subtle: #f1f5f9;     /* Slate 100 */
+  --bg-sidebar: #0f172a;            /* Deep Navy 900 */
+  --bg-sidebar-hover: #1e293b;      /* Navy 800 */
+  --bg-sidebar-active: #2563eb;     /* Active Primary */
+
+  --border-subtle: #e2e8f0;         /* Slate 200 */
+  --border-strong: #cbd5e1;         /* Slate 300 */
+
+  --text-main: #0f172a;             /* Slate 900 */
+  --text-muted: #64748b;            /* Slate 500 */
+  --text-subtle: #94a3b8;           /* Slate 400 */
+
+  /* Status Tokens */
+  --color-success: #10b981;
+  --color-success-bg: #ecfdf5;
+  --color-warning: #f59e0b;
+  --color-warning-bg: #fffbeb;
+  --color-error: #ef4444;
+  --color-error-bg: #fef2f2;
+  --color-info: #06b6d4;
+  --color-info-bg: #ecfeff;
+}
+
+/* Custom Sleek ERP Scrollbars */
+::-webkit-scrollbar {
+  width: 6px;
+  height: 6px;
+}
+
+::-webkit-scrollbar-track {
+  background: #f1f5f9;
+}
+
+::-webkit-scrollbar-thumb {
+  background: #cbd5e1;
+  border-radius: 9999px;
+}
+
+::-webkit-scrollbar-thumb:hover {
+  background: #94a3b8;
+}

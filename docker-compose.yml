@@ -1,0 +1,73 @@
+services:
+  postgres:
+    image: postgres:16-alpine
+    container_name: saas_postgres
+    environment:
+      POSTGRES_USER: saas_admin
+      POSTGRES_PASSWORD: super_secret_pg_password
+      POSTGRES_DB: saas_core
+    ports:
+      - "5432:5432"
+    volumes:
+      - pgdata:/var/lib/postgresql/data
+      - ./init-db.sql:/docker-entrypoint-initdb.d/init.sql
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U saas_admin -d saas_core"]
+      interval: 5s
+      timeout: 5s
+      retries: 5
+
+  mongodb:
+    image: mongo:7.0
+    container_name: saas_mongodb
+    ports:
+      - "27017:27017"
+    volumes:
+      - mongodata:/data/db
+    healthcheck:
+      test: ["CMD", "mongosh", "--eval", "db.adminCommand('ping')"]
+      interval: 5s
+      timeout: 5s
+      retries: 5
+
+  redis:
+    image: redis:7.2-alpine
+    container_name: saas_redis
+    ports:
+      - "6379:6379"
+    volumes:
+      - redisdata:/data
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 5s
+      timeout: 5s
+      retries: 5
+
+  api:
+    build:
+      context: .
+      dockerfile: Dockerfile
+      target: server
+    container_name: saas_api
+    environment:
+      PORT: 4000
+      DATABASE_URL: postgresql://saas_admin:super_secret_pg_password@postgres:5432/saas_core
+      MONGO_URI: mongodb://mongodb:27017/saas_audit
+      REDIS_URL: redis://redis:6379
+      JWT_ACCESS_SECRET: default_super_secret_jwt_access_key_2026_x9
+      JWT_REFRESH_SECRET: default_super_secret_jwt_refresh_key_2026_z1
+      NODE_ENV: production
+    ports:
+      - "4000:4000"
+    depends_on:
+      postgres:
+        condition: service_healthy
+      mongodb:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+
+volumes:
+  pgdata:
+  mongodata:
+  redisdata:

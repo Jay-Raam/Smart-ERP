@@ -1,0 +1,79 @@
+name: SaaS-Core CI/CD Test Matrix
+
+on:
+  push:
+    branches: [main, master, develop]
+  pull_request:
+    branches: [main, master]
+
+jobs:
+  build-and-test:
+    name: Build & Verify Suite
+    runs-on: ubuntu-latest
+
+    services:
+      postgres:
+        image: postgres:16-alpine
+        env:
+          POSTGRES_USER: saas_admin
+          POSTGRES_PASSWORD: super_secret_pg_password
+          POSTGRES_DB: saas_core
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd pg_isready
+          --health-interval 5s
+          --health-timeout 5s
+          --health-retries 5
+
+      mongodb:
+        image: mongo:7.0
+        ports:
+          - 27017:27017
+        options: >-
+          --health-cmd "mongosh --eval 'db.adminCommand(\"ping\")'"
+          --health-interval 5s
+          --health-timeout 5s
+          --health-retries 5
+
+      redis:
+        image: redis:7.2-alpine
+        ports:
+          - 6379:6379
+        options: >-
+          --health-cmd "redis-cli ping"
+          --health-interval 5s
+          --health-timeout 5s
+          --health-retries 5
+
+    steps:
+      - name: Checkout Codebase
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js v22
+        uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: 'npm'
+
+      - name: Install Monorepo Dependencies
+        run: npm install
+
+      - name: Initialize PostgreSQL Test Schemas
+        run: |
+          PGPASSWORD=super_secret_pg_password psql -h localhost -U saas_admin -d saas_core -f init-db.sql
+
+      - name: Build Server
+        run: npm run build:server
+
+      - name: Run Server Tests
+        run: npm run test
+        env:
+          DATABASE_URL: postgresql://saas_admin:super_secret_pg_password@localhost:5432/saas_core
+          MONGO_URI: mongodb://localhost:27017/saas_audit_test
+          REDIS_URL: redis://localhost:6379
+          JWT_ACCESS_SECRET: test_jwt_access_secret_key_12345
+          JWT_REFRESH_SECRET: test_jwt_refresh_secret_key_12345
+
+      - name: Build Client
+        run: npm run build:client
