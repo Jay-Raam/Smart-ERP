@@ -35,6 +35,7 @@ export interface IBranch extends Document {
   gstin: string;
   phone: string;
   isHeadOffice: boolean;
+  organisationId: string;
 }
 
 const BranchSchema = new Schema<IBranch>(
@@ -46,11 +47,34 @@ const BranchSchema = new Schema<IBranch>(
     gstin: { type: String, required: true },
     phone: { type: String, required: true },
     isHeadOffice: { type: Boolean, default: false },
+    organisationId: { type: String, default: '' },
   },
   { timestamps: true }
 );
 
-// 3. Customer
+// 3. Financial Year
+export interface IFinancialYear extends Document {
+  yearName: string; // e.g. '2026-2027'
+  startDate: string;
+  endDate: string;
+  isCurrent: boolean;
+  status: 'Active' | 'Closed';
+  organisationId: string;
+}
+
+const FinancialYearSchema = new Schema<IFinancialYear>(
+  {
+    yearName: { type: String, required: true },
+    startDate: { type: String, required: true },
+    endDate: { type: String, required: true },
+    isCurrent: { type: Boolean, default: false },
+    status: { type: String, enum: ['Active', 'Closed'], default: 'Active' },
+    organisationId: { type: String, default: '' },
+  },
+  { timestamps: true }
+);
+
+// 4. Customer
 export interface ICustomer extends Document {
   code: string;
   name: string;
@@ -62,6 +86,8 @@ export interface ICustomer extends Document {
   gstin: string;
   outstandingBalance: number;
   creditLimit: number;
+  organisationId: string;
+  branchId: string;
 }
 
 const CustomerSchema = new Schema<ICustomer>(
@@ -76,11 +102,13 @@ const CustomerSchema = new Schema<ICustomer>(
     gstin: { type: String, required: true },
     outstandingBalance: { type: Number, default: 0 },
     creditLimit: { type: Number, default: 0 },
+    organisationId: { type: String, default: '' },
+    branchId: { type: String, default: '' },
   },
   { timestamps: true }
 );
 
-// 4. Product
+// 5. Product
 export interface IProduct extends Document {
   sku: string;
   name: string;
@@ -91,6 +119,8 @@ export interface IProduct extends Document {
   purchaseCost: number;
   currentStock: number;
   minReorderLevel: number;
+  organisationId: string;
+  branchId: string;
 }
 
 const ProductSchema = new Schema<IProduct>(
@@ -104,11 +134,13 @@ const ProductSchema = new Schema<IProduct>(
     purchaseCost: { type: Number, required: true },
     currentStock: { type: Number, required: true, default: 0 },
     minReorderLevel: { type: Number, required: true, default: 10 },
+    organisationId: { type: String, default: '' },
+    branchId: { type: String, default: '' },
   },
   { timestamps: true }
 );
 
-// 5. Sales Order
+// 6. Sales Order
 export interface ISalesOrderItem {
   productId: string;
   productName: string;
@@ -125,6 +157,8 @@ export interface ISalesOrder extends Document {
   orderDate: string;
   deliveryDate: string;
   branchId: string;
+  organisationId: string;
+  financialYear: string;
   items: ISalesOrderItem[];
   subtotal: number;
   taxAmount: number;
@@ -140,6 +174,8 @@ const SalesOrderSchema = new Schema<ISalesOrder>(
     orderDate: { type: String, required: true },
     deliveryDate: { type: String, required: true },
     branchId: { type: String, required: true },
+    organisationId: { type: String, default: '' },
+    financialYear: { type: String, default: '2026-2027' },
     items: [
       {
         productId: { type: String, required: true },
@@ -158,7 +194,7 @@ const SalesOrderSchema = new Schema<ISalesOrder>(
   { timestamps: true }
 );
 
-// 6. Invoice
+// 7. Invoice
 export interface IInvoice extends Document {
   invoiceNumber: string;
   salesOrderNumber: string;
@@ -166,6 +202,9 @@ export interface IInvoice extends Document {
   customerName: string;
   invoiceDate: string;
   dueDate: string;
+  branchId: string;
+  organisationId: string;
+  financialYear: string;
   subtotal: number;
   gstRate: number;
   taxAmount: number;
@@ -181,6 +220,9 @@ const InvoiceSchema = new Schema<IInvoice>(
     customerName: { type: String, required: true },
     invoiceDate: { type: String, required: true },
     dueDate: { type: String, required: true },
+    branchId: { type: String, default: '' },
+    organisationId: { type: String, default: '' },
+    financialYear: { type: String, default: '2026-2027' },
     subtotal: { type: Number, required: true },
     gstRate: { type: Number, default: 18 },
     taxAmount: { type: Number, required: true },
@@ -190,7 +232,7 @@ const InvoiceSchema = new Schema<IInvoice>(
   { timestamps: true }
 );
 
-// 7. Purchase Order
+// 8. Purchase Order
 export interface IPurchaseOrder extends Document {
   poNumber: string;
   vendorName: string;
@@ -198,6 +240,8 @@ export interface IPurchaseOrder extends Document {
   poDate: string;
   expectedDate: string;
   branchId: string;
+  organisationId: string;
+  financialYear: string;
   totalAmount: number;
   status: string;
 }
@@ -210,13 +254,15 @@ const PurchaseOrderSchema = new Schema<IPurchaseOrder>(
     poDate: { type: String, required: true },
     expectedDate: { type: String, required: true },
     branchId: { type: String, required: true },
+    organisationId: { type: String, default: '' },
+    financialYear: { type: String, default: '2026-2027' },
     totalAmount: { type: Number, required: true },
     status: { type: String, default: 'Approved' },
   },
   { timestamps: true }
 );
 
-// 8. Store Item
+// 9. Store Item
 export interface IStoreItem extends Document {
   productId: string;
   productName: string;
@@ -228,6 +274,8 @@ export interface IStoreItem extends Document {
   maxLevel: number;
   lastAudited: string;
   status: string;
+  branchId: string;
+  organisationId: string;
 }
 
 const StoreItemSchema = new Schema<IStoreItem>(
@@ -242,11 +290,13 @@ const StoreItemSchema = new Schema<IStoreItem>(
     maxLevel: { type: Number, required: true, default: 100 },
     lastAudited: { type: String },
     status: { type: String, default: 'In Stock' },
+    branchId: { type: String, default: '' },
+    organisationId: { type: String, default: '' },
   },
   { timestamps: true }
 );
 
-// 9. Delivery Challan
+// 10. Delivery Challan
 export interface IDeliveryChallan extends Document {
   dcNumber: string;
   salesOrderNumber: string;
@@ -258,6 +308,9 @@ export interface IDeliveryChallan extends Document {
   driverName: string;
   driverPhone: string;
   status: string;
+  branchId: string;
+  organisationId: string;
+  financialYear: string;
 }
 
 const DeliveryChallanSchema = new Schema<IDeliveryChallan>(
@@ -272,11 +325,24 @@ const DeliveryChallanSchema = new Schema<IDeliveryChallan>(
     driverName: { type: String, required: true },
     driverPhone: { type: String, required: true },
     status: { type: String, default: 'In Transit' },
+    branchId: { type: String, default: '' },
+    organisationId: { type: String, default: '' },
+    financialYear: { type: String, default: '2026-2027' },
   },
   { timestamps: true }
 );
 
-// 10. User Account (Authentication)
+// 11. User Role Mapping
+export interface IUserRole {
+  organisationId: string;
+  organisationName: string;
+  branchId: string;
+  branchName: string;
+  roleName: string;
+  userType: string;
+}
+
+// 12. User Account (Authentication)
 export interface IUserAccount extends Document {
   email: string;
   mobile: string;
@@ -286,6 +352,7 @@ export interface IUserAccount extends Document {
   branchId: string;
   branchName: string;
   organisationId: string;
+  roles: IUserRole[];
 }
 
 const UserAccountSchema = new Schema<IUserAccount>(
@@ -298,6 +365,16 @@ const UserAccountSchema = new Schema<IUserAccount>(
     branchId: { type: String, required: true },
     branchName: { type: String, required: true },
     organisationId: { type: String, required: true },
+    roles: [
+      {
+        organisationId: { type: String, required: true },
+        organisationName: { type: String, required: true },
+        branchId: { type: String, required: true },
+        branchName: { type: String, required: true },
+        roleName: { type: String, required: true },
+        userType: { type: String, required: true },
+      },
+    ],
   },
   { timestamps: true }
 );
@@ -305,6 +382,7 @@ const UserAccountSchema = new Schema<IUserAccount>(
 // Export Models
 export const Organisation = mongoose.model<IOrganisation>('Organisation', OrganisationSchema);
 export const Branch = mongoose.model<IBranch>('Branch', BranchSchema);
+export const FinancialYear = mongoose.model<IFinancialYear>('FinancialYear', FinancialYearSchema);
 export const Customer = mongoose.model<ICustomer>('Customer', CustomerSchema);
 export const Product = mongoose.model<IProduct>('Product', ProductSchema);
 export const SalesOrder = mongoose.model<ISalesOrder>('SalesOrder', SalesOrderSchema);

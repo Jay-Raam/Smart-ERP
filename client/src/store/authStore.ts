@@ -4,6 +4,15 @@ import { showAppToast } from '../utils/handleApiError';
 
 export type UserRole = 'SuperAdmin' | 'Admin' | 'Manager' | 'Staff' | 'Viewer' | 'owner' | 'viewer';
 
+export interface UserRoleAssignment {
+  organisationId: string;
+  organisationName: string;
+  branchId: string;
+  branchName: string;
+  roleName: string;
+  userType: string;
+}
+
 export interface TenantConfig {
   id: string;
   slug: string;
@@ -29,6 +38,7 @@ export interface UserSession {
   branchId: string;
   branchName: string;
   permissions: string[];
+  roles: UserRoleAssignment[];
 }
 
 interface AuthState {
@@ -53,6 +63,7 @@ interface AuthState {
   logout: () => void;
   setRole: (role: UserRole) => void;
   setBranch: (branchId: string, branchName: string) => void;
+  setRoles: (roles: UserRoleAssignment[]) => void;
 }
 
 // Ensure secret token is NEVER stored in localStorage
@@ -63,8 +74,9 @@ const savedCookieToken = cookieUtils.get('authToken');
 
 const savedUser = savedCookieToken ? localStorage.getItem('userName') || 'Jay Raam' : '';
 const savedRole = savedCookieToken ? (localStorage.getItem('userType') as UserRole) || 'SuperAdmin' : 'Viewer';
-const savedBranchId = savedCookieToken ? localStorage.getItem('Branch') || '6aa641dd0aaf856b62c3b7dd' : '';
-const savedBranchName = savedCookieToken ? localStorage.getItem('BranchName') || 'Chennai Central HQ & Assembly Plant' : '';
+const savedBranchId = savedCookieToken ? localStorage.getItem('Branch') || '' : '';
+const savedBranchName = savedCookieToken ? localStorage.getItem('BranchName') || '' : '';
+const savedOrgId = savedCookieToken ? localStorage.getItem('OrganizationId') || '' : '';
 
 export const useAuthStore = create<AuthState>((set, get) => ({
   isAuthenticated: !!savedCookieToken,
@@ -86,15 +98,16 @@ export const useAuthStore = create<AuthState>((set, get) => ({
     return true;
   },
   user: {
-    userId: savedCookieToken ? localStorage.getItem('UserID') || '6aa641dd0aaf856b62c3b7e1' : '',
+    userId: savedCookieToken ? localStorage.getItem('UserID') || '' : '',
     userName: savedUser,
     email: savedCookieToken ? localStorage.getItem('userEmail') || 'jay.raam@smart.com' : '',
     role: savedRole,
-    organisationId: savedCookieToken ? localStorage.getItem('OrganizationId') || '6aa641dd0aaf856b62c3b7da' : '',
+    organisationId: savedOrgId,
     organisationName: 'Smart Enterprise Industries Ltd.',
     branchId: savedBranchId,
     branchName: savedBranchName,
     permissions: savedRole === 'SuperAdmin' ? ['*'] : ['sales:*', 'invoices:*', 'store:read'],
+    roles: [],
   },
 
   loginWithCredentials: async (identifier: string, password: string) => {
@@ -117,7 +130,7 @@ export const useAuthStore = create<AuthState>((set, get) => ({
       // Secret token is saved ONLY in cookies (NEVER in localStorage)
       cookieUtils.set('authToken', token, 7);
 
-      // Non-sensitive harmless operational context saved in localStorage for user convenience
+      // Non-sensitive harmless operational context saved in localStorage
       localStorage.setItem('UserID', data.user.userId);
       localStorage.setItem('userName', data.user.userName);
       localStorage.setItem('userEmail', data.user.email);
@@ -125,6 +138,11 @@ export const useAuthStore = create<AuthState>((set, get) => ({
       localStorage.setItem('OrganizationId', data.user.organisationId);
       localStorage.setItem('Branch', data.user.branchId);
       localStorage.setItem('BranchName', data.user.branchName);
+      if (!localStorage.getItem('FinancialYear')) {
+        localStorage.setItem('FinancialYear', '2026-2027');
+      }
+
+      const roles = data.user.roles || [];
 
       set({
         isAuthenticated: true,
@@ -139,6 +157,7 @@ export const useAuthStore = create<AuthState>((set, get) => ({
           branchId: data.user.branchId,
           branchName: data.user.branchName,
           permissions: data.user.role === 'SuperAdmin' ? ['*'] : ['sales:*', 'invoices:*', 'store:read'],
+          roles,
         },
       });
 
@@ -154,16 +173,14 @@ export const useAuthStore = create<AuthState>((set, get) => ({
 
   login: (data) => {
     const token = `jwt_token_${Date.now()}_${Math.random().toString(36).slice(2, 8)}`;
-    // Secret token is saved ONLY in cookies (NEVER in localStorage)
     cookieUtils.set('authToken', token, 7);
 
-    // Non-sensitive harmless profile metadata in localStorage
     localStorage.setItem('UserID', '6aa641dd0aaf856b62c3b7e1');
     localStorage.setItem('userName', data.userName || 'Jay Raam');
     localStorage.setItem('userEmail', data.email);
     localStorage.setItem('userType', data.role || 'SuperAdmin');
-    localStorage.setItem('OrganizationId', data.organisationId || '6aa641dd0aaf856b62c3b7da');
-    localStorage.setItem('Branch', data.branchId || '6aa641dd0aaf856b62c3b7dd');
+    localStorage.setItem('OrganizationId', data.organisationId || '');
+    localStorage.setItem('Branch', data.branchId || '');
 
     set({
       isAuthenticated: true,
@@ -173,11 +190,12 @@ export const useAuthStore = create<AuthState>((set, get) => ({
         userName: data.userName || 'Jay Raam',
         email: data.email,
         role: data.role || 'SuperAdmin',
-        organisationId: data.organisationId || '6aa641dd0aaf856b62c3b7da',
+        organisationId: data.organisationId || '',
         organisationName: 'Smart Enterprise Industries Ltd.',
-        branchId: data.branchId || '6aa641dd0aaf856b62c3b7dd',
-        branchName: data.branchName || 'Chennai Central HQ & Assembly Plant',
+        branchId: data.branchId || '',
+        branchName: data.branchName || '',
         permissions: (data.role || 'SuperAdmin') === 'SuperAdmin' ? ['*'] : ['sales:*', 'invoices:*'],
+        roles: [],
       },
     });
 
@@ -202,6 +220,7 @@ export const useAuthStore = create<AuthState>((set, get) => ({
         branchId: '',
         branchName: '',
         permissions: [],
+        roles: [],
       },
     });
 
@@ -222,11 +241,21 @@ export const useAuthStore = create<AuthState>((set, get) => ({
 
   setBranch: (branchId: string, branchName: string) => {
     localStorage.setItem('Branch', branchId);
+    localStorage.setItem('BranchName', branchName);
     set((state) => ({
       user: {
         ...state.user,
         branchId,
         branchName,
+      },
+    }));
+  },
+
+  setRoles: (roles: UserRoleAssignment[]) => {
+    set((state) => ({
+      user: {
+        ...state.user,
+        roles,
       },
     }));
   },

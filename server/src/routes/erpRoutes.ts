@@ -1,7 +1,9 @@
 import { Router, Request, Response } from 'express';
+import mongoose from 'mongoose';
 import {
   Organisation,
   Branch,
+  FinancialYear,
   Customer,
   Product,
   SalesOrder,
@@ -58,6 +60,20 @@ erpRouter.post('/auth/login', async (req: Request, res: Response) => {
       maxAge: 7 * 24 * 60 * 60 * 1000,
     });
 
+    const userRoles =
+      user.roles && user.roles.length > 0
+        ? user.roles
+        : [
+            {
+              organisationId: user.organisationId,
+              organisationName: 'Smart Enterprise Industries Ltd.',
+              branchId: user.branchId,
+              branchName: user.branchName,
+              roleName: user.role,
+              userType: user.role,
+            },
+          ];
+
     return res.json({
       success: true,
       token: tokens.accessToken,
@@ -70,6 +86,7 @@ erpRouter.post('/auth/login', async (req: Request, res: Response) => {
         branchId: user.branchId,
         branchName: user.branchName,
         organisationId: user.organisationId,
+        roles: userRoles,
       },
     });
   } catch (err: any) {
@@ -99,6 +116,20 @@ erpRouter.get('/auth/me', async (req: Request, res: Response) => {
       return res.status(404).json({ error: 'User account not found' });
     }
 
+    const userRoles =
+      user.roles && user.roles.length > 0
+        ? user.roles
+        : [
+            {
+              organisationId: user.organisationId,
+              organisationName: 'Smart Enterprise Industries Ltd.',
+              branchId: user.branchId,
+              branchName: user.branchName,
+              roleName: user.role,
+              userType: user.role,
+            },
+          ];
+
     return res.json({
       success: true,
       user: {
@@ -110,6 +141,7 @@ erpRouter.get('/auth/me', async (req: Request, res: Response) => {
         branchId: user.branchId,
         branchName: user.branchName,
         organisationId: user.organisationId,
+        roles: userRoles,
       },
     });
   } catch (err: any) {
@@ -123,13 +155,60 @@ erpRouter.post('/auth/logout', (req: Request, res: Response) => {
 });
 
 // ==========================================
-// 2. MASTER INITIALIZATION (BOOTSTRAP ALL ERP DATA)
+// 2. MASTER INITIALIZATION (BOOTSTRAP WITH SCOPING)
 // ==========================================
 erpRouter.get('/bootstrap', async (req: Request, res: Response) => {
   try {
+    const { organisationId, branchId, financialYear } = req.query as {
+      organisationId?: string;
+      branchId?: string;
+      financialYear?: string;
+    };
+
+    // 1. Resolve organization safely
+    let orgDoc = null;
+    if (organisationId && mongoose.isValidObjectId(organisationId)) {
+      orgDoc = await Organisation.findById(organisationId);
+    }
+    if (!orgDoc) {
+      orgDoc = await Organisation.findOne();
+    }
+    const finalOrgId = orgDoc ? orgDoc._id.toString() : '';
+
+    // 2. Resolve branches
+    const branchFilter = finalOrgId ? { organisationId: finalOrgId } : {};
+    const branches = await Branch.find(branchFilter).sort({ createdAt: 1 });
+
+    // 3. Resolve active branch safely
+    let activeBranch = '';
+    if (branchId && branches.some((b) => b._id.toString() === branchId)) {
+      activeBranch = branchId;
+    } else if (branches.length > 0) {
+      activeBranch = branches[0]._id.toString();
+    }
+
+    // 4. Resolve financial years
+    const fyFilter = finalOrgId ? { organisationId: finalOrgId } : {};
+    const financialYears = await FinancialYear.find(fyFilter).sort({ yearName: -1 });
+    const activeFy = financialYear || financialYears.find((y) => y.isCurrent)?.yearName || '2026-2027';
+
+    // 5. Query filters for scoped business data
+    const txFilter: any = {};
+    if (finalOrgId) txFilter.organisationId = finalOrgId;
+    if (activeBranch) txFilter.branchId = activeBranch;
+    if (activeFy) txFilter.financialYear = activeFy;
+
+    const storeFilter: any = {};
+    if (finalOrgId) storeFilter.organisationId = finalOrgId;
+    if (activeBranch) storeFilter.branchId = activeBranch;
+
+    const custFilter: any = {};
+    if (finalOrgId) custFilter.organisationId = finalOrgId;
+    if (activeBranch) {
+      custFilter.$or = [{ branchId: activeBranch }, { branchId: '' }, { branchId: { $exists: false } }];
+    }
+
     const [
-      organisation,
-      branches,
       customers,
       products,
       salesOrders,
@@ -138,19 +217,17 @@ erpRouter.get('/bootstrap', async (req: Request, res: Response) => {
       storeItems,
       deliveryChallans,
     ] = await Promise.all([
-      Organisation.findOne(),
-      Branch.find().sort({ createdAt: 1 }),
-      Customer.find().sort({ createdAt: -1 }),
-      Product.find().sort({ createdAt: -1 }),
-      SalesOrder.find().sort({ createdAt: -1 }),
-      Invoice.find().sort({ createdAt: -1 }),
-      PurchaseOrder.find().sort({ createdAt: -1 }),
-      StoreItem.find().sort({ createdAt: -1 }),
-      DeliveryChallan.find().sort({ createdAt: -1 }),
+      Customer.find(custFilter).sort({ createdAt: -1 }),
+      Product.find(finalOrgId ? { organisationId: finalOrgId } : {}).sort({ createdAt: -1 }),
+      SalesOrder.find(txFilter).sort({ createdAt: -1 }),
+      Invoice.find(txFilter).sort({ createdAt: -1 }),
+      PurchaseOrder.find(txFilter).sort({ createdAt: -1 }),
+      StoreItem.find(storeFilter).sort({ createdAt: -1 }),
+      DeliveryChallan.find(txFilter).sort({ createdAt: -1 }),
     ]);
 
     return res.json({
-      organisation,
+      organisation: orgDoc || null,
       branches: branches.map((b) => ({
         id: b._id.toString(),
         code: b.code,
@@ -160,6 +237,16 @@ erpRouter.get('/bootstrap', async (req: Request, res: Response) => {
         gstin: b.gstin,
         phone: b.phone,
         isHeadOffice: b.isHeadOffice,
+        organisationId: b.organisationId,
+      })),
+      financialYears: financialYears.map((fy) => ({
+        id: fy._id.toString(),
+        yearName: fy.yearName,
+        startDate: fy.startDate,
+        endDate: fy.endDate,
+        isCurrent: fy.isCurrent,
+        status: fy.status,
+        organisationId: fy.organisationId,
       })),
       customers: customers.map((c) => ({
         id: c._id.toString(),
@@ -173,6 +260,8 @@ erpRouter.get('/bootstrap', async (req: Request, res: Response) => {
         gstin: c.gstin,
         outstandingBalance: c.outstandingBalance,
         creditLimit: c.creditLimit,
+        organisationId: c.organisationId,
+        branchId: c.branchId,
       })),
       products: products.map((p) => ({
         id: p._id.toString(),
@@ -185,6 +274,8 @@ erpRouter.get('/bootstrap', async (req: Request, res: Response) => {
         purchaseCost: p.purchaseCost,
         currentStock: p.currentStock,
         minReorderLevel: p.minReorderLevel,
+        organisationId: p.organisationId,
+        branchId: p.branchId,
       })),
       salesOrders: salesOrders.map((so) => ({
         id: so._id.toString(),
@@ -194,6 +285,8 @@ erpRouter.get('/bootstrap', async (req: Request, res: Response) => {
         orderDate: so.orderDate,
         deliveryDate: so.deliveryDate,
         branchId: so.branchId,
+        organisationId: so.organisationId,
+        financialYear: so.financialYear,
         items: so.items,
         subtotal: so.subtotal,
         taxAmount: so.taxAmount,
@@ -208,6 +301,9 @@ erpRouter.get('/bootstrap', async (req: Request, res: Response) => {
         customerName: inv.customerName,
         invoiceDate: inv.invoiceDate,
         dueDate: inv.dueDate,
+        branchId: inv.branchId,
+        organisationId: inv.organisationId,
+        financialYear: inv.financialYear,
         subtotal: inv.subtotal,
         gstRate: inv.gstRate,
         taxAmount: inv.taxAmount,
@@ -222,6 +318,8 @@ erpRouter.get('/bootstrap', async (req: Request, res: Response) => {
         poDate: po.poDate,
         expectedDate: po.expectedDate,
         branchId: po.branchId,
+        organisationId: po.organisationId,
+        financialYear: po.financialYear,
         totalAmount: po.totalAmount,
         status: po.status,
       })),
@@ -237,6 +335,8 @@ erpRouter.get('/bootstrap', async (req: Request, res: Response) => {
         maxLevel: st.maxLevel,
         lastAudited: st.lastAudited || '',
         status: st.status,
+        branchId: st.branchId,
+        organisationId: st.organisationId,
       })),
       deliveryChallans: deliveryChallans.map((dc) => ({
         id: dc._id.toString(),
@@ -250,6 +350,9 @@ erpRouter.get('/bootstrap', async (req: Request, res: Response) => {
         driverName: dc.driverName,
         driverPhone: dc.driverPhone,
         status: dc.status,
+        branchId: dc.branchId,
+        organisationId: dc.organisationId,
+        financialYear: dc.financialYear,
       })),
     });
   } catch (err: any) {
@@ -258,11 +361,117 @@ erpRouter.get('/bootstrap', async (req: Request, res: Response) => {
 });
 
 // ==========================================
-// 3. SALES ORDERS
+// 3. FINANCIAL YEARS CRUD
+// ==========================================
+erpRouter.get('/financial-years', async (req: Request, res: Response) => {
+  try {
+    const { organisationId } = req.query as { organisationId?: string };
+    const filter = organisationId ? { organisationId } : {};
+    const years = await FinancialYear.find(filter).sort({ yearName: -1 });
+    return res.json(years.map((y) => ({ ...y.toObject(), id: y._id.toString() })));
+  } catch (err: any) {
+    return res.status(500).json({ error: err.message });
+  }
+});
+
+erpRouter.post('/financial-years', async (req: Request, res: Response) => {
+  try {
+    const { yearName, startDate, endDate, isCurrent, status, organisationId } = req.body;
+    if (!yearName || !startDate || !endDate) {
+      return res.status(400).json({ error: 'yearName, startDate, and endDate are required.' });
+    }
+
+    if (isCurrent) {
+      await FinancialYear.updateMany({ organisationId }, { isCurrent: false });
+    }
+
+    const created = await FinancialYear.create({
+      yearName,
+      startDate,
+      endDate,
+      isCurrent: !!isCurrent,
+      status: status || 'Active',
+      organisationId: organisationId || '',
+    });
+
+    return res.status(201).json({ ...created.toObject(), id: created._id.toString() });
+  } catch (err: any) {
+    return res.status(400).json({ error: err.message });
+  }
+});
+
+erpRouter.patch('/financial-years/:id', async (req: Request, res: Response) => {
+  try {
+    const { id } = req.params;
+    const updates = req.body;
+
+    if (updates.isCurrent) {
+      const existing = await FinancialYear.findById(id);
+      if (existing) {
+        await FinancialYear.updateMany({ organisationId: existing.organisationId }, { isCurrent: false });
+      }
+    }
+
+    const updated = await FinancialYear.findByIdAndUpdate(id, updates, { new: true });
+    if (!updated) return res.status(404).json({ error: 'Financial Year not found' });
+    return res.json({ ...updated.toObject(), id: updated._id.toString() });
+  } catch (err: any) {
+    return res.status(400).json({ error: err.message });
+  }
+});
+
+// ==========================================
+// 4. SALES ORDERS (WITH URL PARAMS & SCOPING)
 // ==========================================
 erpRouter.get('/sales-orders', async (req: Request, res: Response) => {
-  const orders = await SalesOrder.find().sort({ createdAt: -1 });
-  res.json(orders);
+  try {
+    const { branchId, organisationId, financialYear, page, per_page, search, sort_column, sort_order, filter_by } = req.query;
+
+    const query: any = {};
+    if (branchId) query.branchId = branchId;
+    if (organisationId) query.organisationId = organisationId;
+    if (financialYear) query.financialYear = financialYear;
+
+    if (filter_by && String(filter_by) !== 'Status.All' && String(filter_by) !== 'All') {
+      const parts = String(filter_by).split('.');
+      const val = parts.length > 1 ? parts[1] : parts[0];
+      query.status = val;
+    }
+
+    if (search) {
+      const term = String(search).trim();
+      query.$or = [
+        { orderNumber: { $regex: term, $options: 'i' } },
+        { customerName: { $regex: term, $options: 'i' } },
+      ];
+    }
+
+    const sortOpt: any = {};
+    if (sort_column) {
+      sortOpt[String(sort_column)] = sort_order === 'A' || sort_order === 'asc' ? 1 : -1;
+    } else {
+      sortOpt.createdAt = -1;
+    }
+
+    const total = await SalesOrder.countDocuments(query);
+    const p = Math.max(1, Number(page) || 1);
+    const pp = Number(per_page) || 0;
+
+    let q = SalesOrder.find(query).sort(sortOpt);
+    if (pp > 0) {
+      q = q.skip((p - 1) * pp).limit(pp);
+    }
+
+    const orders = await q;
+    const data = orders.map((so) => ({ ...so.toObject(), id: so._id.toString() }));
+
+    if (per_page !== undefined) {
+      return res.json({ message: 'success', data, total, page: p, per_page: pp });
+    }
+    return res.json(data);
+  } catch (err: any) {
+    return res.status(500).json({ error: err.message });
+  }
 });
 
 erpRouter.post('/sales-orders', async (req: Request, res: Response) => {
@@ -280,11 +489,58 @@ erpRouter.post('/sales-orders', async (req: Request, res: Response) => {
 });
 
 // ==========================================
-// 4. INVOICES
+// 5. INVOICES (WITH URL PARAMS & SCOPING)
 // ==========================================
 erpRouter.get('/invoices', async (req: Request, res: Response) => {
-  const invoices = await Invoice.find().sort({ createdAt: -1 });
-  res.json(invoices.map((inv) => ({ ...inv.toObject(), id: inv._id.toString() })));
+  try {
+    const { branchId, organisationId, financialYear, page, per_page, search, sort_column, sort_order, filter_by } = req.query;
+
+    const query: any = {};
+    if (branchId) query.branchId = branchId;
+    if (organisationId) query.organisationId = organisationId;
+    if (financialYear) query.financialYear = financialYear;
+
+    if (filter_by && String(filter_by) !== 'Status.All' && String(filter_by) !== 'All') {
+      const parts = String(filter_by).split('.');
+      const val = parts.length > 1 ? parts[1] : parts[0];
+      query.status = val;
+    }
+
+    if (search) {
+      const term = String(search).trim();
+      query.$or = [
+        { invoiceNumber: { $regex: term, $options: 'i' } },
+        { customerName: { $regex: term, $options: 'i' } },
+        { salesOrderNumber: { $regex: term, $options: 'i' } },
+      ];
+    }
+
+    const sortOpt: any = {};
+    if (sort_column) {
+      sortOpt[String(sort_column)] = sort_order === 'A' || sort_order === 'asc' ? 1 : -1;
+    } else {
+      sortOpt.createdAt = -1;
+    }
+
+    const total = await Invoice.countDocuments(query);
+    const p = Math.max(1, Number(page) || 1);
+    const pp = Number(per_page) || 0;
+
+    let q = Invoice.find(query).sort(sortOpt);
+    if (pp > 0) {
+      q = q.skip((p - 1) * pp).limit(pp);
+    }
+
+    const invoices = await q;
+    const data = invoices.map((inv) => ({ ...inv.toObject(), id: inv._id.toString() }));
+
+    if (per_page !== undefined) {
+      return res.json({ message: 'success', data, total, page: p, per_page: pp });
+    }
+    return res.json(data);
+  } catch (err: any) {
+    return res.status(500).json({ error: err.message });
+  }
 });
 
 erpRouter.post('/invoices', async (req: Request, res: Response) => {
@@ -302,11 +558,57 @@ erpRouter.post('/invoices', async (req: Request, res: Response) => {
 });
 
 // ==========================================
-// 5. PURCHASE ORDERS
+// 6. PURCHASE ORDERS
 // ==========================================
 erpRouter.get('/purchase-orders', async (req: Request, res: Response) => {
-  const pos = await PurchaseOrder.find().sort({ createdAt: -1 });
-  res.json(pos.map((p) => ({ ...p.toObject(), id: p._id.toString() })));
+  try {
+    const { branchId, organisationId, financialYear, page, per_page, search, sort_column, sort_order, filter_by } = req.query;
+
+    const query: any = {};
+    if (branchId) query.branchId = branchId;
+    if (organisationId) query.organisationId = organisationId;
+    if (financialYear) query.financialYear = financialYear;
+
+    if (filter_by && String(filter_by) !== 'Status.All' && String(filter_by) !== 'All') {
+      const parts = String(filter_by).split('.');
+      const val = parts.length > 1 ? parts[1] : parts[0];
+      query.status = val;
+    }
+
+    if (search) {
+      const term = String(search).trim();
+      query.$or = [
+        { poNumber: { $regex: term, $options: 'i' } },
+        { vendorName: { $regex: term, $options: 'i' } },
+      ];
+    }
+
+    const sortOpt: any = {};
+    if (sort_column) {
+      sortOpt[String(sort_column)] = sort_order === 'A' || sort_order === 'asc' ? 1 : -1;
+    } else {
+      sortOpt.createdAt = -1;
+    }
+
+    const total = await PurchaseOrder.countDocuments(query);
+    const p = Math.max(1, Number(page) || 1);
+    const pp = Number(per_page) || 0;
+
+    let q = PurchaseOrder.find(query).sort(sortOpt);
+    if (pp > 0) {
+      q = q.skip((p - 1) * pp).limit(pp);
+    }
+
+    const pos = await q;
+    const data = pos.map((p) => ({ ...p.toObject(), id: p._id.toString() }));
+
+    if (per_page !== undefined) {
+      return res.json({ message: 'success', data, total, page: p, per_page: pp });
+    }
+    return res.json(data);
+  } catch (err: any) {
+    return res.status(500).json({ error: err.message });
+  }
 });
 
 erpRouter.post('/purchase-orders', async (req: Request, res: Response) => {
@@ -324,17 +626,22 @@ erpRouter.post('/purchase-orders', async (req: Request, res: Response) => {
 });
 
 // ==========================================
-// 6. PRODUCTS & STORE
+// 7. PRODUCTS & STORE
 // ==========================================
 erpRouter.get('/products', async (req: Request, res: Response) => {
-  const products = await Product.find().sort({ createdAt: -1 });
-  res.json(products.map((p) => ({ ...p.toObject(), id: p._id.toString() })));
+  try {
+    const { organisationId } = req.query;
+    const query = organisationId ? { organisationId } : {};
+    const products = await Product.find(query).sort({ createdAt: -1 });
+    res.json(products.map((p) => ({ ...p.toObject(), id: p._id.toString() })));
+  } catch (err: any) {
+    res.status(500).json({ error: err.message });
+  }
 });
 
 erpRouter.post('/products', async (req: Request, res: Response) => {
   try {
     const product = await Product.create(req.body);
-    // Also create matching store item entry
     await StoreItem.create({
       productId: product._id.toString(),
       productName: product.name,
@@ -346,6 +653,8 @@ erpRouter.post('/products', async (req: Request, res: Response) => {
       maxLevel: 500,
       lastAudited: new Date().toISOString().split('T')[0],
       status: product.currentStock <= product.minReorderLevel ? 'Low Stock' : 'In Stock',
+      branchId: req.body.branchId || '',
+      organisationId: req.body.organisationId || '',
     });
     res.status(201).json({ ...product.toObject(), id: product._id.toString() });
   } catch (err: any) {
@@ -354,8 +663,17 @@ erpRouter.post('/products', async (req: Request, res: Response) => {
 });
 
 erpRouter.get('/store-items', async (req: Request, res: Response) => {
-  const items = await StoreItem.find().sort({ createdAt: -1 });
-  res.json(items.map((st) => ({ ...st.toObject(), id: st._id.toString() })));
+  try {
+    const { branchId, organisationId } = req.query;
+    const query: any = {};
+    if (branchId) query.branchId = branchId;
+    if (organisationId) query.organisationId = organisationId;
+
+    const items = await StoreItem.find(query).sort({ createdAt: -1 });
+    res.json(items.map((st) => ({ ...st.toObject(), id: st._id.toString() })));
+  } catch (err: any) {
+    res.status(500).json({ error: err.message });
+  }
 });
 
 erpRouter.patch('/store-items/:productId/stock', async (req: Request, res: Response) => {
@@ -379,11 +697,22 @@ erpRouter.patch('/store-items/:productId/stock', async (req: Request, res: Respo
 });
 
 // ==========================================
-// 7. CUSTOMERS
+// 8. CUSTOMERS
 // ==========================================
 erpRouter.get('/customers', async (req: Request, res: Response) => {
-  const customers = await Customer.find().sort({ createdAt: -1 });
-  res.json(customers.map((c) => ({ ...c.toObject(), id: c._id.toString() })));
+  try {
+    const { branchId, organisationId } = req.query;
+    const query: any = {};
+    if (organisationId) query.organisationId = organisationId;
+    if (branchId) {
+      query.$or = [{ branchId }, { branchId: '' }, { branchId: { $exists: false } }];
+    }
+
+    const customers = await Customer.find(query).sort({ createdAt: -1 });
+    res.json(customers.map((c) => ({ ...c.toObject(), id: c._id.toString() })));
+  } catch (err: any) {
+    res.status(500).json({ error: err.message });
+  }
 });
 
 erpRouter.post('/customers', async (req: Request, res: Response) => {
@@ -401,11 +730,21 @@ erpRouter.post('/customers', async (req: Request, res: Response) => {
 });
 
 // ==========================================
-// 8. DELIVERY CHALLANS
+// 9. DELIVERY CHALLANS
 // ==========================================
 erpRouter.get('/delivery-challans', async (req: Request, res: Response) => {
-  const dcs = await DeliveryChallan.find().sort({ createdAt: -1 });
-  res.json(dcs.map((d) => ({ ...d.toObject(), id: d._id.toString() })));
+  try {
+    const { branchId, organisationId, financialYear } = req.query;
+    const query: any = {};
+    if (branchId) query.branchId = branchId;
+    if (organisationId) query.organisationId = organisationId;
+    if (financialYear) query.financialYear = financialYear;
+
+    const dcs = await DeliveryChallan.find(query).sort({ createdAt: -1 });
+    res.json(dcs.map((d) => ({ ...d.toObject(), id: d._id.toString() })));
+  } catch (err: any) {
+    res.status(500).json({ error: err.message });
+  }
 });
 
 erpRouter.post('/delivery-challans', async (req: Request, res: Response) => {
@@ -423,11 +762,17 @@ erpRouter.post('/delivery-challans', async (req: Request, res: Response) => {
 });
 
 // ==========================================
-// 9. BRANCHES & ORGANISATION
+// 10. BRANCHES & ORGANISATION
 // ==========================================
 erpRouter.get('/branches', async (req: Request, res: Response) => {
-  const branches = await Branch.find().sort({ createdAt: 1 });
-  res.json(branches.map((b) => ({ ...b.toObject(), id: b._id.toString() })));
+  try {
+    const { organisationId } = req.query;
+    const query = organisationId ? { organisationId } : {};
+    const branches = await Branch.find(query).sort({ createdAt: 1 });
+    res.json(branches.map((b) => ({ ...b.toObject(), id: b._id.toString() })));
+  } catch (err: any) {
+    res.status(500).json({ error: err.message });
+  }
 });
 
 erpRouter.post('/branches', async (req: Request, res: Response) => {
@@ -440,6 +785,11 @@ erpRouter.post('/branches', async (req: Request, res: Response) => {
 });
 
 erpRouter.get('/organisation', async (req: Request, res: Response) => {
-  const org = await Organisation.findOne();
-  res.json(org);
+  try {
+    const { organisationId } = req.query;
+    const org = organisationId ? await Organisation.findById(organisationId) : await Organisation.findOne();
+    res.json(org);
+  } catch (err: any) {
+    res.status(500).json({ error: err.message });
+  }
 });

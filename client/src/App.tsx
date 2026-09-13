@@ -18,6 +18,7 @@ import { ProductsModule } from './components/modules/ProductsModule';
 import { CustomerModule } from './components/modules/CustomerModule';
 import { DeliveryModule } from './components/modules/DeliveryModule';
 import { BranchModule } from './components/modules/BranchModule';
+import { FinancialYearModule } from './components/modules/FinancialYearModule';
 
 export function App() {
   const { isAuthenticated, checkSession, logout } = useAuthStore();
@@ -139,6 +140,7 @@ export function App() {
             )}
             {activeModule === 'delivery' && <DeliveryModule />}
             {activeModule === 'branches' && <BranchModule />}
+            {activeModule === 'financial-years' && <FinancialYearModule />}
           </div>
         </main>
       </div>

@@ -10,6 +10,17 @@ export interface Branch {
   gstin: string;
   phone: string;
   isHeadOffice: boolean;
+  organisationId?: string;
+}
+
+export interface FinancialYear {
+  id: string;
+  yearName: string;
+  startDate: string;
+  endDate: string;
+  isCurrent: boolean;
+  status: 'Active' | 'Closed';
+  organisationId?: string;
 }
 
 export interface Customer {
@@ -24,6 +35,8 @@ export interface Customer {
   gstin: string;
   outstandingBalance: number;
   creditLimit: number;
+  organisationId?: string;
+  branchId?: string;
 }
 
 export interface Product {
@@ -37,6 +50,8 @@ export interface Product {
   purchaseCost: number;
   currentStock: number;
   minReorderLevel: number;
+  organisationId?: string;
+  branchId?: string;
 }
 
 export interface SalesOrderItem {
@@ -56,6 +71,8 @@ export interface SalesOrder {
   orderDate: string;
   deliveryDate: string;
   branchId: string;
+  organisationId?: string;
+  financialYear?: string;
   items: SalesOrderItem[];
   subtotal: number;
   taxAmount: number;
@@ -71,6 +88,9 @@ export interface Invoice {
   customerName: string;
   invoiceDate: string;
   dueDate: string;
+  branchId?: string;
+  organisationId?: string;
+  financialYear?: string;
   subtotal: number;
   gstRate: number;
   taxAmount: number;
@@ -86,6 +106,8 @@ export interface PurchaseOrder {
   poDate: string;
   expectedDate: string;
   branchId: string;
+  organisationId?: string;
+  financialYear?: string;
   totalAmount: number;
   status: 'Approved' | 'Pending Approval' | 'Received' | 'Cancelled';
 }
@@ -102,6 +124,8 @@ export interface StoreItem {
   maxLevel: number;
   lastAudited: string;
   status: 'In Stock' | 'Low Stock' | 'Critical';
+  branchId?: string;
+  organisationId?: string;
 }
 
 export interface DeliveryChallan {
@@ -116,9 +140,13 @@ export interface DeliveryChallan {
   driverName: string;
   driverPhone: string;
   status: 'Dispatched' | 'In Transit' | 'Delivered';
+  branchId?: string;
+  organisationId?: string;
+  financialYear?: string;
 }
 
 export interface OrganisationInfo {
+  id?: string;
   name: string;
   cin: string;
   gstin: string;
@@ -132,7 +160,10 @@ export interface OrganisationInfo {
 interface ErpState {
   organisation: OrganisationInfo;
   branches: Branch[];
+  financialYears: FinancialYear[];
+  activeOrganisationId: string;
   activeBranchId: string;
+  activeFinancialYear: string;
   customers: Customer[];
   products: Product[];
   salesOrders: SalesOrder[];
@@ -144,9 +175,14 @@ interface ErpState {
   isInitialized: boolean;
 
   // Actions
-  fetchBootstrap: () => Promise<void>;
+  fetchBootstrap: (overrideOrg?: string, overrideBranch?: string, overrideFy?: string) => Promise<void>;
+  switchBranch: (branchId: string) => Promise<void>;
+  switchOrganisation: (orgId: string) => Promise<void>;
+  switchFinancialYear: (year: string) => Promise<void>;
   setActiveBranch: (branchId: string) => void;
   addBranch: (branch: Omit<Branch, 'id'>) => Promise<void>;
+  addFinancialYear: (fy: Omit<FinancialYear, 'id'>) => Promise<void>;
+  updateFinancialYear: (id: string, updates: Partial<FinancialYear>) => Promise<void>;
   addCustomer: (customer: Omit<Customer, 'id' | 'code'>) => Promise<void>;
   addProduct: (product: Omit<Product, 'id'>) => Promise<void>;
   addSalesOrder: (so: Omit<SalesOrder, 'id' | 'orderNumber'>) => Promise<void>;
@@ -168,7 +204,10 @@ export const useErpStore = create<ErpState>((set, get) => ({
     address: 'Plot 48/A, Industrial Estate, Guindy, Chennai - 600032, Tamil Nadu, India',
   },
   branches: [],
-  activeBranchId: '',
+  financialYears: [],
+  activeOrganisationId: localStorage.getItem('OrganizationId') || '',
+  activeBranchId: localStorage.getItem('Branch') || '',
+  activeFinancialYear: localStorage.getItem('FinancialYear') || '2026-2027',
   customers: [],
   products: [],
   salesOrders: [],
@@ -179,24 +218,69 @@ export const useErpStore = create<ErpState>((set, get) => ({
   isLoading: false,
   isInitialized: false,
 
-  fetchBootstrap: async () => {
+  fetchBootstrap: async (overrideOrg?: string, overrideBranch?: string, overrideFy?: string) => {
     try {
       set({ isLoading: true });
-      const res = await fetch('/api/erp/bootstrap');
+      const orgId = overrideOrg !== undefined ? overrideOrg : (get().activeOrganisationId || localStorage.getItem('OrganizationId') || '');
+      const branchId = overrideBranch !== undefined ? overrideBranch : (get().activeBranchId || localStorage.getItem('Branch') || '');
+      const fy = overrideFy !== undefined ? overrideFy : (get().activeFinancialYear || localStorage.getItem('FinancialYear') || '2026-2027');
+
+      const query = new URLSearchParams();
+      if (orgId) query.set('organisationId', orgId);
+      if (branchId) query.set('branchId', branchId);
+      if (fy) query.set('financialYear', fy);
+
+      const res = await fetch(`/api/erp/bootstrap?${query.toString()}`);
       if (!res.ok) throw new Error(`HTTP ${res.status}: Failed to fetch bootstrap data`);
       const data = await res.json();
 
+      let finalData = data;
+      let activeBrId = branchId;
+
+      if (data.branches && data.branches.length > 0) {
+        const found = data.branches.some((b: any) => b.id === branchId);
+        if (!found) {
+          activeBrId = data.branches[0].id;
+          const retryQuery = new URLSearchParams();
+          if (orgId) retryQuery.set('organisationId', orgId);
+          retryQuery.set('branchId', activeBrId);
+          if (fy) retryQuery.set('financialYear', fy);
+
+          const retryRes = await fetch(`/api/erp/bootstrap?${retryQuery.toString()}`);
+          if (retryRes.ok) {
+            finalData = await retryRes.json();
+          }
+        }
+      }
+
+      const activeFy = fy || finalData.financialYears?.find((y: any) => y.isCurrent)?.yearName || '2026-2027';
+
+      if (activeBrId) {
+        localStorage.setItem('Branch', activeBrId);
+        const brObj = finalData.branches?.find((b: any) => b.id === activeBrId);
+        if (brObj) localStorage.setItem('BranchName', brObj.name);
+      }
+      if (activeFy) {
+        localStorage.setItem('FinancialYear', activeFy);
+      }
+      if (finalData.organisation?._id) {
+        localStorage.setItem('OrganizationId', finalData.organisation._id);
+      }
+
       set({
-        organisation: data.organisation || get().organisation,
-        branches: data.branches || [],
-        activeBranchId: data.branches?.[0]?.id || get().activeBranchId || '',
-        customers: data.customers || [],
-        products: data.products || [],
-        salesOrders: data.salesOrders || [],
-        invoices: data.invoices || [],
-        purchaseOrders: data.purchaseOrders || [],
-        storeItems: data.storeItems || [],
-        deliveryChallans: data.deliveryChallans || [],
+        organisation: finalData.organisation || get().organisation,
+        branches: finalData.branches || [],
+        financialYears: finalData.financialYears || [],
+        activeOrganisationId: orgId,
+        activeBranchId: activeBrId,
+        activeFinancialYear: activeFy,
+        customers: finalData.customers || [],
+        products: finalData.products || [],
+        salesOrders: finalData.salesOrders || [],
+        invoices: finalData.invoices || [],
+        purchaseOrders: finalData.purchaseOrders || [],
+        storeItems: finalData.storeItems || [],
+        deliveryChallans: finalData.deliveryChallans || [],
         isLoading: false,
         isInitialized: true,
       });
@@ -206,14 +290,42 @@ export const useErpStore = create<ErpState>((set, get) => ({
     }
   },
 
-  setActiveBranch: (branchId: string) => set({ activeBranchId: branchId }),
+  switchBranch: async (branchId: string) => {
+    set({ activeBranchId: branchId });
+    localStorage.setItem('Branch', branchId);
+    const br = get().branches.find((b) => b.id === branchId);
+    if (br) localStorage.setItem('BranchName', br.name);
+    await get().fetchBootstrap(get().activeOrganisationId, branchId, get().activeFinancialYear);
+    showAppToast(`Switched branch to ${br?.name || branchId}`, 'info');
+  },
+
+  switchOrganisation: async (orgId: string) => {
+    set({ activeOrganisationId: orgId });
+    localStorage.setItem('OrganizationId', orgId);
+    await get().fetchBootstrap(orgId, '', get().activeFinancialYear);
+    showAppToast('Organisation workspace switched', 'info');
+  },
+
+  switchFinancialYear: async (year: string) => {
+    set({ activeFinancialYear: year });
+    localStorage.setItem('FinancialYear', year);
+    await get().fetchBootstrap(get().activeOrganisationId, get().activeBranchId, year);
+    showAppToast(`Switched Financial Year to ${year}`, 'info');
+  },
+
+  setActiveBranch: (branchId: string) => {
+    get().switchBranch(branchId);
+  },
 
   addBranch: async (branch) => {
     try {
       const res = await fetch('/api/erp/branches', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(branch),
+        body: JSON.stringify({
+          ...branch,
+          organisationId: get().activeOrganisationId || localStorage.getItem('OrganizationId'),
+        }),
       });
       if (!res.ok) throw new Error('Failed to create branch');
       const created = await res.json();
@@ -224,17 +336,58 @@ export const useErpStore = create<ErpState>((set, get) => ({
     }
   },
 
+  addFinancialYear: async (fy) => {
+    try {
+      const res = await fetch('/api/erp/financial-years', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          ...fy,
+          organisationId: get().activeOrganisationId || localStorage.getItem('OrganizationId'),
+        }),
+      });
+      if (!res.ok) throw new Error('Failed to create financial year');
+      const created = await res.json();
+      set((state) => ({ financialYears: [created, ...state.financialYears] }));
+      showAppToast(`Financial Year ${created.yearName} created successfully`, 'success');
+    } catch (err: any) {
+      showAppToast('Error saving financial year: ' + err.message, 'error');
+    }
+  },
+
+  updateFinancialYear: async (id, updates) => {
+    try {
+      const res = await fetch(`/api/erp/financial-years/${id}`, {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(updates),
+      });
+      if (!res.ok) throw new Error('Failed to update financial year');
+      const updated = await res.json();
+      set((state) => ({
+        financialYears: state.financialYears.map((fy) => (fy.id === id ? updated : updates.isCurrent ? { ...fy, isCurrent: false } : fy)),
+      }));
+      showAppToast(`Financial Year updated successfully`, 'success');
+    } catch (err: any) {
+      showAppToast('Error updating financial year: ' + err.message, 'error');
+    }
+  },
+
   addCustomer: async (customer) => {
     try {
       const res = await fetch('/api/erp/customers', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(customer),
+        body: JSON.stringify({
+          ...customer,
+          organisationId: get().activeOrganisationId || localStorage.getItem('OrganizationId'),
+          branchId: get().activeBranchId || localStorage.getItem('Branch'),
+        }),
       });
-      if (!res.ok) throw new Error('Failed to register customer');
+      if (!res.ok) throw new Error('Failed to create customer');
       const created = await res.json();
       set((state) => ({ customers: [created, ...state.customers] }));
-      showAppToast(`Customer ${created.name} registered successfully`, 'success');
+      showAppToast(`Customer ${created.name} registered`, 'success');
     } catch (err: any) {
       showAppToast('Error saving customer: ' + err.message, 'error');
     }
@@ -245,30 +398,16 @@ export const useErpStore = create<ErpState>((set, get) => ({
       const res = await fetch('/api/erp/products', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(product),
+        body: JSON.stringify({
+          ...product,
+          organisationId: get().activeOrganisationId || localStorage.getItem('OrganizationId'),
+          branchId: get().activeBranchId || localStorage.getItem('Branch'),
+        }),
       });
-      if (!res.ok) throw new Error('Failed to add product');
+      if (!res.ok) throw new Error('Failed to create product');
       const created = await res.json();
-
-      const newStoreItem: StoreItem = {
-        id: `st-${created.id}`,
-        productId: created.id,
-        productName: created.name,
-        sku: created.sku,
-        warehouse: 'Chennai Central Depot',
-        binLocation: 'BIN-GEN-01',
-        availableStock: created.currentStock,
-        minLevel: created.minReorderLevel,
-        maxLevel: 500,
-        lastAudited: new Date().toISOString().split('T')[0],
-        status: created.currentStock <= created.minReorderLevel ? 'Low Stock' : 'In Stock',
-      };
-
-      set((state) => ({
-        products: [created, ...state.products],
-        storeItems: [newStoreItem, ...state.storeItems],
-      }));
-      showAppToast(`Product ${created.name} cataloged`, 'success');
+      set((state) => ({ products: [created, ...state.products] }));
+      showAppToast(`Product ${created.sku} added to catalog`, 'success');
     } catch (err: any) {
       showAppToast('Error saving product: ' + err.message, 'error');
     }
@@ -279,14 +418,19 @@ export const useErpStore = create<ErpState>((set, get) => ({
       const res = await fetch('/api/erp/sales-orders', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(so),
+        body: JSON.stringify({
+          ...so,
+          branchId: get().activeBranchId || localStorage.getItem('Branch'),
+          organisationId: get().activeOrganisationId || localStorage.getItem('OrganizationId'),
+          financialYear: get().activeFinancialYear || localStorage.getItem('FinancialYear') || '2026-2027',
+        }),
       });
       if (!res.ok) throw new Error('Failed to create sales order');
       const created = await res.json();
       set((state) => ({ salesOrders: [created, ...state.salesOrders] }));
-      showAppToast(`Sales Order ${created.orderNumber} confirmed`, 'success');
+      showAppToast(`Sales Order ${created.orderNumber} placed`, 'success');
     } catch (err: any) {
-      showAppToast('Error creating sales order: ' + err.message, 'error');
+      showAppToast('Error placing sales order: ' + err.message, 'error');
     }
   },
 
@@ -295,9 +439,14 @@ export const useErpStore = create<ErpState>((set, get) => ({
       const res = await fetch('/api/erp/invoices', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(inv),
+        body: JSON.stringify({
+          ...inv,
+          branchId: get().activeBranchId || localStorage.getItem('Branch'),
+          organisationId: get().activeOrganisationId || localStorage.getItem('OrganizationId'),
+          financialYear: get().activeFinancialYear || localStorage.getItem('FinancialYear') || '2026-2027',
+        }),
       });
-      if (!res.ok) throw new Error('Failed to create invoice');
+      if (!res.ok) throw new Error('Failed to generate invoice');
       const created = await res.json();
       set((state) => ({ invoices: [created, ...state.invoices] }));
       showAppToast(`Tax Invoice ${created.invoiceNumber} generated`, 'success');
@@ -311,7 +460,12 @@ export const useErpStore = create<ErpState>((set, get) => ({
       const res = await fetch('/api/erp/purchase-orders', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(po),
+        body: JSON.stringify({
+          ...po,
+          branchId: get().activeBranchId || localStorage.getItem('Branch'),
+          organisationId: get().activeOrganisationId || localStorage.getItem('OrganizationId'),
+          financialYear: get().activeFinancialYear || localStorage.getItem('FinancialYear') || '2026-2027',
+        }),
       });
       if (!res.ok) throw new Error('Failed to create purchase order');
       const created = await res.json();
@@ -327,14 +481,19 @@ export const useErpStore = create<ErpState>((set, get) => ({
       const res = await fetch('/api/erp/delivery-challans', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(dc),
+        body: JSON.stringify({
+          ...dc,
+          branchId: get().activeBranchId || localStorage.getItem('Branch'),
+          organisationId: get().activeOrganisationId || localStorage.getItem('OrganizationId'),
+          financialYear: get().activeFinancialYear || localStorage.getItem('FinancialYear') || '2026-2027',
+        }),
       });
-      if (!res.ok) throw new Error('Failed to generate delivery challan');
+      if (!res.ok) throw new Error('Failed to dispatch challan');
       const created = await res.json();
       set((state) => ({ deliveryChallans: [created, ...state.deliveryChallans] }));
-      showAppToast(`Delivery Challan ${created.dcNumber} created`, 'success');
+      showAppToast(`Delivery Challan ${created.dcNumber} dispatched`, 'success');
     } catch (err: any) {
-      showAppToast('Error creating delivery challan: ' + err.message, 'error');
+      showAppToast('Error dispatching challan: ' + err.message, 'error');
     }
   },
 
@@ -346,21 +505,17 @@ export const useErpStore = create<ErpState>((set, get) => ({
         body: JSON.stringify({ delta: deltaQuantity }),
       });
       if (!res.ok) throw new Error('Failed to update stock');
-      const updated = await res.json();
+      const updatedStore = await res.json();
 
       set((state) => ({
+        storeItems: state.storeItems.map((s) => (s.productId === productId ? updatedStore : s)),
         products: state.products.map((p) =>
-          p.id === productId ? { ...p, currentStock: updated.availableStock } : p
-        ),
-        storeItems: state.storeItems.map((st) =>
-          st.productId === productId
-            ? { ...st, availableStock: updated.availableStock, status: updated.status }
-            : st
+          p.id === productId ? { ...p, currentStock: updatedStore.availableStock } : p
         ),
       }));
-      showAppToast('Store stock balance updated', 'success');
+      showAppToast(`Stock adjusted by ${deltaQuantity > 0 ? '+' : ''}${deltaQuantity}`, 'info');
     } catch (err: any) {
-      showAppToast('Error adjusting stock: ' + err.message, 'error');
+      showAppToast('Error updating stock: ' + err.message, 'error');
     }
   },
 }));

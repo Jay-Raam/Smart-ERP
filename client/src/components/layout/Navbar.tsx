@@ -1,18 +1,18 @@
-import React, { useState } from 'react';
+import React, { useState, useRef, useEffect } from 'react';
 import {
   Building2,
   Search,
   Plus,
   Bell,
   ChevronDown,
-  Shield,
+  Check,
   FileText,
   ShoppingCart,
   Users,
   Package,
   Menu,
   Sun,
-  Moon,
+  Calendar,
 } from 'lucide-react';
 import { useErpStore } from '../../store/erpStore';
 import { useAuthStore } from '../../store/authStore';
@@ -33,15 +33,39 @@ export const Navbar: React.FC<NavbarProps> = ({
   onOpenProfile,
   onToggleSidebar,
 }) => {
-  const { branches, activeBranchId, setActiveBranch, organisation } = useErpStore();
+  const {
+    branches,
+    activeBranchId,
+    switchBranch,
+    organisation,
+    switchOrganisation,
+    financialYears,
+    activeFinancialYear,
+    switchFinancialYear,
+  } = useErpStore();
   const { user } = useAuthStore();
   const [isQuickAddOpen, setIsQuickAddOpen] = useState(false);
+  const [isFyDropdownOpen, setIsFyDropdownOpen] = useState(false);
+  const fyRef = useRef<HTMLDivElement>(null);
 
-  const activeBranch = branches.find((b) => b.id === activeBranchId) || branches[0] || {
-    id: activeBranchId || 'hq',
-    code: 'HQ',
-    name: 'Headquarters',
-  };
+  // Close FY dropdown when clicking outside
+  useEffect(() => {
+    const handleClickOutside = (e: MouseEvent) => {
+      if (fyRef.current && !fyRef.current.contains(e.target as Node)) {
+        setIsFyDropdownOpen(false);
+      }
+    };
+    document.addEventListener('mousedown', handleClickOutside);
+    return () => document.removeEventListener('mousedown', handleClickOutside);
+  }, []);
+
+  // Filter branches strictly allowed for current user role
+  const allowedBranches = branches.filter((b) => {
+    if (user.role === 'SuperAdmin' || !user.roles || user.roles.length === 0) {
+      return true;
+    }
+    return user.roles.some((r) => r.branchId === b.id);
+  });
 
   const getGreeting = () => {
     const hour = new Date().getHours();
@@ -60,42 +84,58 @@ export const Navbar: React.FC<NavbarProps> = ({
   };
 
   return (
-    <header className="h-16 shrink-0 w-full border-b border-slate-200 bg-white px-4 lg:px-6 shadow-xs flex items-center justify-between z-30 select-none">
-      {/* Left Section: Sidebar Toggle + Greeting + Organisation/Branch */}
-      <div className="flex items-center gap-3 min-w-0">
+    <header className="h-16 shrink-0 w-full border-b border-slate-200 bg-white px-3 sm:px-4 lg:px-6 shadow-xs flex items-center justify-between z-30 select-none">
+      {/* Left Section: Sidebar Toggle + Greeting + Dual Switchers (Organisation & Branch) */}
+      <div className="flex items-center gap-2 sm:gap-3 min-w-0">
         {onToggleSidebar && (
           <button
             type="button"
             onClick={onToggleSidebar}
-            className="rounded-lg p-2 text-slate-500 hover:bg-slate-100 hover:text-slate-800 transition lg:hidden cursor-pointer"
+            className="rounded-lg p-2 text-slate-500 hover:bg-slate-100 hover:text-slate-800 transition lg:hidden cursor-pointer shrink-0"
             title="Toggle Sidebar"
           >
             <Menu className="h-5 w-5" />
           </button>
         )}
 
-        {/* Dynamic Greeting */}
-        <div className="hidden md:flex flex-col shrink-0">
+        {/* Dynamic Greeting (Desktop) */}
+        <div className="hidden xl:flex flex-col shrink-0 mr-1">
           <div className="flex items-center gap-1.5 text-xs text-slate-500 whitespace-nowrap">
             <Sun className="h-3.5 w-3.5 text-amber-500 shrink-0" />
             <span className="font-medium">{getGreeting()},</span>
             <span className="font-bold text-slate-800">{user.userName}</span>
           </div>
           <div className="flex items-center gap-1 text-[11px] text-slate-400">
-            <span className="font-medium truncate max-w-[200px] lg:max-w-[280px]">
+            <span className="font-medium truncate max-w-[200px]">
               {organisation.name}
             </span>
           </div>
         </div>
 
-        {/* Branch Selector Combobox */}
-        <div className="w-[170px] sm:w-[220px]">
+        {/* 1. Organisation Switcher Combobox */}
+        <div className="w-[140px] sm:w-[170px] shrink-0">
+          <Combobox
+            value={organisation.id || user.organisationId || 'org_main'}
+            onChange={(val) => switchOrganisation(val)}
+            options={[
+              {
+                value: organisation.id || user.organisationId || 'org_main',
+                label: organisation.name.split(' ')[0] + ' ' + (organisation.name.split(' ')[1] || ''),
+                sublabel: organisation.name,
+              },
+            ]}
+            searchable={false}
+          />
+        </div>
+
+        {/* 2. Branch Switcher Combobox (Role Restricted) */}
+        <div className="w-[160px] sm:w-[210px] shrink-0">
           <Combobox
             value={activeBranchId}
-            onChange={(val) => setActiveBranch(val)}
-            options={branches.map((b) => ({
+            onChange={(val) => switchBranch(val)}
+            options={allowedBranches.map((b) => ({
               value: b.id,
-              label: `${b.code} • ${b.name.split(' ')[0]}`,
+              label: `${b.code} · ${b.name.split(' ')[0]}`,
               sublabel: b.name,
             }))}
             searchable={false}
@@ -103,12 +143,12 @@ export const Navbar: React.FC<NavbarProps> = ({
         </div>
       </div>
 
-      {/* Center Section: Compact/Expandable Search Bar */}
-      <div className="flex-1 max-w-sm mx-3 hidden md:block">
+      {/* Center Section: Search Bar */}
+      <div className="flex-1 max-w-xs mx-3 hidden lg:block">
         <button
           type="button"
           onClick={onOpenSearch}
-          className="w-full flex items-center justify-between rounded-lg border border-slate-200 bg-slate-50 px-3 py-1.5 text-xs text-slate-400 hover:border-slate-300 hover:bg-slate-100/60 transition shadow-xs cursor-pointer"
+          className="w-full flex items-center justify-between rounded-xl border border-slate-200 bg-slate-50 px-3 py-1.5 text-xs text-slate-400 hover:border-slate-300 hover:bg-slate-100/60 transition shadow-xs cursor-pointer"
         >
           <div className="flex items-center gap-2 truncate">
             <Search className="h-3.5 w-3.5 text-slate-400 shrink-0" />
@@ -120,13 +160,73 @@ export const Navbar: React.FC<NavbarProps> = ({
         </button>
       </div>
 
-      {/* Right Section: Mobile Search Icon + Quick Add + Notifications + Profile Avatar */}
-      <div className="flex items-center gap-2 sm:gap-3 shrink-0">
+      {/* Right Section: Financial Year Switcher + Quick Add + Notifications + Profile */}
+      <div className="flex items-center gap-2 sm:gap-2.5 shrink-0">
+        {/* 3. Financial Year Switcher (Tiaano ERP Style) */}
+        <div className="relative shrink-0" ref={fyRef}>
+          <button
+            type="button"
+            onClick={() => setIsFyDropdownOpen(!isFyDropdownOpen)}
+            className="flex items-center gap-1.5 rounded-full border border-slate-200 bg-white px-2 sm:px-3 py-1 text-xs font-semibold text-slate-700 hover:bg-slate-50 hover:border-slate-300 transition shadow-xs cursor-pointer"
+            title="Switch Financial Year"
+          >
+            <div className="flex h-5 w-5 shrink-0 items-center justify-center rounded-full bg-blue-600 text-[10px] text-white font-bold shadow-xs">
+              📅
+            </div>
+            <span className="hidden sm:inline font-mono text-xs">
+              {activeFinancialYear || '2026-2027'}
+            </span>
+            <ChevronDown
+              className={`h-3 w-3 text-slate-400 transition-transform duration-200 ${
+                isFyDropdownOpen ? 'rotate-180' : ''
+              }`}
+            />
+          </button>
+
+          {isFyDropdownOpen && (
+            <div className="absolute right-0 mt-2 w-48 rounded-2xl border border-slate-200 bg-white py-1.5 shadow-xl z-50 animate-in fade-in zoom-in-95 duration-100">
+              <div className="border-b border-slate-100 px-3 py-1.5 text-[10px] font-bold text-slate-400 uppercase tracking-wider">
+                Financial Year
+              </div>
+              <div className="max-h-60 overflow-y-auto divide-y divide-slate-50">
+                {financialYears.map((fy) => {
+                  const isSelected = activeFinancialYear === fy.yearName;
+                  return (
+                    <button
+                      key={fy.id || fy.yearName}
+                      type="button"
+                      onClick={() => {
+                        switchFinancialYear(fy.yearName);
+                        setIsFyDropdownOpen(false);
+                      }}
+                      className={`flex w-full items-center justify-between px-3 py-2 text-xs text-left transition cursor-pointer ${
+                        isSelected
+                          ? 'bg-blue-50 text-blue-700 font-bold'
+                          : 'text-slate-700 hover:bg-slate-50 font-medium'
+                      }`}
+                    >
+                      <div className="flex items-center gap-1.5 font-mono">
+                        <span>{fy.yearName}</span>
+                        {fy.isCurrent && (
+                          <span className="rounded bg-emerald-100 px-1.5 py-0.2 text-[9px] font-bold text-emerald-700">
+                            Current
+                          </span>
+                        )}
+                      </div>
+                      {isSelected && <Check className="h-3.5 w-3.5 text-blue-600 shrink-0" />}
+                    </button>
+                  );
+                })}
+              </div>
+            </div>
+          )}
+        </div>
+
         {/* Mobile Search Button */}
         <button
           type="button"
           onClick={onOpenSearch}
-          className="md:hidden rounded-lg p-2 text-slate-500 hover:bg-slate-100 transition cursor-pointer"
+          className="lg:hidden rounded-lg p-2 text-slate-500 hover:bg-slate-100 transition cursor-pointer"
           title="Search"
         >
           <Search className="h-4 w-4" />
@@ -137,10 +237,10 @@ export const Navbar: React.FC<NavbarProps> = ({
           <button
             type="button"
             onClick={() => setIsQuickAddOpen(!isQuickAddOpen)}
-            className="flex items-center gap-1.5 rounded-lg bg-blue-600 px-2.5 sm:px-3 py-1.5 text-xs font-semibold text-white hover:bg-blue-700 transition shadow-xs cursor-pointer"
+            className="flex items-center gap-1.5 rounded-xl bg-blue-600 px-2.5 sm:px-3 py-1.5 text-xs font-semibold text-white hover:bg-blue-700 transition shadow-xs cursor-pointer"
           >
             <Plus className="h-3.5 w-3.5" />
-            <span className="hidden sm:inline">Create</span>
+            <span className="hidden md:inline">Create</span>
             <ChevronDown className="h-3 w-3" />
           </button>
 

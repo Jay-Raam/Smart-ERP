@@ -8,6 +8,7 @@ import {
   Package,
   Boxes,
   Building2,
+  Calendar,
   FileCheck,
   ShieldCheck,
   ChevronLeft,
@@ -25,7 +26,8 @@ export type ModuleType =
   | 'store'
   | 'products'
   | 'delivery'
-  | 'branches';
+  | 'branches'
+  | 'financial-years';
 
 interface NavItem {
   id: ModuleType;
@@ -53,7 +55,7 @@ export const Sidebar: React.FC<SidebarProps> = ({
   isCollapsed,
   setIsCollapsed,
 }) => {
-  const { customers, salesOrders, invoices, purchaseOrders, storeItems, products, branches, activeBranchId } = useErpStore();
+  const { customers, salesOrders, invoices, purchaseOrders, storeItems, products, branches, financialYears, activeBranchId } = useErpStore();
 
   const activeBranch = branches.find((b) => b.id === activeBranchId) || branches[0] || {
     id: activeBranchId || 'hq',
@@ -96,6 +98,7 @@ export const Sidebar: React.FC<SidebarProps> = ({
       title: 'COMPANY & SETUP',
       items: [
         { id: 'branches' as ModuleType, label: 'Organisation & Branches', icon: Building2, badge: `${branches.length} Br` },
+        { id: 'financial-years' as ModuleType, label: 'Financial Years', icon: Calendar, badge: `${financialYears.length} FY` },
       ],
     },
   ];

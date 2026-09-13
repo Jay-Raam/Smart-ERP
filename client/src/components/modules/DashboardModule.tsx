@@ -18,7 +18,7 @@ interface DashboardProps {
 }
 
 export const DashboardModule: React.FC<DashboardProps> = ({ onNavigate }) => {
-  const { salesOrders, invoices, purchaseOrders, storeItems, customers, branches, activeBranchId } = useErpStore();
+  const { salesOrders, invoices, purchaseOrders, storeItems, customers, branches, activeBranchId, activeFinancialYear } = useErpStore();
 
   const totalInvoiced = invoices.reduce((acc, inv) => acc + inv.totalAmount, 0);
   const totalSalesBooked = salesOrders.reduce((acc, so) => acc + so.totalAmount, 0);
@@ -46,7 +46,7 @@ export const DashboardModule: React.FC<DashboardProps> = ({ onNavigate }) => {
         <div className="flex items-center gap-2">
           <span className="flex items-center gap-1.5 rounded-lg border border-blue-200 bg-white px-3 py-1.5 text-xs font-semibold text-blue-700 shadow-xs">
             <Calendar className="h-3.5 w-3.5 text-blue-500" />
-            Financial Year: 2026–2027
+            Financial Year: {activeFinancialYear || '2026-2027'}
           </span>
         </div>
       </div>

@@ -9,6 +9,7 @@ dotenv.config({ path: path.resolve(__dirname, '../.env') });
 import {
   Organisation,
   Branch,
+  FinancialYear,
   Customer,
   Product,
   SalesOrder,
@@ -35,6 +36,7 @@ export async function seedDatabase() {
   await Promise.all([
     Organisation.deleteMany({}),
     Branch.deleteMany({}),
+    FinancialYear.deleteMany({}),
     Customer.deleteMany({}),
     Product.deleteMany({}),
     SalesOrder.deleteMany({}),
@@ -69,6 +71,7 @@ export async function seedDatabase() {
       gstin: '33AAACT1024K1Z8',
       phone: '+91 44 2839 4910',
       isHeadOffice: true,
+      organisationId: org._id.toString(),
     },
     {
       code: 'BR-CBE-02',
@@ -78,6 +81,7 @@ export async function seedDatabase() {
       gstin: '33AAACT1024K1Z8',
       phone: '+91 422 257 8820',
       isHeadOffice: false,
+      organisationId: org._id.toString(),
     },
     {
       code: 'BR-BLR-03',
@@ -87,11 +91,41 @@ export async function seedDatabase() {
       gstin: '29AAACT1024K1Z2',
       phone: '+91 80 4120 7711',
       isHeadOffice: false,
+      organisationId: org._id.toString(),
     },
   ]);
   console.log(`✔ Seeded ${branches.length} Branches.`);
 
-  // 3. Seed Users
+  // 3. Seed Financial Years
+  const financialYears = await FinancialYear.insertMany([
+    {
+      yearName: '2024-2025',
+      startDate: '2024-04-01',
+      endDate: '2025-03-31',
+      isCurrent: false,
+      status: 'Closed',
+      organisationId: org._id.toString(),
+    },
+    {
+      yearName: '2025-2026',
+      startDate: '2025-04-01',
+      endDate: '2026-03-31',
+      isCurrent: false,
+      status: 'Active',
+      organisationId: org._id.toString(),
+    },
+    {
+      yearName: '2026-2027',
+      startDate: '2026-04-01',
+      endDate: '2027-03-31',
+      isCurrent: true,
+      status: 'Active',
+      organisationId: org._id.toString(),
+    },
+  ]);
+  console.log(`✔ Seeded ${financialYears.length} Financial Years.`);
+
+  // 4. Seed Users with multi-branch role mappings
   const users = await UserAccount.insertMany([
     {
       email: 'jay.raam@smart.com',
@@ -102,6 +136,32 @@ export async function seedDatabase() {
       branchId: branches[0]._id.toString(),
       branchName: branches[0].name,
       organisationId: org._id.toString(),
+      roles: [
+        {
+          organisationId: org._id.toString(),
+          organisationName: org.name,
+          branchId: branches[0]._id.toString(),
+          branchName: branches[0].name,
+          roleName: 'SuperAdmin',
+          userType: 'SuperAdmin',
+        },
+        {
+          organisationId: org._id.toString(),
+          organisationName: org.name,
+          branchId: branches[1]._id.toString(),
+          branchName: branches[1].name,
+          roleName: 'Operations Director',
+          userType: 'SuperAdmin',
+        },
+        {
+          organisationId: org._id.toString(),
+          organisationName: org.name,
+          branchId: branches[2]._id.toString(),
+          branchName: branches[2].name,
+          roleName: 'Executive Supervisor',
+          userType: 'SuperAdmin',
+        },
+      ],
     },
     {
       email: 'priya.sharma@smart.com',
@@ -112,6 +172,16 @@ export async function seedDatabase() {
       branchId: branches[1]._id.toString(),
       branchName: branches[1].name,
       organisationId: org._id.toString(),
+      roles: [
+        {
+          organisationId: org._id.toString(),
+          organisationName: org.name,
+          branchId: branches[1]._id.toString(),
+          branchName: branches[1].name,
+          roleName: 'Plant Manager',
+          userType: 'Manager',
+        },
+      ],
     },
     {
       email: 'admin@smart.com',
@@ -122,11 +192,21 @@ export async function seedDatabase() {
       branchId: branches[0]._id.toString(),
       branchName: branches[0].name,
       organisationId: org._id.toString(),
+      roles: [
+        {
+          organisationId: org._id.toString(),
+          organisationName: org.name,
+          branchId: branches[0]._id.toString(),
+          branchName: branches[0].name,
+          roleName: 'Operations Admin',
+          userType: 'Admin',
+        },
+      ],
     },
   ]);
   console.log(`✔ Seeded ${users.length} User Accounts.`);
 
-  // 4. Seed Customers
+  // 5. Seed Customers (Organisation level with branch assignment)
   const customers = await Customer.insertMany([
     {
       code: 'CUST-TATA',
@@ -139,6 +219,8 @@ export async function seedDatabase() {
       gstin: '27AAACT2727Q1ZW',
       outstandingBalance: 1450000,
       creditLimit: 5000000,
+      organisationId: org._id.toString(),
+      branchId: branches[0]._id.toString(),
     },
     {
       code: 'CUST-LT',
@@ -146,11 +228,13 @@ export async function seedDatabase() {
       contactPerson: 'Ananya Deshmukh (Lead Project Engg)',
       email: 'ananya.d@lntecc.com',
       phone: '+91 97890 54321',
-      city: 'Mumbai',
-      state: 'Maharashtra',
+      city: 'Mumbai / Coimbatore',
+      state: 'Maharashtra / Tamil Nadu',
       gstin: '27AAACL0149C1ZM',
       outstandingBalance: 820000,
       creditLimit: 3000000,
+      organisationId: org._id.toString(),
+      branchId: branches[1]._id.toString(),
     },
     {
       code: 'CUST-BHEL',
@@ -163,6 +247,8 @@ export async function seedDatabase() {
       gstin: '33AAACB4146P1ZL',
       outstandingBalance: 420000,
       creditLimit: 2500000,
+      organisationId: org._id.toString(),
+      branchId: branches[0]._id.toString(),
     },
     {
       code: 'CUST-ASHOK',
@@ -175,6 +261,8 @@ export async function seedDatabase() {
       gstin: '33AAACA1991F1Z1',
       outstandingBalance: 2100000,
       creditLimit: 6000000,
+      organisationId: org._id.toString(),
+      branchId: branches[0]._id.toString(),
     },
     {
       code: 'CUST-RELIANCE',
@@ -187,11 +275,13 @@ export async function seedDatabase() {
       gstin: '24AAACR5055K1Z4',
       outstandingBalance: 3400000,
       creditLimit: 8000000,
+      organisationId: org._id.toString(),
+      branchId: branches[0]._id.toString(),
     },
   ]);
   console.log(`✔ Seeded ${customers.length} Customers.`);
 
-  // 5. Seed Products
+  // 6. Seed Products
   const products = await Product.insertMany([
     {
       sku: 'SMART-MMO-101',
@@ -203,6 +293,8 @@ export async function seedDatabase() {
       purchaseCost: 11200,
       currentStock: 145,
       minReorderLevel: 30,
+      organisationId: org._id.toString(),
+      branchId: branches[0]._id.toString(),
     },
     {
       sku: 'SMART-CP-202',
@@ -214,6 +306,8 @@ export async function seedDatabase() {
       purchaseCost: 2600,
       currentStock: 820,
       minReorderLevel: 150,
+      organisationId: org._id.toString(),
+      branchId: branches[1]._id.toString(),
     },
     {
       sku: 'SMART-PLT-303',
@@ -225,6 +319,8 @@ export async function seedDatabase() {
       purchaseCost: 32000,
       currentStock: 42,
       minReorderLevel: 10,
+      organisationId: org._id.toString(),
+      branchId: branches[0]._id.toString(),
     },
     {
       sku: 'SMART-PWR-404',
@@ -236,6 +332,8 @@ export async function seedDatabase() {
       purchaseCost: 85000,
       currentStock: 18,
       minReorderLevel: 5,
+      organisationId: org._id.toString(),
+      branchId: branches[0]._id.toString(),
     },
     {
       sku: 'SMART-RAW-505',
@@ -247,6 +345,8 @@ export async function seedDatabase() {
       purchaseCost: 2900,
       currentStock: 1250,
       minReorderLevel: 300,
+      organisationId: org._id.toString(),
+      branchId: branches[0]._id.toString(),
     },
     {
       sku: 'SMART-FLG-606',
@@ -258,11 +358,17 @@ export async function seedDatabase() {
       purchaseCost: 5200,
       currentStock: 64,
       minReorderLevel: 20,
+      organisationId: org._id.toString(),
+      branchId: branches[1]._id.toString(),
     },
   ]);
   console.log(`✔ Seeded ${products.length} Products.`);
 
-  // 6. Seed Sales Orders
+  // 7. Seed Sales Orders
+  // Chennai (BR-CHN-01): 3 orders in 2026-2027
+  // Coimbatore (BR-CBE-02): 1 order in 2026-2027
+  // Historic: 1 order in 2025-2026
+  // Bengaluru (BR-BLR-03): 0 orders (Demonstrates No Data Found)
   const salesOrders = await SalesOrder.insertMany([
     {
       orderNumber: 'SO-2026-081',
@@ -271,6 +377,8 @@ export async function seedDatabase() {
       orderDate: '2026-09-02',
       deliveryDate: '2026-09-28',
       branchId: branches[0]._id.toString(),
+      organisationId: org._id.toString(),
+      financialYear: '2026-2027',
       items: [
         {
           productId: products[0]._id.toString(),
@@ -293,6 +401,8 @@ export async function seedDatabase() {
       orderDate: '2026-09-05',
       deliveryDate: '2026-10-10',
       branchId: branches[1]._id.toString(),
+      organisationId: org._id.toString(),
+      financialYear: '2026-2027',
       items: [
         {
           productId: products[1]._id.toString(),
@@ -315,6 +425,8 @@ export async function seedDatabase() {
       orderDate: '2026-08-15',
       deliveryDate: '2026-09-12',
       branchId: branches[0]._id.toString(),
+      organisationId: org._id.toString(),
+      financialYear: '2026-2027',
       items: [
         {
           productId: products[2]._id.toString(),
@@ -337,6 +449,8 @@ export async function seedDatabase() {
       orderDate: '2026-09-08',
       deliveryDate: '2026-09-25',
       branchId: branches[0]._id.toString(),
+      organisationId: org._id.toString(),
+      financialYear: '2026-2027',
       items: [
         {
           productId: products[3]._id.toString(),
@@ -352,10 +466,34 @@ export async function seedDatabase() {
       totalAmount: 295000,
       status: 'Dispatched',
     },
+    {
+      orderNumber: 'SO-2025-019',
+      customerId: customers[0]._id.toString(),
+      customerName: customers[0].name,
+      orderDate: '2025-11-10',
+      deliveryDate: '2025-12-15',
+      branchId: branches[0]._id.toString(),
+      organisationId: org._id.toString(),
+      financialYear: '2025-2026',
+      items: [
+        {
+          productId: products[0]._id.toString(),
+          productName: products[0].name,
+          sku: products[0].sku,
+          quantity: 10,
+          unitPrice: 18000,
+          total: 180000,
+        },
+      ],
+      subtotal: 180000,
+      taxAmount: 32400,
+      totalAmount: 212400,
+      status: 'Completed',
+    },
   ]);
   console.log(`✔ Seeded ${salesOrders.length} Sales Orders.`);
 
-  // 7. Seed Invoices
+  // 8. Seed Invoices
   const invoices = await Invoice.insertMany([
     {
       invoiceNumber: 'INV-2026-001',
@@ -364,6 +502,9 @@ export async function seedDatabase() {
       customerName: customers[2].name,
       invoiceDate: '2026-09-01',
       dueDate: '2026-09-30',
+      branchId: branches[0]._id.toString(),
+      organisationId: org._id.toString(),
+      financialYear: '2026-2027',
       subtotal: 288000,
       gstRate: 18,
       taxAmount: 51840,
@@ -377,6 +518,9 @@ export async function seedDatabase() {
       customerName: customers[3].name,
       invoiceDate: '2026-09-08',
       dueDate: '2026-10-08',
+      branchId: branches[0]._id.toString(),
+      organisationId: org._id.toString(),
+      financialYear: '2026-2027',
       subtotal: 250000,
       gstRate: 18,
       taxAmount: 45000,
@@ -385,21 +529,24 @@ export async function seedDatabase() {
     },
     {
       invoiceNumber: 'INV-2026-003',
-      salesOrderNumber: 'SO-2026-079',
+      salesOrderNumber: salesOrders[1].orderNumber,
       customerId: customers[1]._id.toString(),
       customerName: customers[1].name,
-      invoiceDate: '2026-08-10',
-      dueDate: '2026-09-10',
-      subtotal: 540000,
+      invoiceDate: '2026-09-05',
+      dueDate: '2026-10-05',
+      branchId: branches[1]._id.toString(),
+      organisationId: org._id.toString(),
+      financialYear: '2026-2027',
+      subtotal: 1050000,
       gstRate: 18,
-      taxAmount: 97200,
-      totalAmount: 637200,
-      status: 'Overdue',
+      taxAmount: 189000,
+      totalAmount: 1239000,
+      status: 'Pending',
     },
   ]);
   console.log(`✔ Seeded ${invoices.length} Invoices.`);
 
-  // 8. Seed Purchase Orders
+  // 9. Seed Purchase Orders
   const purchaseOrders = await PurchaseOrder.insertMany([
     {
       poNumber: 'PO-2026-044',
@@ -408,6 +555,8 @@ export async function seedDatabase() {
       poDate: '2026-09-01',
       expectedDate: '2026-09-22',
       branchId: branches[0]._id.toString(),
+      organisationId: org._id.toString(),
+      financialYear: '2026-2027',
       totalAmount: 850000,
       status: 'Approved',
     },
@@ -418,6 +567,8 @@ export async function seedDatabase() {
       poDate: '2026-09-04',
       expectedDate: '2026-09-29',
       branchId: branches[1]._id.toString(),
+      organisationId: org._id.toString(),
+      financialYear: '2026-2027',
       totalAmount: 1420000,
       status: 'Pending Approval',
     },
@@ -428,13 +579,15 @@ export async function seedDatabase() {
       poDate: '2026-08-20',
       expectedDate: '2026-09-05',
       branchId: branches[0]._id.toString(),
+      organisationId: org._id.toString(),
+      financialYear: '2026-2027',
       totalAmount: 460000,
       status: 'Received',
     },
   ]);
   console.log(`✔ Seeded ${purchaseOrders.length} Purchase Orders.`);
 
-  // 9. Seed Store Items
+  // 10. Seed Store Items
   const storeItems = await StoreItem.insertMany([
     {
       productId: products[0]._id.toString(),
@@ -447,6 +600,8 @@ export async function seedDatabase() {
       maxLevel: 300,
       lastAudited: '2026-09-01',
       status: 'In Stock',
+      branchId: branches[0]._id.toString(),
+      organisationId: org._id.toString(),
     },
     {
       productId: products[1]._id.toString(),
@@ -459,6 +614,8 @@ export async function seedDatabase() {
       maxLevel: 1500,
       lastAudited: '2026-09-05',
       status: 'In Stock',
+      branchId: branches[1]._id.toString(),
+      organisationId: org._id.toString(),
     },
     {
       productId: products[2]._id.toString(),
@@ -471,23 +628,27 @@ export async function seedDatabase() {
       maxLevel: 50,
       lastAudited: '2026-09-08',
       status: 'Low Stock',
+      branchId: branches[0]._id.toString(),
+      organisationId: org._id.toString(),
     },
     {
       productId: products[3]._id.toString(),
       productName: products[3].name,
       sku: products[3].sku,
-      warehouse: 'Bengaluru Tech Logistics',
+      warehouse: 'Chennai Central Depot',
       binLocation: 'BAY-PWR-02',
       availableStock: 18,
       minLevel: 5,
       maxLevel: 40,
       lastAudited: '2026-09-02',
       status: 'In Stock',
+      branchId: branches[0]._id.toString(),
+      organisationId: org._id.toString(),
     },
   ]);
   console.log(`✔ Seeded ${storeItems.length} Store Items.`);
 
-  // 10. Seed Delivery Challans
+  // 11. Seed Delivery Challans
   const deliveryChallans = await DeliveryChallan.insertMany([
     {
       dcNumber: 'DC-2026-0041',
@@ -500,6 +661,9 @@ export async function seedDatabase() {
       driverName: 'R. Murugan',
       driverPhone: '+91 98401 99882',
       status: 'Delivered',
+      branchId: branches[0]._id.toString(),
+      organisationId: org._id.toString(),
+      financialYear: '2026-2027',
     },
     {
       dcNumber: 'DC-2026-0042',
@@ -512,12 +676,15 @@ export async function seedDatabase() {
       driverName: 'S. Kantharaj',
       driverPhone: '+91 97890 12344',
       status: 'In Transit',
+      branchId: branches[0]._id.toString(),
+      organisationId: org._id.toString(),
+      financialYear: '2026-2027',
     },
   ]);
   console.log(`✔ Seeded ${deliveryChallans.length} Delivery Challans.`);
 
   console.log('\n==========================================');
-  console.log('🎉 ALL BACKEND ERP DATA SEEDED INTO MONGODB ATLAS!');
+  console.log('🎉 ALL BACKEND ERP DATA SEEDED INTO MONGODB ATLAS WITH MULTI-TENANT & BRANCH SCOPING!');
   console.log('==========================================\n');
 }
 

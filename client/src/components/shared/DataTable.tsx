@@ -1,16 +1,16 @@
-import React, { useState, useMemo } from 'react';
+import React, { useState, useMemo, useEffect } from 'react';
 import {
   Search,
-  Filter,
-  ArrowUpDown,
   RotateCw,
   ChevronLeft,
   ChevronRight,
-  SlidersHorizontal,
-  Download,
+  ArrowUpDown,
+  FolderX,
+  XCircle,
 } from 'lucide-react';
-import { LoadingSpinner, TableSkeleton } from './LoadingState';
+import { TableSkeleton } from './LoadingState';
 import { Combobox } from './Combobox';
+import { useUrlTableState } from '../../hooks/useUrlTableState';
 
 export interface ColumnDef<T> {
   key: string;
@@ -32,6 +32,7 @@ export interface DataTableProps<T> {
   isLoading?: boolean;
   actions?: React.ReactNode;
   pageSizeDefault?: number;
+  syncWithUrl?: boolean;
 }
 
 export function DataTable<T extends Record<string, any>>({
@@ -45,14 +46,52 @@ export function DataTable<T extends Record<string, any>>({
   isLoading = false,
   actions,
   pageSizeDefault = 10,
+  syncWithUrl = true,
 }: DataTableProps<T>) {
-  const [searchTerm, setSearchTerm] = useState('');
-  const [selectedStatus, setSelectedStatus] = useState('ALL');
-  const [sortColumn, setSortColumn] = useState<string | null>(null);
-  const [sortDirection, setSortDirection] = useState<'asc' | 'desc'>('asc');
-  const [currentPage, setCurrentPage] = useState(1);
-  const [pageSize, setPageSize] = useState(pageSizeDefault);
+  const urlState = useUrlTableState({
+    perPage: pageSizeDefault,
+    statusField: String(statusKey || 'status'),
+  });
+
+  const [searchTerm, setSearchTerm] = useState(syncWithUrl ? urlState.search : '');
+  const [selectedStatus, setSelectedStatus] = useState(() => {
+    if (!syncWithUrl) return 'ALL';
+    const parts = urlState.filterBy.split('.');
+    const val = parts.length > 1 ? parts[1] : (parts[0] || 'ALL');
+    return val.toUpperCase() === 'ALL' ? 'ALL' : val;
+  });
+  const [sortColumn, setSortColumn] = useState<string | null>(syncWithUrl ? urlState.sortColumn || null : null);
+  const [sortDirection, setSortDirection] = useState<'asc' | 'desc'>(
+    syncWithUrl && (urlState.sortOrder === 'asc' || urlState.sortOrder === 'A') ? 'asc' : 'desc'
+  );
+  const [currentPage, setCurrentPage] = useState(syncWithUrl ? urlState.page : 1);
+  const [pageSize, setPageSize] = useState(syncWithUrl ? urlState.perPage : pageSizeDefault);
   const [isRefreshing, setIsRefreshing] = useState(false);
+
+  // Sync state to URL if enabled
+  useEffect(() => {
+    if (!syncWithUrl) return;
+    urlState.setPage(currentPage);
+  }, [currentPage, syncWithUrl]);
+
+  useEffect(() => {
+    if (!syncWithUrl) return;
+    urlState.setPerPage(pageSize);
+  }, [pageSize, syncWithUrl]);
+
+  useEffect(() => {
+    if (!syncWithUrl) return;
+    urlState.setSearch(searchTerm);
+  }, [searchTerm, syncWithUrl]);
+
+  useEffect(() => {
+    if (!syncWithUrl) return;
+    if (selectedStatus.toUpperCase() === 'ALL') {
+      urlState.setFilterBy('All');
+    } else {
+      urlState.setFilterBy(`${String(statusKey || 'status')}.${selectedStatus}`);
+    }
+  }, [selectedStatus, statusKey, syncWithUrl]);
 
   // Trigger reload with animation
   const handleReload = async () => {
@@ -67,11 +106,22 @@ export function DataTable<T extends Record<string, any>>({
 
   // Sort handler
   const handleSort = (key: string) => {
-    if (sortColumn === key) {
-      setSortDirection((prev) => (prev === 'asc' ? 'desc' : 'asc'));
-    } else {
-      setSortColumn(key);
-      setSortDirection('asc');
+    const newDir = sortColumn === key && sortDirection === 'asc' ? 'desc' : 'asc';
+    setSortColumn(key);
+    setSortDirection(newDir);
+    if (syncWithUrl) {
+      urlState.setSort(key, newDir);
+    }
+  };
+
+  // Clear all filters
+  const handleResetFilters = () => {
+    setSearchTerm('');
+    setSelectedStatus('ALL');
+    setSortColumn(null);
+    setCurrentPage(1);
+    if (syncWithUrl) {
+      urlState.resetFilters();
     }
   };
 
@@ -80,8 +130,8 @@ export function DataTable<T extends Record<string, any>>({
     let result = [...data];
 
     // 1. Status Filter
-    if (statusKey && selectedStatus !== 'ALL') {
-      result = result.filter((item) => String(item[statusKey as string]) === selectedStatus);
+    if (statusKey && selectedStatus && selectedStatus.toUpperCase() !== 'ALL') {
+      result = result.filter((item) => String(item[statusKey as string] || '').toLowerCase() === selectedStatus.toLowerCase());
     }
 
     // 2. Global Search
@@ -106,17 +156,11 @@ export function DataTable<T extends Record<string, any>>({
     // 3. Sorting
     if (sortColumn) {
       result.sort((a, b) => {
-        const valA = a[sortColumn];
-        const valB = b[sortColumn];
-
-        if (valA === valB) return 0;
-        if (valA === null || valA === undefined) return 1;
-        if (valB === null || valB === undefined) return -1;
-
+        const valA = a[sortColumn] ?? '';
+        const valB = b[sortColumn] ?? '';
         if (typeof valA === 'number' && typeof valB === 'number') {
           return sortDirection === 'asc' ? valA - valB : valB - valA;
         }
-
         return sortDirection === 'asc'
           ? String(valA).localeCompare(String(valB))
           : String(valB).localeCompare(String(valA));
@@ -132,6 +176,8 @@ export function DataTable<T extends Record<string, any>>({
     const start = (currentPage - 1) * pageSize;
     return processedData.slice(start, start + pageSize);
   }, [processedData, currentPage, pageSize]);
+
+  const hasActiveFilters = searchTerm.trim() !== '' || (selectedStatus && selectedStatus.toUpperCase() !== 'ALL');
 
   return (
     <div className="flex flex-col w-full rounded-2xl border border-slate-200 bg-white shadow-xs overflow-hidden">
@@ -152,6 +198,15 @@ export function DataTable<T extends Record<string, any>>({
               placeholder={searchPlaceholder}
               className="w-full rounded-xl border border-slate-200 bg-white py-2 pl-9 pr-3 text-xs text-slate-800 placeholder-slate-400 outline-none focus:border-blue-500 focus:ring-1 focus:ring-blue-500 transition shadow-xs"
             />
+            {searchTerm && (
+              <button
+                type="button"
+                onClick={() => setSearchTerm('')}
+                className="absolute right-2.5 top-2.5 text-slate-400 hover:text-slate-600 cursor-pointer"
+              >
+                <XCircle className="h-4 w-4" />
+              </button>
+            )}
           </div>
 
           {/* Status Combobox */}
@@ -170,6 +225,18 @@ export function DataTable<T extends Record<string, any>>({
                 searchable={false}
               />
             </div>
+          )}
+
+          {/* Reset Filters button if filters active */}
+          {hasActiveFilters && (
+            <button
+              type="button"
+              onClick={handleResetFilters}
+              className="flex items-center gap-1 rounded-xl border border-slate-200 bg-white px-2.5 py-2 text-xs font-medium text-slate-600 hover:bg-slate-100 transition shadow-xs cursor-pointer"
+            >
+              <XCircle className="h-3.5 w-3.5 text-slate-500" />
+              <span>Clear Filter</span>
+            </button>
           )}
 
           {/* Reload / Refresh Button */}
@@ -245,11 +312,37 @@ export function DataTable<T extends Record<string, any>>({
             <tbody className="divide-y divide-slate-100 text-xs text-slate-700">
               {paginatedData.length === 0 ? (
                 <tr>
-                  <td
-                    colSpan={columns.length}
-                    className="py-12 text-center text-slate-400"
-                  >
-                    No matching records found.
+                  <td colSpan={columns.length} className="py-16 text-center">
+                    {/* Tiaano ERP Style Empty State */}
+                    <div className="flex flex-col items-center justify-center max-w-sm mx-auto px-4">
+                      <div className="flex h-16 w-16 items-center justify-center rounded-2xl bg-slate-100 text-slate-400 mb-3 shadow-inner">
+                        <FolderX className="h-8 w-8 text-slate-400 stroke-[1.5]" />
+                      </div>
+                      <h4 className="text-sm font-bold tracking-tight text-slate-800 uppercase">
+                        NO DATA FOUND
+                      </h4>
+                      <p className="mt-1 text-xs text-slate-500 text-center leading-relaxed">
+                        There are no records available for the active Branch, Organisation, or Financial Year.
+                      </p>
+                      <div className="mt-4 flex items-center gap-2">
+                        {hasActiveFilters && (
+                          <button
+                            type="button"
+                            onClick={handleResetFilters}
+                            className="rounded-xl border border-slate-200 bg-white px-3.5 py-1.5 text-xs font-semibold text-slate-700 hover:bg-slate-50 shadow-xs transition cursor-pointer"
+                          >
+                            Clear Search / Filter
+                          </button>
+                        )}
+                        <button
+                          type="button"
+                          onClick={handleReload}
+                          className="rounded-xl bg-blue-600 px-3.5 py-1.5 text-xs font-semibold text-white hover:bg-blue-700 shadow-xs transition cursor-pointer"
+                        >
+                          Reload Data
+                        </button>
+                      </div>
+                    </div>
                   </td>
                 </tr>
               ) : (
