@@ -7,8 +7,13 @@ import {
   Barcode,
   X,
   Boxes,
+  CheckCircle2,
+  XCircle,
+  Clock,
+  ShieldCheck,
 } from 'lucide-react';
 import { useErpStore, Product } from '../../store/erpStore';
+import { useAuthStore } from '../../store/authStore';
 import { DataTable, ColumnDef } from '../shared/DataTable';
 import { Combobox } from '../shared/Combobox';
 
@@ -17,57 +22,77 @@ interface ProductsModuleProps {
 }
 
 export const ProductsModule: React.FC<ProductsModuleProps> = ({ initialOpenAdd = false }) => {
-  const { products, addProduct } = useErpStore();
+  const { products, addProduct, approveProduct, rejectProduct } = useErpStore();
+  const { user } = useAuthStore();
+  const isSuperAdmin = user?.role === 'SuperAdmin';
+
   const [searchQuery, setSearchQuery] = useState('');
   const [categoryFilter, setCategoryFilter] = useState('All');
   const [isAddModalOpen, setIsAddModalOpen] = useState(initialOpenAdd);
 
   // Form State
   const [name, setName] = useState('');
-  const [sku, setSku] = useState('');
-  const [hsnCode, setHsnCode] = useState('84199090');
-  const [category, setCategory] = useState('Titanium Anodes');
+  const [skuHsn, setSkuHsn] = useState('');
+  const [category, setCategory] = useState('');
   const [uom, setUom] = useState('Nos');
   const [sellingPrice, setSellingPrice] = useState(15000);
-  const [purchaseCost, setPurchaseCost] = useState(9500);
-  const [currentStock, setCurrentStock] = useState(50);
+  const [taxRate, setTaxRate] = useState(18);
   const [minReorderLevel, setMinReorderLevel] = useState(15);
-
-  const categories = ['All', 'Titanium Anodes', 'Cathodic Protection', 'Raw Materials', 'Electronics & Control', 'Flanges & Fittings'];
-
-  const filteredProducts = products.filter((p) => {
-    const matchesSearch =
-      p.name.toLowerCase().includes(searchQuery.toLowerCase()) ||
-      p.sku.toLowerCase().includes(searchQuery.toLowerCase()) ||
-      p.hsnCode.includes(searchQuery);
-    const matchesCat = categoryFilter === 'All' || p.category === categoryFilter;
-    return matchesSearch && matchesCat;
-  });
 
   const handleCreateProduct = (e: React.FormEvent) => {
     e.preventDefault();
+
+    // Parse SKU / HSN Code
+    let skuVal = skuHsn.trim();
+    let hsnVal = '84199090';
+
+    if (skuHsn.includes('/')) {
+      const parts = skuHsn.split('/').map((s) => s.trim());
+      skuVal = parts[0] || skuHsn.trim();
+      hsnVal = parts[1] || '84199090';
+    } else if (skuHsn.includes(' - ')) {
+      const parts = skuHsn.split(' - ').map((s) => s.trim());
+      skuVal = parts[0] || skuHsn.trim();
+      hsnVal = parts[1] || '84199090';
+    } else if (/^\d{6,8}$/.test(skuHsn.trim())) {
+      // If user typed only an 8-digit HSN code
+      hsnVal = skuHsn.trim();
+      skuVal = `SKU-${hsnVal}`;
+    }
+
     addProduct({
-      sku,
+      sku: skuVal,
       name,
-      hsnCode,
-      category,
+      hsnCode: hsnVal,
+      category: category.trim() || 'General',
       uom,
       sellingPrice,
-      purchaseCost,
-      currentStock,
+      purchaseCost: 0,
+      currentStock: 0,
       minReorderLevel,
+      taxRate: Number(taxRate) || 18,
+      approvalStatus: 'Pending',
     });
+
     setIsAddModalOpen(false);
     setName('');
-    setSku('');
+    setSkuHsn('');
+    setCategory('');
+    setSellingPrice(15000);
+    setTaxRate(18);
   };
 
   const columns: ColumnDef<Product>[] = [
     {
       key: 'sku',
-      header: 'SKU',
+      header: 'SKU / HSN Code',
       sortable: true,
-      render: (p) => <span className="font-mono font-bold text-blue-700">{p.sku}</span>,
+      render: (p) => (
+        <div className="flex flex-col">
+          <span className="font-mono font-bold text-blue-700">{p.sku}</span>
+          <span className="text-[10px] text-slate-400 font-mono">HSN: {p.hsnCode || '—'}</span>
+        </div>
+      ),
     },
     {
       key: 'name',
@@ -79,13 +104,22 @@ export const ProductsModule: React.FC<ProductsModuleProps> = ({ initialOpenAdd =
       key: 'category',
       header: 'Category',
       sortable: true,
-      render: (p) => <span className="text-slate-500">{p.category}</span>,
+      render: (p) => (
+        <span className="inline-flex items-center rounded-md bg-slate-100 px-2 py-0.5 text-xs text-slate-700 font-medium">
+          {p.category}
+        </span>
+      ),
     },
     {
-      key: 'hsnCode',
-      header: 'HSN Code',
+      key: 'taxRate',
+      header: 'Tax Rate',
       sortable: true,
-      render: (p) => <span className="font-mono text-slate-500">{p.hsnCode}</span>,
+      align: 'right',
+      render: (p) => (
+        <span className="font-mono font-semibold text-slate-700">
+          {p.taxRate ?? 18}% GST
+        </span>
+      ),
     },
     {
       key: 'uom',
@@ -104,43 +138,71 @@ export const ProductsModule: React.FC<ProductsModuleProps> = ({ initialOpenAdd =
       ),
     },
     {
-      key: 'purchaseCost',
-      header: 'Cost Price',
+      key: 'approvalStatus',
+      header: 'Status',
       sortable: true,
-      align: 'right',
-      render: (p) => (
-        <span className="font-mono text-slate-500">
-          ₹{p.purchaseCost.toLocaleString('en-IN')}
-        </span>
-      ),
+      render: (p) => {
+        const status = p.approvalStatus || 'Approved';
+        if (status === 'Approved') {
+          return (
+            <span className="inline-flex items-center gap-1 rounded-full bg-emerald-50 px-2.5 py-1 text-xs font-semibold text-emerald-700 border border-emerald-200">
+              <CheckCircle2 className="h-3.5 w-3.5 text-emerald-600" />
+              Approved
+            </span>
+          );
+        }
+        if (status === 'Pending') {
+          return (
+            <span className="inline-flex items-center gap-1 rounded-full bg-amber-50 px-2.5 py-1 text-xs font-semibold text-amber-700 border border-amber-200">
+              <Clock className="h-3.5 w-3.5 text-amber-600" />
+              Pending
+            </span>
+          );
+        }
+        return (
+          <span className="inline-flex items-center gap-1 rounded-full bg-rose-50 px-2.5 py-1 text-xs font-semibold text-rose-700 border border-rose-200">
+            <XCircle className="h-3.5 w-3.5 text-rose-600" />
+            Rejected
+          </span>
+        );
+      },
     },
     {
-      key: 'currentStock',
-      header: 'Current Stock',
-      sortable: true,
-      align: 'right',
-      render: (p) => (
-        <span
-          className={`rounded px-1.5 py-0.5 font-mono font-bold ${
-            p.currentStock <= p.minReorderLevel
-              ? 'bg-amber-100 text-amber-800'
-              : 'text-slate-800'
-          }`}
-        >
-          {p.currentStock} {p.uom}
-        </span>
-      ),
-    },
-    {
-      key: 'margin',
-      header: 'Margin',
-      sortable: true,
+      key: 'actions',
+      header: 'SuperAdmin Actions',
       align: 'right',
       render: (p) => {
-        const marginPercent = ((p.sellingPrice - p.purchaseCost) / p.sellingPrice) * 100;
+        const status = p.approvalStatus || 'Approved';
+        if (!isSuperAdmin) {
+          return <span className="text-xs text-slate-400">Restricted</span>;
+        }
+
+        if (status === 'Pending') {
+          return (
+            <div className="flex items-center justify-end gap-1.5">
+              <button
+                onClick={() => approveProduct(p.id)}
+                title="Approve Product"
+                className="flex items-center gap-1 rounded-md bg-emerald-600 px-2.5 py-1 text-xs font-semibold text-white hover:bg-emerald-700 shadow-2xs transition"
+              >
+                <CheckCircle2 className="h-3.5 w-3.5" />
+                <span>Approve</span>
+              </button>
+              <button
+                onClick={() => rejectProduct(p.id)}
+                title="Reject Product"
+                className="flex items-center gap-1 rounded-md bg-rose-50 border border-rose-200 px-2.5 py-1 text-xs font-semibold text-rose-700 hover:bg-rose-100 transition"
+              >
+                <XCircle className="h-3.5 w-3.5" />
+                <span>Reject</span>
+              </button>
+            </div>
+          );
+        }
+
         return (
-          <span className="font-mono text-emerald-600 font-semibold">
-            +{marginPercent.toFixed(1)}%
+          <span className="text-xs font-medium text-slate-500">
+            {status === 'Approved' ? 'Verified' : 'Declined'}
           </span>
         );
       },
@@ -207,46 +269,65 @@ export const ProductsModule: React.FC<ProductsModuleProps> = ({ initialOpenAdd =
                   placeholder="e.g. Mixed Metal Oxide Coated Titanium Mesh"
                   value={name}
                   onChange={(e) => setName(e.target.value)}
-                  className="w-full rounded-lg border border-slate-200 p-2.5 outline-none focus:border-blue-500"
+                  className="w-full rounded-lg border border-slate-200 p-2.5 outline-none focus:border-blue-500 text-slate-800"
                 />
               </div>
 
-              <div className="grid grid-cols-2 gap-4">
-                <div>
-                  <label className="block font-semibold text-slate-700 mb-1">SKU Code</label>
-                  <input
-                    type="text"
-                    required
-                    placeholder="e.g. TIA-ELC-309"
-                    value={sku}
-                    onChange={(e) => setSku(e.target.value)}
-                    className="w-full rounded-lg border border-slate-200 p-2.5 outline-none focus:border-blue-500 font-mono uppercase"
-                  />
-                </div>
-                <div>
-                  <label className="block font-semibold text-slate-700 mb-1">HSN Code</label>
-                  <input
-                    type="text"
-                    required
-                    value={hsnCode}
-                    onChange={(e) => setHsnCode(e.target.value)}
-                    className="w-full rounded-lg border border-slate-200 p-2.5 outline-none focus:border-blue-500 font-mono"
-                  />
-                </div>
+              <div>
+                <label className="block font-semibold text-slate-700 mb-1">SKU / HSN Code</label>
+                <input
+                  type="text"
+                  required
+                  placeholder="e.g. SMART-MMO-101 / 84199090"
+                  value={skuHsn}
+                  onChange={(e) => setSkuHsn(e.target.value)}
+                  className="w-full rounded-lg border border-slate-200 p-2.5 outline-none focus:border-blue-500 font-mono text-slate-800 uppercase"
+                />
+                <p className="mt-1 text-[11px] text-slate-400">
+                  Format as <span className="font-mono font-medium">SKU / HSN</span> or enter your SKU code
+                </p>
               </div>
 
               <div className="grid grid-cols-2 gap-4">
                 <div>
                   <label className="block font-semibold text-slate-700 mb-1">Category</label>
-                  <Combobox
+                  <input
+                    type="text"
+                    required
+                    placeholder="e.g. Titanium Anodes"
                     value={category}
-                    onChange={(val) => setCategory(val)}
-                    options={categories.filter((c) => c !== 'All').map((c) => ({
-                      value: c,
-                      label: c,
-                    }))}
-                    placeholder="Select category..."
-                    searchable={true}
+                    onChange={(e) => setCategory(e.target.value)}
+                    className="w-full rounded-lg border border-slate-200 p-2.5 outline-none focus:border-blue-500 text-slate-800"
+                  />
+                </div>
+                <div>
+                  <label className="block font-semibold text-slate-700 mb-1">Product Tax (GST %)</label>
+                  <div className="relative">
+                    <input
+                      type="number"
+                      min="0"
+                      max="100"
+                      required
+                      placeholder="18"
+                      value={taxRate}
+                      onChange={(e) => setTaxRate(parseFloat(e.target.value) || 0)}
+                      className="w-full rounded-lg border border-slate-200 p-2.5 outline-none focus:border-blue-500 font-mono text-slate-800 pr-8"
+                    />
+                    <span className="absolute right-3 top-2.5 text-xs text-slate-400 font-semibold">%</span>
+                  </div>
+                </div>
+              </div>
+
+              <div className="grid grid-cols-2 gap-4">
+                <div>
+                  <label className="block font-semibold text-slate-700 mb-1">Selling Price (₹)</label>
+                  <input
+                    type="number"
+                    min="1"
+                    required
+                    value={sellingPrice}
+                    onChange={(e) => setSellingPrice(parseFloat(e.target.value) || 0)}
+                    className="w-full rounded-lg border border-slate-200 p-2.5 outline-none focus:border-blue-500 font-mono text-slate-800"
                   />
                 </div>
                 <div>
@@ -266,69 +347,38 @@ export const ProductsModule: React.FC<ProductsModuleProps> = ({ initialOpenAdd =
                 </div>
               </div>
 
-              <div className="grid grid-cols-2 gap-4">
-                <div>
-                  <label className="block font-semibold text-slate-700 mb-1">Selling Price (₹)</label>
-                  <input
-                    type="number"
-                    min="1"
-                    required
-                    value={sellingPrice}
-                    onChange={(e) => setSellingPrice(parseFloat(e.target.value) || 0)}
-                    className="w-full rounded-lg border border-slate-200 p-2.5 outline-none focus:border-blue-500 font-mono"
-                  />
-                </div>
-                <div>
-                  <label className="block font-semibold text-slate-700 mb-1">Purchase Cost (₹)</label>
-                  <input
-                    type="number"
-                    min="1"
-                    required
-                    value={purchaseCost}
-                    onChange={(e) => setPurchaseCost(parseFloat(e.target.value) || 0)}
-                    className="w-full rounded-lg border border-slate-200 p-2.5 outline-none focus:border-blue-500 font-mono"
-                  />
-                </div>
+              <div>
+                <label className="block font-semibold text-slate-700 mb-1">Min Reorder Level</label>
+                <input
+                  type="number"
+                  min="1"
+                  required
+                  value={minReorderLevel}
+                  onChange={(e) => setMinReorderLevel(parseInt(e.target.value) || 1)}
+                  className="w-full rounded-lg border border-slate-200 p-2.5 outline-none focus:border-blue-500 font-mono text-slate-800"
+                />
               </div>
 
-              <div className="grid grid-cols-2 gap-4">
-                <div>
-                  <label className="block font-semibold text-slate-700 mb-1">Initial Stock Count</label>
-                  <input
-                    type="number"
-                    min="0"
-                    required
-                    value={currentStock}
-                    onChange={(e) => setCurrentStock(parseInt(e.target.value) || 0)}
-                    className="w-full rounded-lg border border-slate-200 p-2.5 outline-none focus:border-blue-500 font-mono"
-                  />
-                </div>
-                <div>
-                  <label className="block font-semibold text-slate-700 mb-1">Min Reorder Level</label>
-                  <input
-                    type="number"
-                    min="1"
-                    required
-                    value={minReorderLevel}
-                    onChange={(e) => setMinReorderLevel(parseInt(e.target.value) || 1)}
-                    className="w-full rounded-lg border border-slate-200 p-2.5 outline-none focus:border-blue-500 font-mono"
-                  />
-                </div>
+              <div className="rounded-lg bg-blue-50/70 border border-blue-100 p-3 flex items-start gap-2 text-[11px] text-blue-800">
+                <Clock className="h-4 w-4 text-blue-600 shrink-0 mt-0.5" />
+                <span>
+                  New products are submitted with <span className="font-semibold">Pending</span> status. Only Super Admins can approve items for inclusion in Invoices and POs.
+                </span>
               </div>
 
               <div className="flex justify-end gap-2 pt-3 border-t border-slate-200">
                 <button
                   type="button"
                   onClick={() => setIsAddModalOpen(false)}
-                  className="rounded-lg border border-slate-200 px-4 py-2 font-semibold text-slate-600 hover:bg-slate-50"
+                  className="rounded-lg border border-slate-200 px-4 py-2 font-semibold text-slate-600 hover:bg-slate-50 transition"
                 >
                   Cancel
                 </button>
                 <button
                   type="submit"
-                  className="rounded-lg bg-blue-600 px-4 py-2 font-semibold text-white hover:bg-blue-700"
+                  className="rounded-lg bg-blue-600 px-4 py-2 font-semibold text-white hover:bg-blue-700 transition shadow-xs"
                 >
-                  Save Item Master
+                  Submit For Approval
                 </button>
               </div>
             </form>
