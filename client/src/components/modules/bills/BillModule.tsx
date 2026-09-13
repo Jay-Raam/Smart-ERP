@@ -9,15 +9,59 @@ import {
   FileText,
   DollarSign,
   Building2,
+  Download,
 } from 'lucide-react';
 import { useErpStore, Bill } from '../../../store/erpStore';
 import { DataTable, ColumnDef } from '../../shared/DataTable';
 import { BillPdfDocument } from '../../pdf/BillPdfDocument';
 import { PdfPreviewModal } from '../../pdf/PdfPreviewModal';
+import { ExportModal, ExportColumn } from '../../shared/ExportModal';
 
 export const BillModule: React.FC = () => {
   const { bills, updateBill } = useErpStore();
   const [selectedBillForPdf, setSelectedBillForPdf] = useState<Bill | null>(null);
+  const [isExportModalOpen, setIsExportModalOpen] = useState(false);
+
+  const exportColumns: ExportColumn<Bill>[] = [
+    { key: 'billNumber', label: 'Bill No' },
+    { key: 'billDate', label: 'Date' },
+    { key: 'dueDate', label: 'Due Date' },
+    { key: 'poNumber', label: 'PO Reference' },
+    { key: 'vendorName', label: 'Vendor Name' },
+    { key: 'vendorGstin', label: 'Vendor GSTIN' },
+    { key: 'vendorState', label: 'State' },
+    {
+      key: 'taxableAmount',
+      label: 'Taxable Amount',
+      transform: (v) => (v ? `₹${Number(v).toLocaleString('en-IN')}` : '₹0'),
+    },
+    {
+      key: 'cgstAmount',
+      label: 'CGST',
+      transform: (v) => (v ? `₹${Number(v).toLocaleString('en-IN')}` : '₹0'),
+    },
+    {
+      key: 'sgstAmount',
+      label: 'SGST',
+      transform: (v) => (v ? `₹${Number(v).toLocaleString('en-IN')}` : '₹0'),
+    },
+    {
+      key: 'igstAmount',
+      label: 'IGST',
+      transform: (v) => (v ? `₹${Number(v).toLocaleString('en-IN')}` : '₹0'),
+    },
+    {
+      key: 'shippingCharge',
+      label: 'Shipping',
+      transform: (v) => (v ? `₹${Number(v).toLocaleString('en-IN')}` : '₹0'),
+    },
+    {
+      key: 'totalAmount',
+      label: 'Total Bill Amount',
+      transform: (v) => (v ? `₹${Number(v).toLocaleString('en-IN')}` : '₹0'),
+    },
+    { key: 'status', label: 'Status' },
+  ];
 
   const totalPayable = bills.reduce((acc, b) => acc + (b.totalAmount || 0), 0);
   const totalPaid = bills.filter((b) => b.status === 'Paid').reduce((acc, b) => acc + (b.totalAmount || 0), 0);
@@ -143,16 +187,26 @@ export const BillModule: React.FC = () => {
           </p>
         </div>
 
-        <button
-          onClick={() => {
-            window.history.pushState({}, '', '/bills/new');
-            window.dispatchEvent(new PopStateEvent('popstate'));
-          }}
-          className="flex items-center gap-1.5 rounded-xl bg-blue-600 px-4 py-2 text-xs font-semibold text-white hover:bg-blue-700 transition shadow-xs self-start cursor-pointer"
-        >
-          <Plus className="h-4 w-4" />
-          <span>New Bill</span>
-        </button>
+        <div className="flex items-center gap-2 self-start">
+          <button
+            type="button"
+            onClick={() => setIsExportModalOpen(true)}
+            className="flex items-center gap-1.5 rounded-xl border border-slate-300 bg-white px-3.5 py-2 text-xs font-semibold text-slate-700 hover:bg-slate-50 transition shadow-xs cursor-pointer"
+          >
+            <Download className="h-4 w-4 text-slate-500" />
+            <span>Export</span>
+          </button>
+          <button
+            onClick={() => {
+              window.history.pushState({}, '', '/bills/new');
+              window.dispatchEvent(new PopStateEvent('popstate'));
+            }}
+            className="flex items-center gap-1.5 rounded-xl bg-blue-600 px-4 py-2 text-xs font-semibold text-white hover:bg-blue-700 transition shadow-xs cursor-pointer"
+          >
+            <Plus className="h-4 w-4" />
+            <span>New Bill</span>
+          </button>
+        </div>
       </div>
 
       {/* KPI Cards */}
@@ -203,6 +257,23 @@ export const BillModule: React.FC = () => {
           document={<BillPdfDocument bill={selectedBillForPdf} />}
         />
       )}
+
+      {/* Reusable Export Modal for Vendor Bills */}
+      <ExportModal<Bill>
+        show={isExportModalOpen}
+        onClose={() => setIsExportModalOpen(false)}
+        title="Export Vendor Bills (Accounts Payable)"
+        filenamePrefix="Vendor-Bills"
+        columns={exportColumns}
+        data={bills}
+        dateField="billDate"
+        statusField="status"
+        statusOptions={[
+          { label: 'Pending', value: 'Pending' },
+          { label: 'Paid', value: 'Paid' },
+          { label: 'Approved', value: 'Approved' },
+        ]}
+      />
     </div>
   );
 };
