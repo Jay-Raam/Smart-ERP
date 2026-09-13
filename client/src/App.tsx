@@ -4,6 +4,7 @@ import { Navbar } from './components/layout/Navbar';
 import { GlobalSearchModal } from './components/layout/GlobalSearchModal';
 import { NotificationDrawer } from './components/layout/NotificationDrawer';
 import { ProfileDrawer } from './components/layout/ProfileDrawer';
+import { ContextSwitcherDrawer } from './components/layout/ContextSwitcherDrawer';
 import { LoginScreen } from './components/auth/LoginScreen';
 import { useAuthStore } from './store/authStore';
 import { useErpStore } from './store/erpStore';
@@ -30,6 +31,7 @@ export function App() {
   const [isSearchOpen, setIsSearchOpen] = useState(false);
   const [isNotificationsOpen, setIsNotificationsOpen] = useState(false);
   const [isProfileOpen, setIsProfileOpen] = useState(false);
+  const [isContextSwitcherOpen, setIsContextSwitcherOpen] = useState(false);
   const [quickAddType, setQuickAddType] = useState<string | null>(null);
 
   useEffect(() => {
@@ -130,6 +132,7 @@ export function App() {
           onOpenSearch={() => setIsSearchOpen(true)}
           onOpenNotifications={() => setIsNotificationsOpen(true)}
           onOpenProfile={() => setIsProfileOpen(true)}
+          onOpenContextSwitcher={() => setIsContextSwitcherOpen(true)}
           onToggleSidebar={() => setIsSidebarCollapsed(!isSidebarCollapsed)}
         />
 
@@ -165,6 +168,12 @@ export function App() {
         isOpen={isSearchOpen}
         onClose={() => setIsSearchOpen(false)}
         onNavigate={(m: ModuleType) => setActiveModule(m)}
+      />
+
+      {/* Slide-over Context Switcher Drawer */}
+      <ContextSwitcherDrawer
+        isOpen={isContextSwitcherOpen}
+        onClose={() => setIsContextSwitcherOpen(false)}
       />
 
       {/* Slide-over Notifications Drawer */}
