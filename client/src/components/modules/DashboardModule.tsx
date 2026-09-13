@@ -2,7 +2,7 @@ import React from 'react';
 import {
   TrendingUp,
   Receipt,
-  ShoppingCart,
+  ReceiptText,
   Boxes,
   Truck,
   AlertTriangle,
@@ -18,11 +18,11 @@ interface DashboardProps {
 }
 
 export const DashboardModule: React.FC<DashboardProps> = ({ onNavigate }) => {
-  const { salesOrders, invoices, purchaseOrders, storeItems, customers, branches, activeBranchId, activeFinancialYear } = useErpStore();
+  const { bills, invoices, purchaseOrders, storeItems, customers, branches, activeBranchId, activeFinancialYear } = useErpStore();
 
-  const totalInvoiced = invoices.reduce((acc, inv) => acc + inv.totalAmount, 0);
-  const totalSalesBooked = salesOrders.reduce((acc, so) => acc + so.totalAmount, 0);
-  const totalPurchaseSpend = purchaseOrders.reduce((acc, po) => acc + po.totalAmount, 0);
+  const totalInvoiced = invoices.reduce((acc: number, inv) => acc + (inv.totalAmount || 0), 0);
+  const totalBillsBooked = bills.reduce((acc: number, b) => acc + (b.totalAmount || 0), 0);
+  const totalPurchaseSpend = purchaseOrders.reduce((acc: number, po) => acc + (po.totalAmount || 0), 0);
   const lowStockItems = storeItems.filter((i) => i.status === 'Low Stock' || i.status === 'Critical');
 
   const activeBranch = branches.find((b) => b.id === activeBranchId) || branches[0] || {
@@ -53,21 +53,21 @@ export const DashboardModule: React.FC<DashboardProps> = ({ onNavigate }) => {
 
       {/* KPI Cards Grid */}
       <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-4">
-        {/* Card 1: Total Sales Booked */}
-        <div className="erp-card p-5 transition hover:shadow-md cursor-pointer" onClick={() => onNavigate('sales')}>
+        {/* Card 1: Total Vendor Bills */}
+        <div className="erp-card p-5 transition hover:shadow-md cursor-pointer" onClick={() => onNavigate('bills')}>
           <div className="flex items-center justify-between text-slate-500">
-            <span className="text-xs font-semibold uppercase tracking-wider">Total Sales Orders</span>
+            <span className="text-xs font-semibold uppercase tracking-wider">Vendor Bills</span>
             <div className="rounded-lg bg-blue-50 p-2 text-blue-600">
-              <ShoppingCart className="h-4 w-4" />
+              <ReceiptText className="h-4 w-4" />
             </div>
           </div>
           <div className="mt-3">
             <div className="text-2xl font-bold text-slate-900">
-              ₹{totalSalesBooked.toLocaleString('en-IN')}
+              ₹{totalBillsBooked.toLocaleString('en-IN')}
             </div>
-            <div className="mt-1 flex items-center gap-1.5 text-xs font-medium text-emerald-600">
+            <div className="mt-1 flex items-center gap-1.5 text-xs font-medium text-blue-600">
               <TrendingUp className="h-3.5 w-3.5" />
-              <span>{salesOrders.length} Confirmed Orders</span>
+              <span>{bills.length} Total Bills ({bills.filter((b) => b.status === 'Pending').length} Pending)</span>
             </div>
           </div>
         </div>
@@ -153,43 +153,43 @@ export const DashboardModule: React.FC<DashboardProps> = ({ onNavigate }) => {
         </div>
       )}
 
-      {/* Two Column Section: Recent Sales Orders & Outstanding Invoices */}
+      {/* Two Column Section: Recent Vendor Bills & Outstanding Invoices */}
       <div className="grid grid-cols-1 gap-6 lg:grid-cols-2">
-        {/* Recent Sales Orders */}
+        {/* Recent Vendor Bills */}
         <div className="erp-card overflow-hidden">
           <div className="flex items-center justify-between border-b border-slate-200 px-5 py-3.5 bg-slate-50/50">
-            <h3 className="text-sm font-bold text-slate-900">Recent Sales Orders</h3>
+            <h3 className="text-sm font-bold text-slate-900">Recent Vendor Bills</h3>
             <button
-              onClick={() => onNavigate('sales')}
+              onClick={() => onNavigate('bills')}
               className="text-xs font-semibold text-blue-600 hover:text-blue-800"
             >
-              View All Orders →
+              View All Bills →
             </button>
           </div>
           <div className="divide-y divide-slate-100">
-            {salesOrders.slice(0, 4).map((so) => (
-              <div key={so.id} className="flex items-center justify-between p-4 hover:bg-slate-50 transition">
+            {bills.slice(0, 4).map((b) => (
+              <div key={b.id} className="flex items-center justify-between p-4 hover:bg-slate-50 transition">
                 <div>
                   <div className="flex items-center gap-2">
-                    <span className="font-mono text-xs font-bold text-blue-700">{so.orderNumber}</span>
+                    <span className="font-mono text-xs font-bold text-blue-700">{b.billNumber}</span>
                     <span
                       className={`inline-flex rounded-full px-2 py-0.5 text-[10px] font-semibold ${
-                        so.status === 'Completed'
+                        b.status === 'Paid'
                           ? 'bg-emerald-100 text-emerald-800'
-                          : so.status === 'In Production'
+                          : b.status === 'Approved'
                           ? 'bg-blue-100 text-blue-800'
                           : 'bg-amber-100 text-amber-800'
                       }`}
                     >
-                      {so.status}
+                      {b.status}
                     </span>
                   </div>
-                  <div className="text-xs font-medium text-slate-700 mt-1">{so.customerName}</div>
-                  <div className="text-[11px] text-slate-400">Order Date: {so.orderDate}</div>
+                  <div className="text-xs font-medium text-slate-700 mt-1">{b.vendorName}</div>
+                  <div className="text-[11px] text-slate-400">Bill Date: {b.billDate}</div>
                 </div>
                 <div className="text-right">
-                  <div className="text-sm font-bold text-slate-900">₹{so.totalAmount.toLocaleString('en-IN')}</div>
-                  <div className="text-[11px] text-slate-500">{so.items.length} Item(s)</div>
+                  <div className="text-sm font-bold text-slate-900">₹{(b.totalAmount || 0).toLocaleString('en-IN')}</div>
+                  <div className="text-[11px] text-slate-500">{b.items?.length || 0} Item(s)</div>
                 </div>
               </div>
             ))}

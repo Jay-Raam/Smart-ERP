@@ -24,9 +24,16 @@ interface InvoiceModuleProps {
 }
 
 export const InvoiceModule: React.FC<InvoiceModuleProps> = ({ initialOpenAdd = false }) => {
-  const { invoices, customers, products, salesOrders, organisation, addInvoice } = useErpStore();
-  const [isAddModalOpen, setIsAddModalOpen] = useState(initialOpenAdd);
+  const { invoices, customers, products, organisation, addInvoice } = useErpStore();
+  const [isAddModalOpen, setIsAddModalOpen] = useState(false);
   const [viewInvoice, setViewInvoice] = useState<Invoice | null>(null);
+
+  useEffect(() => {
+    if (initialOpenAdd) {
+      window.history.pushState({}, '', '/invoices/new');
+      window.dispatchEvent(new PopStateEvent('popstate'));
+    }
+  }, [initialOpenAdd]);
 
   // Filter ONLY Approved products
   const approvedProducts = useMemo(() => {
@@ -36,7 +43,6 @@ export const InvoiceModule: React.FC<InvoiceModuleProps> = ({ initialOpenAdd = f
   // Form State
   const [customerId, setCustomerId] = useState(customers[0]?.id || '');
   const [dueDate, setDueDate] = useState('2026-10-25');
-  const [selectedSoNumber, setSelectedSoNumber] = useState(salesOrders[0]?.orderNumber || 'SO-2026-081');
   const [billingAddress, setBillingAddress] = useState('');
   const [shippingAddress, setShippingAddress] = useState('');
   const [customerState, setCustomerState] = useState('Tamil Nadu');
@@ -105,7 +111,6 @@ export const InvoiceModule: React.FC<InvoiceModuleProps> = ({ initialOpenAdd = f
     if (!cust) return;
 
     addInvoice({
-      salesOrderNumber: selectedSoNumber,
       customerId: cust.id,
       customerName: cust.name,
       customerGstin: customerGstin || cust.gstin,
@@ -119,6 +124,8 @@ export const InvoiceModule: React.FC<InvoiceModuleProps> = ({ initialOpenAdd = f
       taxableAmount: taxCalculation.taxableAmount,
       totalDiscount: taxCalculation.totalDiscount,
       gstRate: lineItems[0]?.taxRate || 18,
+      shippingCharge: 0,
+      shippingTax: 0,
       cgstAmount: taxCalculation.cgstAmount,
       sgstAmount: taxCalculation.sgstAmount,
       igstAmount: taxCalculation.igstAmount,
@@ -136,11 +143,6 @@ export const InvoiceModule: React.FC<InvoiceModuleProps> = ({ initialOpenAdd = f
       key: 'invoiceNumber',
       header: 'Invoice No',
       render: (inv) => <span className="font-mono font-bold text-slate-900">{inv.invoiceNumber}</span>,
-    },
-    {
-      key: 'salesOrderNumber',
-      header: 'SO Reference',
-      render: (inv) => <span className="font-mono text-blue-600 font-medium">{inv.salesOrderNumber}</span>,
     },
     {
       key: 'customerName',
@@ -231,7 +233,10 @@ export const InvoiceModule: React.FC<InvoiceModuleProps> = ({ initialOpenAdd = f
         <div className="flex items-center gap-2">
           <button
             type="button"
-            onClick={() => setIsAddModalOpen(true)}
+            onClick={() => {
+              window.history.pushState({}, '', '/invoices/new');
+              window.dispatchEvent(new PopStateEvent('popstate'));
+            }}
             className="flex items-center gap-1.5 rounded-xl bg-blue-600 px-4 py-2 text-xs font-semibold text-white hover:bg-blue-700 transition shadow-xs cursor-pointer"
           >
             <Plus className="h-4 w-4" />
@@ -327,20 +332,7 @@ export const InvoiceModule: React.FC<InvoiceModuleProps> = ({ initialOpenAdd = f
                   />
                 </div>
 
-                <div>
-                  <label className="block font-semibold text-slate-700 mb-1">SO Reference Number</label>
-                  <Combobox
-                    value={selectedSoNumber}
-                    onChange={(val) => setSelectedSoNumber(val)}
-                    options={salesOrders.map((so) => ({
-                      value: so.orderNumber,
-                      label: `${so.orderNumber} — ${so.customerName}`,
-                      sublabel: `Total: ₹${so.totalAmount.toLocaleString('en-IN')}`,
-                    }))}
-                    placeholder="Select sales order reference..."
-                    searchable={true}
-                  />
-                </div>
+
 
                 <div>
                   <label className="block font-semibold text-slate-700 mb-1">Due Date</label>

@@ -1,9 +1,8 @@
-import React from 'react';
 import {
   LayoutDashboard,
   Users,
-  ShoppingCart,
   Receipt,
+  ReceiptText,
   Truck,
   Package,
   Boxes,
@@ -22,9 +21,9 @@ import { useAuthStore } from '../../store/authStore';
 export type ModuleType =
   | 'dashboard'
   | 'customers'
-  | 'sales'
   | 'invoices'
   | 'purchase'
+  | 'bills'
   | 'store'
   | 'products'
   | 'delivery'
@@ -59,13 +58,14 @@ export const Sidebar: React.FC<SidebarProps> = ({
 }) => {
   const {
     customers,
-    salesOrders,
+    bills,
     invoices,
     purchaseOrders,
     storeItems,
     products,
     branches,
     financialYears,
+    deliveryChallans,
     activeBranchId,
   } = useErpStore();
   const { user } = useAuthStore();
@@ -80,6 +80,7 @@ export const Sidebar: React.FC<SidebarProps> = ({
 
   const lowStockCount = storeItems.filter((i) => i.status === 'Low Stock').length;
   const pendingInvoices = invoices.filter((i) => i.status === 'Pending').length;
+  const pendingBills = bills.filter((b) => b.status === 'Pending').length;
 
   const navigationSections: NavSection[] = [
     {
@@ -92,7 +93,6 @@ export const Sidebar: React.FC<SidebarProps> = ({
       title: 'Sales & Billing',
       items: [
         { id: 'customers' as ModuleType, label: 'Customers', icon: Users, badge: customers.length },
-        { id: 'sales' as ModuleType, label: 'Sales Orders', icon: ShoppingCart, badge: salesOrders.length },
         {
           id: 'invoices' as ModuleType,
           label: 'Tax Invoices',
@@ -107,6 +107,13 @@ export const Sidebar: React.FC<SidebarProps> = ({
       items: [
         { id: 'purchase' as ModuleType, label: 'Purchase Orders', icon: FileCheck, badge: purchaseOrders.length },
         {
+          id: 'bills' as ModuleType,
+          label: 'Vendor Bills',
+          icon: ReceiptText,
+          badge: pendingBills > 0 ? `${pendingBills} Due` : null,
+          badgeColor: 'bg-indigo-50 text-indigo-700 border border-indigo-200',
+        },
+        {
           id: 'store' as ModuleType,
           label: 'Store & Stock',
           icon: Boxes,
@@ -119,7 +126,7 @@ export const Sidebar: React.FC<SidebarProps> = ({
     {
       title: 'Logistics',
       items: [
-        { id: 'delivery' as ModuleType, label: 'Delivery Challans', icon: Truck, badge: null },
+        { id: 'delivery' as ModuleType, label: 'Delivery Challans', icon: Truck, badge: deliveryChallans.length },
       ],
     },
     {

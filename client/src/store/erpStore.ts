@@ -52,8 +52,12 @@ export interface Vendor {
   email?: string;
   phone?: string;
   address?: string;
+  billingAddress?: string;
+  shippingAddress?: string;
   city?: string;
   state?: string;
+  billingState?: string;
+  shippingState?: string;
   gstin?: string;
   pan?: string;
   organisationId?: string;
@@ -99,36 +103,43 @@ export interface DocumentItem {
   totalAmount?: number;
 }
 
-export interface SalesOrderItem {
-  productId: string;
-  productName: string;
-  sku: string;
-  quantity: number;
-  unitPrice: number;
-  total: number;
-}
-
-export interface SalesOrder {
+export interface Bill {
   id: string;
-  orderNumber: string;
-  customerId: string;
-  customerName: string;
-  orderDate: string;
-  deliveryDate: string;
-  branchId: string;
-  organisationId?: string;
-  financialYear?: string;
-  items: SalesOrderItem[];
+  billNumber: string;
+  billDate: string;
+  dueDate: string;
+  poId?: string;
+  poNumber?: string;
+  purchaseOrderNumber?: string;
+  vendorInvoiceNumber?: string;
+  vendorId?: string;
+  vendorName: string;
+  vendorGstin?: string;
+  vendorState?: string;
+  vendorAddress?: string;
+  billingAddress?: string;
+  shippingAddress?: string;
+  items: DocumentItem[];
   subtotal: number;
+  totalDiscount?: number;
+  shippingCharge: number;
+  shippingTax: number;
+  taxableAmount: number;
+  cgstAmount?: number;
+  sgstAmount?: number;
+  igstAmount?: number;
   taxAmount: number;
   totalAmount: number;
-  status: 'Draft' | 'Confirmed' | 'In Production' | 'Dispatched' | 'Completed';
+  totalInWords?: string;
+  status: 'Pending' | 'Paid' | 'Approved' | 'Overdue';
+  branchId?: string;
+  organisationId?: string;
+  financialYear?: string;
 }
 
 export interface Invoice {
   id: string;
   invoiceNumber: string;
-  salesOrderNumber?: string;
   customerId: string;
   customerName: string;
   customerGstin?: string;
@@ -142,6 +153,8 @@ export interface Invoice {
   financialYear?: string;
   items: DocumentItem[];
   subtotal: number;
+  shippingCharge: number;
+  shippingTax: number;
   taxableAmount: number;
   totalDiscount?: number;
   gstRate: number;
@@ -171,6 +184,8 @@ export interface PurchaseOrder {
   financialYear?: string;
   items: DocumentItem[];
   subtotal: number;
+  shippingCharge: number;
+  shippingTax: number;
   taxableAmount: number;
   totalDiscount?: number;
   cgstAmount?: number;
@@ -179,7 +194,7 @@ export interface PurchaseOrder {
   taxAmount: number;
   totalAmount: number;
   totalInWords?: string;
-  status: 'Approved' | 'Pending Approval' | 'Received' | 'Cancelled';
+  status: 'Approved' | 'Pending Approval' | 'Received' | 'Cancelled' | 'Billed';
 }
 
 export interface StoreItem {
@@ -201,14 +216,20 @@ export interface StoreItem {
 export interface DeliveryChallan {
   id: string;
   dcNumber: string;
-  salesOrderNumber: string;
+  invoiceId?: string;
+  invoiceNumber: string;
+  customerId?: string;
   customerName: string;
+  customerGstin?: string;
+  billingAddress?: string;
+  shippingAddress?: string;
   dispatchDate: string;
   transportMode: string; // Road, Courier, Sea, Air
   vehicleNumber: string;
   ewayBillNumber: string;
   driverName: string;
   driverPhone: string;
+  items?: DocumentItem[];
   status: 'Dispatched' | 'In Transit' | 'Delivered';
   branchId?: string;
   organisationId?: string;
@@ -237,7 +258,7 @@ interface ErpState {
   customers: Customer[];
   vendors: Vendor[];
   products: Product[];
-  salesOrders: SalesOrder[];
+  bills: Bill[];
   invoices: Invoice[];
   purchaseOrders: PurchaseOrder[];
   storeItems: StoreItem[];
@@ -261,9 +282,16 @@ interface ErpState {
   addProduct: (product: Omit<Product, 'id'>) => Promise<void>;
   approveProduct: (id: string) => Promise<void>;
   rejectProduct: (id: string) => Promise<void>;
-  addSalesOrder: (so: Omit<SalesOrder, 'id' | 'orderNumber'>) => Promise<void>;
-  addInvoice: (inv: Omit<Invoice, 'id' | 'invoiceNumber'>) => Promise<void>;
-  addPurchaseOrder: (po: Omit<PurchaseOrder, 'id' | 'poNumber'>) => Promise<void>;
+  addBill: (bill: Partial<Bill>) => Promise<Bill | undefined>;
+  updateBill: (id: string, updates: Partial<Bill>) => Promise<void>;
+  convertPoToBill: (
+    poId: string,
+    invoiceNumOrOverrides?: string | Partial<Bill>,
+    billDate?: string,
+    dueDate?: string
+  ) => Promise<Bill | undefined>;
+  addInvoice: (inv: Omit<Invoice, 'id' | 'invoiceNumber'>) => Promise<Invoice | undefined>;
+  addPurchaseOrder: (po: Omit<PurchaseOrder, 'id' | 'poNumber'>) => Promise<PurchaseOrder | undefined>;
   addDeliveryChallan: (dc: Omit<DeliveryChallan, 'id' | 'dcNumber'>) => Promise<void>;
   updateStoreStock: (productId: string, deltaQuantity: number) => Promise<void>;
 }
@@ -287,7 +315,7 @@ export const useErpStore = create<ErpState>((set, get) => ({
   customers: [],
   vendors: [],
   products: [],
-  salesOrders: [],
+  bills: [],
   invoices: [],
   purchaseOrders: [],
   storeItems: [],
@@ -354,7 +382,7 @@ export const useErpStore = create<ErpState>((set, get) => ({
         customers: finalData.customers || [],
         vendors: finalData.vendors || [],
         products: finalData.products || [],
-        salesOrders: finalData.salesOrders || [],
+        bills: finalData.bills || [],
         invoices: finalData.invoices || [],
         purchaseOrders: finalData.purchaseOrders || [],
         storeItems: finalData.storeItems || [],
@@ -590,25 +618,102 @@ export const useErpStore = create<ErpState>((set, get) => ({
     }
   },
 
-  addSalesOrder: async (so) => {
+  addBill: async (billData) => {
     try {
-      const res = await fetch('/api/erp/sales-orders', {
+      const res = await fetch('/api/erp/bills', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
-          ...so,
+          ...billData,
           branchId: get().activeBranchId || localStorage.getItem('Branch'),
           organisationId: get().activeOrganisationId || localStorage.getItem('OrganizationId'),
           financialYear: get().activeFinancialYear || localStorage.getItem('FinancialYear') || '2026-2027',
         }),
       });
-      if (!res.ok) throw new Error('Failed to create sales order');
+      if (!res.ok) {
+        const err = await res.json();
+        throw new Error(err.error || 'Failed to create bill');
+      }
       const created = await res.json();
-      set((state) => ({ salesOrders: [created, ...state.salesOrders] }));
-      showAppToast(`Sales Order ${created.orderNumber} placed`, 'success');
+      set((state) => ({ bills: [created, ...state.bills] }));
+      showAppToast(`Vendor Bill ${created.billNumber} created successfully`, 'success');
+      return created;
     } catch (err: any) {
-      showAppToast('Error placing sales order: ' + err.message, 'error');
+      showAppToast('Error creating bill: ' + err.message, 'error');
+      throw err;
     }
+  },
+
+  updateBill: async (id, updates) => {
+    try {
+      const res = await fetch(`/api/erp/bills/${id}`, {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(updates),
+      });
+      if (!res.ok) {
+        const err = await res.json();
+        throw new Error(err.error || 'Failed to update bill');
+      }
+      const updated = await res.json();
+      set((state) => ({
+        bills: state.bills.map((b) => (b.id === id ? updated : b)),
+      }));
+      showAppToast(`Bill ${updated.billNumber} updated`, 'info');
+    } catch (err: any) {
+      showAppToast('Error updating bill: ' + err.message, 'error');
+    }
+  },
+
+  convertPoToBill: async (poId, invoiceNumOrOverrides, billDateParam, dueDateParam) => {
+    const po = get().purchaseOrders.find((p) => p.id === poId);
+    if (!po) {
+      showAppToast('Purchase order not found for conversion', 'error');
+      return undefined;
+    }
+
+    const today = billDateParam || new Date().toISOString().split('T')[0];
+    const dueDate = dueDateParam || new Date(Date.now() + 30 * 24 * 60 * 60 * 1000).toISOString().split('T')[0];
+    const overrides: Partial<Bill> = typeof invoiceNumOrOverrides === 'object' && invoiceNumOrOverrides !== null
+      ? invoiceNumOrOverrides
+      : {
+          vendorInvoiceNumber: typeof invoiceNumOrOverrides === 'string' ? invoiceNumOrOverrides : undefined,
+          billDate: today,
+          dueDate,
+        };
+
+    const billPayload: Partial<Bill> = {
+      poId: po.id,
+      poNumber: po.poNumber,
+      purchaseOrderNumber: po.poNumber,
+      vendorInvoiceNumber: overrides.vendorInvoiceNumber || (typeof invoiceNumOrOverrides === 'string' ? invoiceNumOrOverrides : undefined),
+      vendorId: po.vendorId,
+      vendorName: po.vendorName,
+      vendorGstin: po.vendorGstin,
+      vendorState: po.vendorState || 'Tamil Nadu',
+      vendorAddress: po.vendorAddress,
+      billingAddress: po.billingAddress,
+      shippingAddress: po.shippingAddress,
+      billDate: today,
+      dueDate,
+      items: po.items,
+      shippingCharge: po.shippingCharge || 0,
+      subtotal: po.subtotal,
+      taxableAmount: po.taxableAmount,
+      cgstAmount: po.cgstAmount,
+      sgstAmount: po.sgstAmount,
+      igstAmount: po.igstAmount,
+      taxAmount: po.taxAmount,
+      totalAmount: po.totalAmount,
+      totalInWords: po.totalInWords,
+      status: 'Pending',
+      branchId: po.branchId,
+      organisationId: po.organisationId,
+      financialYear: po.financialYear,
+      ...overrides,
+    };
+
+    return await get().addBill(billPayload);
   },
 
   addInvoice: async (inv) => {
@@ -627,6 +732,7 @@ export const useErpStore = create<ErpState>((set, get) => ({
       const created = await res.json();
       set((state) => ({ invoices: [created, ...state.invoices] }));
       showAppToast(`Tax Invoice ${created.invoiceNumber} generated`, 'success');
+      return created;
     } catch (err: any) {
       showAppToast('Error generating invoice: ' + err.message, 'error');
     }
@@ -647,9 +753,10 @@ export const useErpStore = create<ErpState>((set, get) => ({
       if (!res.ok) throw new Error('Failed to create purchase order');
       const created = await res.json();
       set((state) => ({ purchaseOrders: [created, ...state.purchaseOrders] }));
-      showAppToast(`Purchase Order ${created.poNumber} issued`, 'success');
+      showAppToast(`Purchase Order ${created.poNumber} created`, 'success');
+      return created;
     } catch (err: any) {
-      showAppToast('Error issuing PO: ' + err.message, 'error');
+      showAppToast('Error creating purchase order: ' + err.message, 'error');
     }
   },
 

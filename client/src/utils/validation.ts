@@ -68,6 +68,11 @@ export function isValidCreditLimit(val: any): boolean {
   return !isNaN(num) && num > 10000;
 }
 
+export interface UseFormValidationOptions<T> {
+  initialValues: T;
+  validationSchema: ValidationSchema<T>;
+}
+
 /**
  * Universal React Hook for 3-tier form validation:
  * 1. onChange: validate current field, clear error immediately when valid
@@ -75,9 +80,17 @@ export function isValidCreditLimit(val: any): boolean {
  * 3. finalSubmit: validate ALL fields + business logic before API submission
  */
 export function useFormValidation<T extends Record<string, any>>(
-  initialValues: T,
-  schema: ValidationSchema<T>
+  optionsOrInitialValues: UseFormValidationOptions<T> | T,
+  schemaMaybe?: ValidationSchema<T>
 ) {
+  const isOptions = typeof optionsOrInitialValues === 'object' && 'initialValues' in optionsOrInitialValues && 'validationSchema' in optionsOrInitialValues;
+  const initialValues = isOptions
+    ? (optionsOrInitialValues as UseFormValidationOptions<T>).initialValues
+    : (optionsOrInitialValues as T);
+  const schema = isOptions
+    ? (optionsOrInitialValues as UseFormValidationOptions<T>).validationSchema
+    : (schemaMaybe || ({} as ValidationSchema<T>));
+
   const [values, setValues] = useState<T>(initialValues);
   const [errors, setErrors] = useState<FormErrors<T>>({});
   const [touched, setTouched] = useState<FormTouched<T>>({});
@@ -102,29 +115,60 @@ export function useFormValidation<T extends Record<string, any>>(
     [schema]
   );
 
-  // Handle onChange
+  // Handle onChange (supports both (field, value) and event)
   const handleChange = useCallback(
-    (field: keyof T, val: any) => {
-      const newValues = { ...values, [field]: val };
-      setValues(newValues);
+    (fieldOrEvent: keyof T | React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement | HTMLSelectElement>, val?: any) => {
+      let field: keyof T;
+      let value: any;
 
-      // If field already has an error, re-validate onChange to clear it immediately when fixed
-      if (errors[field]) {
-        const err = validateField(field, val, newValues);
-        setErrors((prev) => ({ ...prev, [field]: err }));
+      if (typeof fieldOrEvent === 'object' && 'target' in fieldOrEvent) {
+        const target = fieldOrEvent.target;
+        field = target.name as keyof T;
+        value = (target as HTMLInputElement).type === 'checkbox' ? (target as HTMLInputElement).checked : target.value;
+      } else {
+        field = fieldOrEvent;
+        value = val;
       }
+
+      setValues((prev) => {
+        const newValues = { ...prev, [field]: value };
+        // If field already has an error, re-validate onChange to clear it immediately when fixed
+        if (errors[field]) {
+          const err = validateField(field, value, newValues);
+          setErrors((prevErr) => ({ ...prevErr, [field]: err }));
+        }
+        return newValues;
+      });
     },
-    [values, errors, validateField]
+    [errors, validateField]
   );
 
-  // Handle onBlur
-  const handleBlur = useCallback(
-    (field: keyof T) => {
-      setTouched((prev) => ({ ...prev, [field]: true }));
-      const err = validateField(field, values[field], values);
-      setErrors((prev) => ({ ...prev, [field]: err }));
+  // Set field value directly
+  const setFieldValue = useCallback(
+    (field: keyof T, value: any) => {
+      handleChange(field, value);
     },
-    [values, validateField]
+    [handleChange]
+  );
+
+  // Handle onBlur (supports both (field) and event)
+  const handleBlur = useCallback(
+    (fieldOrEvent: keyof T | React.FocusEvent<HTMLInputElement | HTMLTextAreaElement | HTMLSelectElement>) => {
+      let field: keyof T;
+      if (typeof fieldOrEvent === 'object' && 'target' in fieldOrEvent) {
+        field = fieldOrEvent.target.name as keyof T;
+      } else {
+        field = fieldOrEvent;
+      }
+
+      setTouched((prev) => ({ ...prev, [field]: true }));
+      setValues((prev) => {
+        const err = validateField(field, prev[field], prev);
+        setErrors((prevErr) => ({ ...prevErr, [field]: err }));
+        return prev;
+      });
+    },
+    [validateField]
   );
 
   // Set single field error manually (e.g. from backend response)
@@ -156,6 +200,18 @@ export function useFormValidation<T extends Record<string, any>>(
     return { isValid: valid, errors: newErrors };
   }, [schema, values, validateField]);
 
+  // Form submit handler
+  const handleSubmit = useCallback(
+    (onValid: (vals: T) => void | Promise<void>) => async (e?: React.FormEvent) => {
+      if (e && e.preventDefault) e.preventDefault();
+      const res = validateAll();
+      if (res.isValid) {
+        await onValid(values);
+      }
+    },
+    [validateAll, values]
+  );
+
   // Reset form
   const resetForm = useCallback(
     (newValues?: T) => {
@@ -172,7 +228,9 @@ export function useFormValidation<T extends Record<string, any>>(
     errors,
     touched,
     handleChange,
+    setFieldValue,
     handleBlur,
+    handleSubmit,
     validateField,
     validateAll,
     setFieldError,

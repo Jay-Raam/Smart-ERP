@@ -19,44 +19,45 @@ interface DeliveryModuleProps {
 }
 
 export const DeliveryModule: React.FC<DeliveryModuleProps> = ({ initialOpenAdd = false }) => {
-  const { deliveryChallans, salesOrders, addDeliveryChallan } = useErpStore();
+  const { deliveryChallans, invoices, addDeliveryChallan } = useErpStore();
   const [searchQuery, setSearchQuery] = useState('');
   const [statusFilter, setStatusFilter] = useState('All');
   const [isAddModalOpen, setIsAddModalOpen] = useState(initialOpenAdd);
   const [viewDc, setViewDc] = useState<DeliveryChallan | null>(null);
 
   // Form State
-  const [selectedSoId, setSelectedSoId] = useState(salesOrders[0]?.id || '');
+  const [selectedInvoiceId, setSelectedInvoiceId] = useState(invoices[0]?.id || '');
   const [transportMode, setTransportMode] = useState('Dedicated Heavy Truck');
   const [vehicleNumber, setVehicleNumber] = useState('TN 09 BY 5521');
   const [ewayBillNumber, setEwayBillNumber] = useState('281099238411');
   const [driverName, setDriverName] = useState('R. Murugan');
-  const [driverPhone, setDriverPhone] = useState('+91 98401 99882');
+  const [driverPhone, setDriverPhone] = useState('9840199882');
 
   const filteredChallans = deliveryChallans.filter((dc) => {
     const matchesSearch =
       dc.dcNumber.toLowerCase().includes(searchQuery.toLowerCase()) ||
       dc.customerName.toLowerCase().includes(searchQuery.toLowerCase()) ||
       dc.vehicleNumber.toLowerCase().includes(searchQuery.toLowerCase()) ||
-      dc.salesOrderNumber.toLowerCase().includes(searchQuery.toLowerCase());
+      (dc.invoiceNumber && dc.invoiceNumber.toLowerCase().includes(searchQuery.toLowerCase()));
     const matchesStatus = statusFilter === 'All' || dc.status === statusFilter;
     return matchesSearch && matchesStatus;
   });
 
   const handleCreateDC = (e: React.FormEvent) => {
     e.preventDefault();
-    const so = salesOrders.find((s) => s.id === selectedSoId);
-    if (!so) return;
+    const inv = invoices.find((i) => i.id === selectedInvoiceId);
+    if (!inv) return;
 
     addDeliveryChallan({
-      salesOrderNumber: so.orderNumber,
-      customerName: so.customerName,
+      invoiceId: inv.id,
+      invoiceNumber: inv.invoiceNumber,
+      customerName: inv.customerName,
       dispatchDate: new Date().toISOString().split('T')[0],
       transportMode,
-      vehicleNumber,
-      ewayBillNumber,
-      driverName,
-      driverPhone,
+      vehicleNumber: vehicleNumber.trim().toUpperCase(),
+      ewayBillNumber: ewayBillNumber.trim(),
+      driverName: driverName.trim(),
+      driverPhone: driverPhone.trim(),
       status: 'In Transit',
     });
 
@@ -71,10 +72,10 @@ export const DeliveryModule: React.FC<DeliveryModuleProps> = ({ initialOpenAdd =
       render: (dc) => <span className="font-mono font-bold text-blue-700">{dc.dcNumber}</span>,
     },
     {
-      key: 'salesOrderNumber',
-      header: 'SO Reference',
+      key: 'invoiceNumber',
+      header: 'Invoice Reference',
       sortable: true,
-      render: (dc) => <span className="font-mono text-slate-600">{dc.salesOrderNumber}</span>,
+      render: (dc) => <span className="font-mono text-slate-600">{dc.invoiceNumber || '—'}</span>,
     },
     {
       key: 'customerName',
@@ -166,8 +167,8 @@ export const DeliveryModule: React.FC<DeliveryModuleProps> = ({ initialOpenAdd =
       <DataTable
         data={deliveryChallans}
         columns={columns}
-        searchPlaceholder="Search DC number, vehicle, customer, or SO..."
-        searchKeys={['dcNumber', 'vehicleNumber', 'customerName', 'salesOrderNumber']}
+        searchPlaceholder="Search DC number, vehicle, customer, or invoice..."
+        searchKeys={['dcNumber', 'vehicleNumber', 'customerName', 'invoiceNumber']}
         statusOptions={statusOptions}
         statusKey="status"
         pageSizeDefault={10}
@@ -186,16 +187,16 @@ export const DeliveryModule: React.FC<DeliveryModuleProps> = ({ initialOpenAdd =
 
             <form onSubmit={handleCreateDC} className="mt-4 space-y-3.5 text-xs">
               <div>
-                <label className="block font-semibold text-slate-700 mb-1">Source Sales Order</label>
+                <label className="block font-semibold text-slate-700 mb-1">Source Tax Invoice</label>
                 <Combobox
-                  value={selectedSoId}
-                  onChange={(val) => setSelectedSoId(val)}
-                  options={salesOrders.map((so) => ({
-                    value: so.id,
-                    label: `${so.orderNumber} — ${so.customerName}`,
-                    sublabel: `Total: ₹${so.totalAmount.toLocaleString('en-IN')}`,
+                  value={selectedInvoiceId}
+                  onChange={(val) => setSelectedInvoiceId(val)}
+                  options={invoices.map((inv) => ({
+                    value: inv.id,
+                    label: `${inv.invoiceNumber} — ${inv.customerName}`,
+                    sublabel: `Total: ₹${inv.totalAmount.toLocaleString('en-IN')}`,
                   }))}
-                  placeholder="Select source sales order..."
+                  placeholder="Select source tax invoice..."
                   searchable={true}
                 />
               </div>

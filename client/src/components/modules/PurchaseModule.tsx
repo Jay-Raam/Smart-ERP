@@ -21,6 +21,23 @@ import { DataTable, ColumnDef } from '../shared/DataTable';
 import { Combobox } from '../shared/Combobox';
 import { PurchasePrintModal } from './PurchasePrintModal';
 import { calculateDocumentTaxes, isStateTamilNadu } from '../../utils/taxCalculation';
+import { INDIA_STATES_LIST } from '../../utils/indiaStates';
+import { useFormValidation, isValidGSTIN, EMAIL_REGEX, PHONE_REGEX } from '../../utils/validation';
+
+interface VendorFormData {
+  name: string;
+  contactPerson: string;
+  email: string;
+  phone: string;
+  city: string;
+  billingState: string;
+  billingAddress: string;
+  shippingState: string;
+  shippingAddress: string;
+  sameAsBilling: boolean;
+  gstin: string;
+  pan: string;
+}
 
 interface PurchaseModuleProps {
   initialOpenAdd?: boolean;
@@ -66,16 +83,106 @@ export const PurchaseModule: React.FC<PurchaseModuleProps> = ({ initialOpenAdd =
     taxRate: number;
   }>>([]);
 
-  // Form State: New Vendor Modal
-  const [vName, setVName] = useState('');
-  const [vContactPerson, setVContactPerson] = useState('');
-  const [vEmail, setVEmail] = useState('');
-  const [vPhone, setVPhone] = useState('');
-  const [vAddress, setVAddress] = useState('');
-  const [vCity, setVCity] = useState('Chennai');
-  const [vState, setVState] = useState('Tamil Nadu');
-  const [vGstin, setVGstin] = useState('');
-  const [vPan, setVPan] = useState('');
+  // 3-Tier Form Validation for Vendor Registration
+  const {
+    values: vendorForm,
+    errors: vendorErrors,
+    touched: vendorTouched,
+    handleChange: handleVendorChange,
+    handleBlur: handleVendorBlur,
+    handleSubmit: handleVendorSubmit,
+    setFieldValue: setVendorFieldValue,
+    resetForm: resetVendorForm,
+  } = useFormValidation<VendorFormData>({
+    initialValues: {
+      name: '',
+      contactPerson: '',
+      email: '',
+      phone: '',
+      city: 'Hyderabad',
+      billingState: 'Telangana',
+      billingAddress: '',
+      shippingState: 'Telangana',
+      shippingAddress: '',
+      sameAsBilling: true,
+      gstin: '',
+      pan: '',
+    },
+    validationSchema: {
+      name: [
+        {
+          validate: (val: any) => Boolean(val && String(val).trim().length >= 2),
+          message: 'Vendor enterprise name must be at least 2 characters.',
+        },
+      ],
+      contactPerson: [
+        {
+          validate: (val: any) => Boolean(val && String(val).trim().length >= 2),
+          message: 'Key contact person is required.',
+        },
+      ],
+      email: [
+        {
+          validate: (val: any) => Boolean(val && EMAIL_REGEX.test(String(val).trim())),
+          message: 'Valid enterprise email address is required.',
+        },
+      ],
+      phone: [
+        {
+          validate: (val: any) => Boolean(val && PHONE_REGEX.test(String(val).trim())),
+          message: 'Valid 10-digit Indian phone number required.',
+        },
+      ],
+      city: [
+        {
+          validate: (val: any) => Boolean(val && String(val).trim().length > 0),
+          message: 'City is required.',
+        },
+      ],
+      billingState: [
+        {
+          validate: (val: any) => Boolean(val && String(val).trim().length > 0),
+          message: 'Billing State is required.',
+        },
+      ],
+      billingAddress: [
+        {
+          validate: (val: any) => Boolean(val && String(val).trim().length >= 5),
+          message: 'Complete plant / billing address is required (min 5 chars).',
+        },
+      ],
+      gstin: [
+        {
+          validate: (val: any, all?: VendorFormData) => {
+            if (!val || !String(val).trim()) return true;
+            const res = isValidGSTIN(String(val).trim(), all?.billingState);
+            return res.valid || res.error || 'Invalid GSTIN';
+          },
+          message: 'Invalid GSTIN format or State Code mismatch.',
+        },
+      ],
+    },
+  });
+
+  const onSubmitVendor = async (data: VendorFormData) => {
+    await addVendor({
+      name: data.name.trim(),
+      contactPerson: data.contactPerson.trim(),
+      email: data.email.trim(),
+      phone: data.phone.trim(),
+      address: data.billingAddress.trim(),
+      city: data.city.trim(),
+      state: data.billingState,
+      billingAddress: data.billingAddress.trim(),
+      billingState: data.billingState,
+      shippingAddress: data.sameAsBilling ? data.billingAddress.trim() : data.shippingAddress.trim(),
+      shippingState: data.sameAsBilling ? data.billingState : data.shippingState,
+      gstin: data.gstin.trim().toUpperCase(),
+      pan: data.pan.trim().toUpperCase(),
+    });
+    resetVendorForm();
+    setIsAddVendorModalOpen(false);
+  };
 
   // Update vendor info when selected vendor changes
   useEffect(() => {
@@ -133,6 +240,8 @@ export const PurchaseModule: React.FC<PurchaseModuleProps> = ({ initialOpenAdd =
       subtotal: taxCalculation.subtotal,
       taxableAmount: taxCalculation.taxableAmount,
       totalDiscount: taxCalculation.totalDiscount,
+      shippingCharge: 0,
+      shippingTax: 0,
       cgstAmount: taxCalculation.cgstAmount,
       sgstAmount: taxCalculation.sgstAmount,
       igstAmount: taxCalculation.igstAmount,
@@ -144,27 +253,7 @@ export const PurchaseModule: React.FC<PurchaseModuleProps> = ({ initialOpenAdd =
     setIsAddPOModalOpen(false);
   };
 
-  const handleCreateVendor = (e: React.FormEvent) => {
-    e.preventDefault();
-    addVendor({
-      name: vName,
-      contactPerson: vContactPerson,
-      email: vEmail,
-      phone: vPhone,
-      address: vAddress,
-      city: vCity,
-      state: vState,
-      gstin: vGstin,
-      pan: vPan,
-    });
-    setIsAddVendorModalOpen(false);
-    setVName('');
-    setVContactPerson('');
-    setVEmail('');
-    setVPhone('');
-    setVAddress('');
-    setVGstin('');
-  };
+
 
   const poColumns: ColumnDef<PurchaseOrder>[] = [
     {
@@ -234,14 +323,29 @@ export const PurchaseModule: React.FC<PurchaseModuleProps> = ({ initialOpenAdd =
       header: 'Actions',
       align: 'right',
       render: (po) => (
-        <button
-          onClick={() => setSelectedPO(po)}
-          className="inline-flex items-center gap-1 rounded-lg border border-slate-200 bg-white px-2.5 py-1 text-xs font-semibold text-slate-700 hover:bg-slate-100 hover:text-blue-600 transition cursor-pointer"
-          title="View & Print PO"
-        >
-          <Eye className="h-3.5 w-3.5" />
-          <span>View</span>
-        </button>
+        <div className="flex items-center justify-end gap-1.5">
+          {po.status === 'Approved' && (
+            <button
+              onClick={() => {
+                window.history.pushState({}, '', `/bills/new?poId=${po.id}`);
+                window.dispatchEvent(new PopStateEvent('popstate'));
+              }}
+              className="inline-flex items-center gap-1 rounded-lg border border-emerald-200 bg-emerald-50 px-2.5 py-1 text-xs font-semibold text-emerald-700 hover:bg-emerald-100 transition cursor-pointer"
+              title="Convert Purchase Order to Vendor Bill"
+            >
+              <FileCheck className="h-3.5 w-3.5" />
+              <span>Convert to Bill</span>
+            </button>
+          )}
+          <button
+            onClick={() => setSelectedPO(po)}
+            className="inline-flex items-center gap-1 rounded-lg border border-slate-200 bg-white px-2.5 py-1 text-xs font-semibold text-slate-700 hover:bg-slate-100 hover:text-blue-600 transition cursor-pointer"
+            title="View & Print PO"
+          >
+            <Eye className="h-3.5 w-3.5" />
+            <span>View</span>
+          </button>
+        </div>
       ),
     },
   ];
@@ -687,115 +791,226 @@ export const PurchaseModule: React.FC<PurchaseModuleProps> = ({ initialOpenAdd =
               </button>
             </div>
 
-            <form onSubmit={handleCreateVendor} className="mt-4 space-y-3.5 text-xs">
+            <form onSubmit={handleVendorSubmit(onSubmitVendor)} className="mt-4 space-y-3.5 text-xs">
               <div>
-                <label className="block font-semibold text-slate-700 mb-1">Vendor / Enterprise Name</label>
+                <label className="block font-semibold text-slate-700 mb-1">
+                  Vendor / Enterprise Name <span className="text-red-500">*</span>
+                </label>
                 <input
                   type="text"
-                  required
+                  name="name"
                   placeholder="e.g. Midhani Metallurgical Alloys Ltd"
-                  value={vName}
-                  onChange={(e) => setVName(e.target.value)}
-                  className="w-full rounded-lg border border-slate-200 p-2.5 outline-none focus:border-blue-500 text-slate-800"
+                  value={vendorForm.name}
+                  onChange={handleVendorChange}
+                  onBlur={handleVendorBlur}
+                  className={`w-full rounded-lg border p-2.5 outline-none transition text-slate-800 ${
+                    vendorErrors.name ? 'border-red-500 bg-red-50/30' : 'border-slate-200 focus:border-blue-500'
+                  }`}
                 />
+                {vendorErrors.name && (
+                  <p className="mt-1 text-[11px] font-medium text-red-600">{vendorErrors.name}</p>
+                )}
               </div>
 
               <div className="grid grid-cols-2 gap-4">
                 <div>
-                  <label className="block font-semibold text-slate-700 mb-1">Key Contact Person</label>
+                  <label className="block font-semibold text-slate-700 mb-1">
+                    Key Contact Person <span className="text-red-500">*</span>
+                  </label>
                   <input
                     type="text"
-                    required
+                    name="contactPerson"
                     placeholder="e.g. Rajesh Kulkarni"
-                    value={vContactPerson}
-                    onChange={(e) => setVContactPerson(e.target.value)}
-                    className="w-full rounded-lg border border-slate-200 p-2.5 outline-none focus:border-blue-500 text-slate-800"
+                    value={vendorForm.contactPerson}
+                    onChange={handleVendorChange}
+                    onBlur={handleVendorBlur}
+                    className={`w-full rounded-lg border p-2.5 outline-none transition text-slate-800 ${
+                      vendorErrors.contactPerson ? 'border-red-500 bg-red-50/30' : 'border-slate-200 focus:border-blue-500'
+                    }`}
                   />
+                  {vendorErrors.contactPerson && (
+                    <p className="mt-1 text-[11px] font-medium text-red-600">{vendorErrors.contactPerson}</p>
+                  )}
                 </div>
                 <div>
-                  <label className="block font-semibold text-slate-700 mb-1">GSTIN</label>
+                  <label className="block font-semibold text-slate-700 mb-1">GSTIN (Optional / 15 chars)</label>
                   <input
                     type="text"
-                    required
+                    name="gstin"
                     placeholder="36AAACM1234P1Z1"
-                    value={vGstin}
-                    onChange={(e) => setVGstin(e.target.value)}
-                    className="w-full rounded-lg border border-slate-200 p-2.5 outline-none focus:border-blue-500 font-mono text-slate-800 uppercase"
+                    value={vendorForm.gstin}
+                    onChange={handleVendorChange}
+                    onBlur={handleVendorBlur}
+                    className={`w-full rounded-lg border p-2.5 outline-none font-mono uppercase transition text-slate-800 ${
+                      vendorErrors.gstin ? 'border-red-500 bg-red-50/30' : 'border-slate-200 focus:border-blue-500'
+                    }`}
                   />
+                  {vendorErrors.gstin && (
+                    <p className="mt-1 text-[11px] font-medium text-red-600">{vendorErrors.gstin}</p>
+                  )}
                 </div>
               </div>
 
               <div className="grid grid-cols-2 gap-4">
                 <div>
-                  <label className="block font-semibold text-slate-700 mb-1">Email</label>
+                  <label className="block font-semibold text-slate-700 mb-1">
+                    Email <span className="text-red-500">*</span>
+                  </label>
                   <input
                     type="email"
-                    required
+                    name="email"
                     placeholder="sales@vendor.com"
-                    value={vEmail}
-                    onChange={(e) => setVEmail(e.target.value)}
-                    className="w-full rounded-lg border border-slate-200 p-2.5 outline-none focus:border-blue-500 text-slate-800"
+                    value={vendorForm.email}
+                    onChange={handleVendorChange}
+                    onBlur={handleVendorBlur}
+                    className={`w-full rounded-lg border p-2.5 outline-none transition text-slate-800 ${
+                      vendorErrors.email ? 'border-red-500 bg-red-50/30' : 'border-slate-200 focus:border-blue-500'
+                    }`}
                   />
+                  {vendorErrors.email && (
+                    <p className="mt-1 text-[11px] font-medium text-red-600">{vendorErrors.email}</p>
+                  )}
                 </div>
                 <div>
-                  <label className="block font-semibold text-slate-700 mb-1">Phone</label>
+                  <label className="block font-semibold text-slate-700 mb-1">
+                    Phone <span className="text-red-500">*</span>
+                  </label>
                   <input
                     type="text"
-                    required
-                    placeholder="+91 40 2434 0001"
-                    value={vPhone}
-                    onChange={(e) => setVPhone(e.target.value)}
-                    className="w-full rounded-lg border border-slate-200 p-2.5 outline-none focus:border-blue-500 text-slate-800"
+                    name="phone"
+                    placeholder="9840199882"
+                    value={vendorForm.phone}
+                    onChange={handleVendorChange}
+                    onBlur={handleVendorBlur}
+                    className={`w-full rounded-lg border p-2.5 outline-none transition text-slate-800 ${
+                      vendorErrors.phone ? 'border-red-500 bg-red-50/30' : 'border-slate-200 focus:border-blue-500'
+                    }`}
                   />
+                  {vendorErrors.phone && (
+                    <p className="mt-1 text-[11px] font-medium text-red-600">{vendorErrors.phone}</p>
+                  )}
                 </div>
               </div>
 
               <div className="grid grid-cols-2 gap-4">
                 <div>
-                  <label className="block font-semibold text-slate-700 mb-1">City</label>
+                  <label className="block font-semibold text-slate-700 mb-1">
+                    City <span className="text-red-500">*</span>
+                  </label>
                   <input
                     type="text"
-                    required
-                    value={vCity}
-                    onChange={(e) => setVCity(e.target.value)}
-                    className="w-full rounded-lg border border-slate-200 p-2.5 outline-none focus:border-blue-500 text-slate-800"
+                    name="city"
+                    value={vendorForm.city}
+                    onChange={handleVendorChange}
+                    onBlur={handleVendorBlur}
+                    className={`w-full rounded-lg border p-2.5 outline-none transition text-slate-800 ${
+                      vendorErrors.city ? 'border-red-500 bg-red-50/30' : 'border-slate-200 focus:border-blue-500'
+                    }`}
                   />
+                  {vendorErrors.city && (
+                    <p className="mt-1 text-[11px] font-medium text-red-600">{vendorErrors.city}</p>
+                  )}
                 </div>
                 <div>
-                  <label className="block font-semibold text-slate-700 mb-1">State</label>
-                  <input
-                    type="text"
-                    required
-                    value={vState}
-                    onChange={(e) => setVState(e.target.value)}
-                    className="w-full rounded-lg border border-slate-200 p-2.5 outline-none focus:border-blue-500 text-slate-800"
+                  <label className="block font-semibold text-slate-700 mb-1">
+                    Billing State <span className="text-red-500">*</span>
+                  </label>
+                  <Combobox
+                    value={vendorForm.billingState}
+                    onChange={(val) => {
+                      setVendorFieldValue('billingState', val);
+                      if (vendorForm.sameAsBilling) {
+                        setVendorFieldValue('shippingState', val);
+                      }
+                    }}
+                    options={INDIA_STATES_LIST.map((s: any) => ({
+                      value: s.name || s.value,
+                      label: s.label || s.name,
+                      sublabel: s.sublabel || `Code: ${s.code || s.stateCode}`,
+                    }))}
+                    placeholder="Select State..."
+                    searchable={true}
                   />
+                  {vendorErrors.billingState && (
+                    <p className="mt-1 text-[11px] font-medium text-red-600">{vendorErrors.billingState}</p>
+                  )}
                 </div>
               </div>
 
               <div>
-                <label className="block font-semibold text-slate-700 mb-1">Plant / Dispatch Address</label>
+                <label className="block font-semibold text-slate-700 mb-1">
+                  Plant / Billing Address <span className="text-red-500">*</span>
+                </label>
                 <textarea
                   rows={2}
-                  required
+                  name="billingAddress"
                   placeholder="e.g. PO Kanchanbagh, Hyderabad - 500058"
-                  value={vAddress}
-                  onChange={(e) => setVAddress(e.target.value)}
-                  className="w-full rounded-lg border border-slate-200 p-2.5 outline-none focus:border-blue-500 text-slate-800 text-xs resize-none"
+                  value={vendorForm.billingAddress}
+                  onChange={handleVendorChange}
+                  onBlur={handleVendorBlur}
+                  className={`w-full rounded-lg border p-2.5 outline-none transition text-slate-800 text-xs resize-none ${
+                    vendorErrors.billingAddress ? 'border-red-500 bg-red-50/30' : 'border-slate-200 focus:border-blue-500'
+                  }`}
                 />
+                {vendorErrors.billingAddress && (
+                  <p className="mt-1 text-[11px] font-medium text-red-600">{vendorErrors.billingAddress}</p>
+                )}
               </div>
+
+              <div className="rounded-lg border border-slate-200 p-3 bg-slate-50/50">
+                <label className="flex items-center gap-2 cursor-pointer font-medium text-slate-700 text-xs">
+                  <input
+                    type="checkbox"
+                    name="sameAsBilling"
+                    checked={vendorForm.sameAsBilling}
+                    onChange={handleVendorChange}
+                    className="h-4 w-4 rounded border-slate-300 text-blue-600"
+                  />
+                  <span>Shipping address same as plant / billing address</span>
+                </label>
+              </div>
+
+              {!vendorForm.sameAsBilling && (
+                <div className="space-y-3 pt-1">
+                  <div>
+                    <label className="block font-semibold text-slate-700 mb-1">Shipping State</label>
+                    <Combobox
+                      value={vendorForm.shippingState}
+                      onChange={(val) => setVendorFieldValue('shippingState', val)}
+                      options={INDIA_STATES_LIST.map((s: any) => ({
+                        value: s.name || s.value,
+                        label: s.label || s.name,
+                        sublabel: s.sublabel || `Code: ${s.code || s.stateCode}`,
+                      }))}
+                      placeholder="Select Shipping State..."
+                      searchable={true}
+                    />
+                  </div>
+                  <div>
+                    <label className="block font-semibold text-slate-700 mb-1">Shipping / Warehouse Address</label>
+                    <textarea
+                      rows={2}
+                      name="shippingAddress"
+                      placeholder="Shipping destination address"
+                      value={vendorForm.shippingAddress}
+                      onChange={handleVendorChange}
+                      className="w-full rounded-lg border border-slate-200 p-2.5 outline-none focus:border-blue-500 text-slate-800 text-xs resize-none"
+                    />
+                  </div>
+                </div>
+              )}
 
               <div className="flex justify-end gap-2 pt-3 border-t border-slate-200">
                 <button
                   type="button"
                   onClick={() => setIsAddVendorModalOpen(false)}
-                  className="rounded-lg border border-slate-200 px-4 py-2 font-semibold text-slate-600 hover:bg-slate-50 transition"
+                  className="rounded-lg border border-slate-200 px-4 py-2 font-semibold text-slate-600 hover:bg-slate-50 transition cursor-pointer"
                 >
                   Cancel
                 </button>
                 <button
                   type="submit"
-                  className="rounded-lg bg-blue-600 px-4 py-2 font-semibold text-white hover:bg-blue-700 transition shadow-xs"
+                  className="rounded-lg bg-blue-600 px-4 py-2 font-semibold text-white hover:bg-blue-700 transition shadow-xs cursor-pointer"
                 >
                   Save Vendor
                 </button>
