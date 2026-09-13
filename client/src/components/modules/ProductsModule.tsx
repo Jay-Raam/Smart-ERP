@@ -24,7 +24,7 @@ interface ProductsModuleProps {
 }
 
 export const ProductsModule: React.FC<ProductsModuleProps> = ({ initialOpenAdd = false }) => {
-  const { products, addProduct, approveProduct, rejectProduct } = useErpStore();
+  const { products, addProduct, approveProduct, rejectProduct, updateProductStatus } = useErpStore();
   const { user } = useAuthStore();
   const isSuperAdmin = user?.role === 'SuperAdmin';
 
@@ -192,6 +192,37 @@ export const ProductsModule: React.FC<ProductsModuleProps> = ({ initialOpenAdd =
             <XCircle className="h-3.5 w-3.5 text-rose-600" />
             Rejected
           </span>
+        );
+      },
+    },
+    {
+      key: 'status',
+      header: 'Active State',
+      sortable: true,
+      align: 'center',
+      render: (p) => {
+        const isActive = (p.status || 'ACTIVE') === 'ACTIVE';
+        return (
+          <button
+            type="button"
+            onClick={async () => {
+              const newStatus = isActive ? 'INACTIVE' : 'ACTIVE';
+              await updateProductStatus(p.id, newStatus);
+            }}
+            className={`inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-xs font-semibold transition cursor-pointer border ${
+              isActive
+                ? 'bg-emerald-50 text-emerald-700 border-emerald-300 hover:bg-emerald-100'
+                : 'bg-slate-100 text-slate-500 border-slate-300 hover:bg-slate-200'
+            }`}
+            title={`Click to switch to ${isActive ? 'INACTIVE' : 'ACTIVE'}`}
+          >
+            <span
+              className={`h-2 w-2 rounded-full ${
+                isActive ? 'bg-emerald-500 animate-pulse' : 'bg-slate-400'
+              }`}
+            />
+            <span>{isActive ? 'ACTIVE' : 'INACTIVE'}</span>
+          </button>
         );
       },
     },

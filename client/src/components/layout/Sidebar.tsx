@@ -15,6 +15,8 @@ import {
   ShieldCheck,
   Zap,
   BarChart3,
+  Landmark,
+  ArrowLeftRight,
 } from 'lucide-react';
 import { useErpStore } from '../../store/erpStore';
 import { useAuthStore } from '../../store/authStore';
@@ -30,6 +32,8 @@ export type ModuleType =
   | 'delivery'
   | 'branches'
   | 'financial-years'
+  | 'bank'
+  | 'transactions'
   | 'reports';
 
 interface NavItem {
@@ -68,6 +72,7 @@ export const Sidebar: React.FC<SidebarProps> = ({
     branches,
     financialYears,
     deliveryChallans,
+    bankAccounts,
     activeBranchId,
   } = useErpStore();
   const { user } = useAuthStore();
@@ -142,23 +147,37 @@ export const Sidebar: React.FC<SidebarProps> = ({
 
   const isSuperAdmin = Boolean(
     user?.role?.toLowerCase().replace(/\s+/g, '') === 'superadmin' ||
-      user?.role?.toLowerCase().includes('admin')
+      (user as any)?.isSuperAdmin
   );
 
-  if (isSuperAdmin) {
-    navigationSections.push({
-      title: 'Analytics & Audit',
-      items: [
-        {
-          id: 'reports' as ModuleType,
-          label: 'Executive Reports',
-          icon: BarChart3,
-          badge: '7 Reports',
-          badgeColor: 'bg-blue-50 text-blue-700 border border-blue-200',
-        },
-      ],
-    });
-  }
+  navigationSections.push({
+    title: 'Account',
+    items: [
+      {
+        id: 'bank' as ModuleType,
+        label: 'Bank',
+        icon: Landmark,
+        badge: bankAccounts.length > 0 ? `${bankAccounts.length}` : null,
+      },
+      {
+        id: 'transactions' as ModuleType,
+        label: 'Transaction',
+        icon: ArrowLeftRight,
+        badge: null,
+      },
+      ...(isSuperAdmin
+        ? [
+            {
+              id: 'reports' as ModuleType,
+              label: 'Reports',
+              icon: BarChart3,
+              badge: 'Super Admin',
+              badgeColor: 'bg-purple-50 text-purple-700 border border-purple-200',
+            },
+          ]
+        : []),
+    ],
+  });
 
   const getInitials = (name: string) => {
     return name

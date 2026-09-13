@@ -16,10 +16,20 @@ import { DataTable, ColumnDef } from '../../shared/DataTable';
 import { BillPdfDocument } from '../../pdf/BillPdfDocument';
 import { PdfPreviewModal } from '../../pdf/PdfPreviewModal';
 import { ExportModal, ExportColumn } from '../../shared/ExportModal';
+import { BillDetailPage } from './BillDetailPage';
+import { RecordPaymentModal } from '../../shared/RecordPaymentModal';
 
 export const BillModule: React.FC = () => {
   const { bills, updateBill } = useErpStore();
   const [selectedBillForPdf, setSelectedBillForPdf] = useState<Bill | null>(null);
+  const [selectedBillForPayment, setSelectedBillForPayment] = useState<Bill | null>(null);
+  const [viewingBillId, setViewingBillId] = useState<string | null>(() => {
+    if (typeof window !== 'undefined' && window.location.pathname.startsWith('/bills/')) {
+      const parts = window.location.pathname.split('/bills/');
+      if (parts[1]) return parts[1];
+    }
+    return null;
+  });
   const [isExportModalOpen, setIsExportModalOpen] = useState(false);
 
   const exportColumns: ExportColumn<Bill>[] = [
@@ -72,7 +82,18 @@ export const BillModule: React.FC = () => {
       key: 'billNumber',
       header: 'Bill Number',
       sortable: true,
-      render: (b) => <span className="font-mono font-bold text-blue-700">{b.billNumber}</span>,
+      render: (b) => (
+        <button
+          type="button"
+          onClick={() => {
+            setViewingBillId(b.id);
+            window.history.pushState(null, '', `/bills/${b.id}`);
+          }}
+          className="font-mono font-bold text-blue-700 hover:text-blue-900 hover:underline cursor-pointer"
+        >
+          {b.billNumber}
+        </button>
+      ),
     },
     {
       key: 'vendorName',
@@ -102,14 +123,8 @@ export const BillModule: React.FC = () => {
       render: (b) => <span className="text-slate-600">{b.billDate}</span>,
     },
     {
-      key: 'dueDate',
-      header: 'Due Date',
-      sortable: true,
-      render: (b) => <span className="text-slate-600">{b.dueDate || 'Immediate'}</span>,
-    },
-    {
       key: 'totalAmount',
-      header: 'Payable Amount',
+      header: 'Total Amount',
       sortable: true,
       align: 'right',
       render: (b) => (
@@ -119,24 +134,61 @@ export const BillModule: React.FC = () => {
       ),
     },
     {
-      key: 'status',
-      header: 'Status',
+      key: 'outstandingAmount',
+      header: 'Outstanding',
+      sortable: true,
+      align: 'right',
+      render: (b) => {
+        const out = b.outstandingAmount !== undefined ? b.outstandingAmount : (b.totalAmount - (b.paidAmount || 0) - (b.advanceAdjusted || 0));
+        return (
+          <span className={`font-mono font-semibold ${out > 0 ? 'text-blue-700' : 'text-slate-400'}`}>
+            ₹{Math.max(0, out).toLocaleString('en-IN')}
+          </span>
+        );
+      },
+    },
+    {
+      key: 'paymentStatus',
+      header: 'Payment',
+      sortable: true,
+      align: 'center',
+      render: (b) => {
+        const status = b.paymentStatus || (b.status === 'Paid' ? 'PAID' : 'UNPAID');
+        return (
+          <span
+            className={`inline-flex items-center gap-1 rounded-full px-2 py-0.5 text-[10px] font-semibold ${
+              status === 'PAID'
+                ? 'bg-emerald-50 text-emerald-700 border border-emerald-200'
+                : status === 'PARTIALLY_PAID'
+                ? 'bg-amber-50 text-amber-700 border border-amber-200'
+                : 'bg-rose-50 text-rose-700 border border-rose-200'
+            }`}
+          >
+            {status}
+          </span>
+        );
+      },
+    },
+    {
+      key: 'storeMovementStatus',
+      header: 'Store Inward',
       sortable: true,
       align: 'center',
       render: (b) => (
         <span
-          className={`inline-flex items-center gap-1 rounded-full px-2.5 py-0.5 text-[10px] font-semibold ${
-            b.status === 'Paid'
-              ? 'badge-success'
-              : b.status === 'Pending'
-              ? 'badge-warning'
-              : 'badge-danger'
+          className={`inline-flex items-center gap-1 rounded-full px-2 py-0.5 text-[10px] font-semibold ${
+            b.storeMovementStatus === 'FULLY_MOVED'
+              ? 'bg-purple-50 text-purple-700 border border-purple-200'
+              : b.storeMovementStatus === 'PARTIALLY_MOVED'
+              ? 'bg-indigo-50 text-indigo-700 border border-indigo-200'
+              : 'bg-slate-100 text-slate-500 border border-slate-200'
           }`}
         >
-          {b.status === 'Paid' && <CheckCircle2 className="h-3 w-3" />}
-          {b.status === 'Pending' && <Clock className="h-3 w-3" />}
-          {b.status === 'Overdue' && <AlertCircle className="h-3 w-3" />}
-          {b.status}
+          {b.storeMovementStatus === 'FULLY_MOVED'
+            ? 'In Store'
+            : b.storeMovementStatus === 'PARTIALLY_MOVED'
+            ? 'Partial In'
+            : 'Pending'}
         </span>
       ),
     },
@@ -144,28 +196,45 @@ export const BillModule: React.FC = () => {
       key: 'actions',
       header: 'Actions',
       align: 'right',
-      render: (b) => (
-        <div className="flex items-center justify-end gap-1.5">
-          {b.status === 'Pending' && (
+      render: (b) => {
+        const out = b.outstandingAmount !== undefined ? b.outstandingAmount : (b.totalAmount - (b.paidAmount || 0) - (b.advanceAdjusted || 0));
+        return (
+          <div className="flex items-center justify-end gap-1.5">
             <button
-              onClick={() => updateBill(b.id, { status: 'Paid' })}
-              className="inline-flex items-center gap-1 rounded-lg border border-emerald-200 bg-emerald-50 px-2 py-1 text-xs font-semibold text-emerald-700 hover:bg-emerald-100 transition cursor-pointer"
-              title="Mark Bill as Paid"
+              type="button"
+              onClick={() => {
+                setViewingBillId(b.id);
+                window.history.pushState(null, '', `/bills/${b.id}`);
+              }}
+              className="inline-flex items-center gap-1 rounded-lg border border-slate-200 bg-white px-2 py-1 text-xs font-semibold text-slate-700 hover:bg-slate-50 transition cursor-pointer shadow-xs"
+              title="View Complete Bill & Movement Details"
             >
-              <CheckCircle2 className="h-3.5 w-3.5" />
-              <span>Mark Paid</span>
+              <FileText className="h-3.5 w-3.5 text-slate-500" />
+              <span>Details</span>
             </button>
-          )}
-          <button
-            onClick={() => setSelectedBillForPdf(b)}
-            className="inline-flex items-center gap-1 rounded-lg border border-slate-200 bg-white px-2.5 py-1 text-xs font-semibold text-slate-700 hover:bg-slate-100 hover:text-blue-600 transition cursor-pointer"
-            title="View Vector PDF"
-          >
-            <Eye className="h-3.5 w-3.5" />
-            <span>PDF</span>
-          </button>
-        </div>
-      ),
+            {out > 0 && (
+              <button
+                type="button"
+                onClick={() => setSelectedBillForPayment(b)}
+                className="inline-flex items-center gap-1 rounded-lg border border-emerald-200 bg-emerald-50 px-2 py-1 text-xs font-semibold text-emerald-700 hover:bg-emerald-100 transition cursor-pointer"
+                title="Record Vendor Payment"
+              >
+                <DollarSign className="h-3.5 w-3.5" />
+                <span>Pay</span>
+              </button>
+            )}
+            <button
+              type="button"
+              onClick={() => setSelectedBillForPdf(b)}
+              className="inline-flex items-center gap-1 rounded-lg border border-slate-200 bg-white px-2 py-1 text-xs font-semibold text-slate-700 hover:bg-slate-100 hover:text-blue-600 transition cursor-pointer"
+              title="View Vector PDF"
+            >
+              <Eye className="h-3.5 w-3.5" />
+              <span>PDF</span>
+            </button>
+          </div>
+        );
+      },
     },
   ];
 
@@ -175,6 +244,18 @@ export const BillModule: React.FC = () => {
     { label: 'Paid', value: 'Paid' },
     { label: 'Overdue', value: 'Overdue' },
   ];
+
+  if (viewingBillId) {
+    return (
+      <BillDetailPage
+        billId={viewingBillId}
+        onBack={() => {
+          setViewingBillId(null);
+          window.history.pushState(null, '', '/bills');
+        }}
+      />
+    );
+  }
 
   return (
     <div className="space-y-6">
@@ -274,6 +355,25 @@ export const BillModule: React.FC = () => {
           { label: 'Approved', value: 'Approved' },
         ]}
       />
+
+      {/* Record Payment Modal */}
+      {selectedBillForPayment && (
+        <RecordPaymentModal
+          isOpen={true}
+          onClose={() => setSelectedBillForPayment(null)}
+          targetType="BILL"
+          documentId={selectedBillForPayment.id}
+          documentNumber={selectedBillForPayment.billNumber}
+          partyName={selectedBillForPayment.vendorName}
+          totalAmount={selectedBillForPayment.totalAmount}
+          paidAmount={(selectedBillForPayment.paidAmount || 0) + (selectedBillForPayment.advanceAdjusted || 0)}
+          outstandingAmount={
+            selectedBillForPayment.outstandingAmount !== undefined
+              ? selectedBillForPayment.outstandingAmount
+              : Math.max(0, selectedBillForPayment.totalAmount - (selectedBillForPayment.paidAmount || 0) - (selectedBillForPayment.advanceAdjusted || 0))
+          }
+        />
+      )}
     </div>
   );
 };

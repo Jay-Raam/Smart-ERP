@@ -12,6 +12,7 @@ import {
   Building,
   Trash2,
   Info,
+  DollarSign,
 } from 'lucide-react';
 import { useErpStore, Invoice, DocumentItem } from '../../store/erpStore';
 import { DataTable, ColumnDef } from '../shared/DataTable';
@@ -19,6 +20,7 @@ import { Combobox } from '../shared/Combobox';
 import { InvoicePrintModal } from './InvoicePrintModal';
 import { calculateDocumentTaxes, isStateTamilNadu } from '../../utils/taxCalculation';
 import { ExportModal, ExportColumn } from '../shared/ExportModal';
+import { RecordPaymentModal } from '../shared/RecordPaymentModal';
 
 interface InvoiceModuleProps {
   initialOpenAdd?: boolean;
@@ -28,6 +30,7 @@ export const InvoiceModule: React.FC<InvoiceModuleProps> = ({ initialOpenAdd = f
   const { invoices, customers, products, organisation, addInvoice } = useErpStore();
   const [isAddModalOpen, setIsAddModalOpen] = useState(false);
   const [viewInvoice, setViewInvoice] = useState<Invoice | null>(null);
+  const [selectedInvoiceForPayment, setSelectedInvoiceForPayment] = useState<Invoice | null>(null);
   const [isExportModalOpen, setIsExportModalOpen] = useState(false);
 
   const exportColumns: ExportColumn<Invoice>[] = [
@@ -248,16 +251,32 @@ export const InvoiceModule: React.FC<InvoiceModuleProps> = ({ initialOpenAdd = f
       header: 'Actions',
       sortable: false,
       align: 'right',
-      render: (inv) => (
-        <button
-          type="button"
-          onClick={() => setViewInvoice(inv)}
-          className="inline-flex items-center gap-1 rounded-lg border border-slate-200 bg-white px-2.5 py-1 text-xs font-semibold text-slate-700 hover:bg-slate-100 hover:text-blue-600 transition cursor-pointer"
-        >
-          <Eye className="h-3.5 w-3.5" />
-          <span>View</span>
-        </button>
-      ),
+      render: (inv) => {
+        const out = inv.outstandingAmount !== undefined ? inv.outstandingAmount : (inv.status === 'Paid' ? 0 : inv.totalAmount);
+        return (
+          <div className="flex items-center justify-end gap-1.5">
+            {out > 0 && (
+              <button
+                type="button"
+                onClick={() => setSelectedInvoiceForPayment(inv)}
+                className="inline-flex items-center gap-1 rounded-lg border border-emerald-200 bg-emerald-50 px-2 py-1 text-xs font-semibold text-emerald-700 hover:bg-emerald-100 transition cursor-pointer"
+                title="Record Customer Payment"
+              >
+                <DollarSign className="h-3.5 w-3.5" />
+                <span>Pay</span>
+              </button>
+            )}
+            <button
+              type="button"
+              onClick={() => setViewInvoice(inv)}
+              className="inline-flex items-center gap-1 rounded-lg border border-slate-200 bg-white px-2.5 py-1 text-xs font-semibold text-slate-700 hover:bg-slate-100 hover:text-blue-600 transition cursor-pointer"
+            >
+              <Eye className="h-3.5 w-3.5" />
+              <span>View</span>
+            </button>
+          </div>
+        );
+      },
     },
   ];
 
@@ -666,6 +685,25 @@ export const InvoiceModule: React.FC<InvoiceModuleProps> = ({ initialOpenAdd = f
             </form>
           </div>
         </div>
+      )}
+
+      {/* Record Customer Payment Modal */}
+      {selectedInvoiceForPayment && (
+        <RecordPaymentModal
+          isOpen={true}
+          onClose={() => setSelectedInvoiceForPayment(null)}
+          targetType="INVOICE"
+          documentId={selectedInvoiceForPayment.id}
+          documentNumber={selectedInvoiceForPayment.invoiceNumber}
+          partyName={selectedInvoiceForPayment.customerName}
+          totalAmount={selectedInvoiceForPayment.totalAmount}
+          paidAmount={selectedInvoiceForPayment.paidAmount || (selectedInvoiceForPayment.status === 'Paid' ? selectedInvoiceForPayment.totalAmount : 0)}
+          outstandingAmount={
+            selectedInvoiceForPayment.outstandingAmount !== undefined
+              ? selectedInvoiceForPayment.outstandingAmount
+              : Math.max(0, selectedInvoiceForPayment.totalAmount - (selectedInvoiceForPayment.paidAmount || 0))
+          }
+        />
       )}
     </div>
   );

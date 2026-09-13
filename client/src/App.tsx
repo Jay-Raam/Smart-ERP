@@ -24,6 +24,8 @@ import { DeliveryModule } from './components/modules/DeliveryModule';
 import { BranchModule } from './components/modules/BranchModule';
 import { FinancialYearModule } from './components/modules/FinancialYearModule';
 import { ReportsModule } from './components/modules/reports/ReportsModule';
+import { BankModule } from './components/modules/banking/BankModule';
+import { TransactionModule } from './components/modules/banking/TransactionModule';
 
 export function App() {
   const { isAuthenticated, checkSession, logout } = useAuthStore();
@@ -31,10 +33,12 @@ export function App() {
   const [activeModule, setActiveModule] = useState<ModuleType>(() => {
     if (typeof window !== 'undefined') {
       const p = window.location.pathname;
-      if (p === '/bills') return 'bills';
+      if (p.startsWith('/bills')) return 'bills';
       if (p === '/invoices') return 'invoices';
       if (p === '/purchase-orders') return 'purchase';
       if (p === '/reports') return 'reports';
+      if (p === '/bank') return 'bank';
+      if (p === '/transactions') return 'transactions';
     }
     return 'dashboard';
   });
@@ -65,10 +69,12 @@ export function App() {
     const handlePopState = () => {
       const path = window.location.pathname;
       setCurrentPath(path);
-      if (path === '/bills') setActiveModule('bills');
+      if (path.startsWith('/bills')) setActiveModule('bills');
       else if (path === '/invoices') setActiveModule('invoices');
       else if (path === '/purchase-orders') setActiveModule('purchase');
       else if (path === '/reports') setActiveModule('reports');
+      else if (path === '/bank') setActiveModule('bank');
+      else if (path === '/transactions') setActiveModule('transactions');
     };
     window.addEventListener('popstate', handlePopState);
     return () => window.removeEventListener('popstate', handlePopState);
@@ -207,6 +213,8 @@ export function App() {
                 {activeModule === 'delivery' && <DeliveryModule />}
                 {activeModule === 'branches' && <BranchModule />}
                 {activeModule === 'financial-years' && <FinancialYearModule />}
+                {activeModule === 'bank' && <BankModule />}
+                {activeModule === 'transactions' && <TransactionModule />}
                 {activeModule === 'reports' && <ReportsModule />}
               </>
             )}

@@ -18,6 +18,7 @@ import { calculateDocumentTaxes, isStateTamilNadu } from '../../../utils/taxCalc
 import { useFormValidation, isValidQuantity } from '../../../utils/validation';
 import { BillPdfDocument } from '../../pdf/BillPdfDocument';
 import { PdfPreviewModal } from '../../pdf/PdfPreviewModal';
+import { showAppToast } from '../../../utils/handleApiError';
 
 interface BillFormData {
   vendorId: string;
@@ -50,6 +51,9 @@ export const BillCreatePage: React.FC = () => {
     productName: string;
     hsnCode: string;
     quantity: number;
+    orderedQuantity?: number;
+    billedQuantity?: number;
+    remainingQuantity?: number;
     unitPrice: number;
     uom: string;
     discountPercent: number;
@@ -59,9 +63,11 @@ export const BillCreatePage: React.FC = () => {
   const [createdBill, setCreatedBill] = useState<Bill | null>(null);
   const [isPdfModalOpen, setIsPdfModalOpen] = useState(false);
 
-  // Filter approved products only
+  // Filter approved and ACTIVE products only
   const approvedProducts = useMemo(() => {
-    return products.filter((p) => (p.approvalStatus || 'Approved') === 'Approved');
+    return products.filter(
+      (p) => (p.approvalStatus || 'Approved') === 'Approved' && (p.status || 'ACTIVE') === 'ACTIVE'
+    );
   }, [products]);
 
   // Read URL query params on mount (e.g. ?poId=...)
@@ -74,9 +80,19 @@ export const BillCreatePage: React.FC = () => {
     }
   }, []);
 
-  // Approved POs available for conversion
+  // Approved POs available for conversion (exclude fully billed)
   const approvedPOs = useMemo(() => {
-    return purchaseOrders.filter((po) => po.status === 'Approved' || po.status === 'Received');
+    return purchaseOrders.filter((po) => {
+      if (po.status === 'FULLY_BILLED' || po.status === 'Cancelled' || po.status === 'AUTO_REORDER_PENDING') {
+        return false;
+      }
+      const hasRemaining = (po.items || []).some((item) => {
+        const billed = item.billedQuantity ?? 0;
+        const rem = item.remainingQuantity !== undefined ? item.remainingQuantity : item.quantity - billed;
+        return rem > 0;
+      });
+      return hasRemaining || po.status === 'Approved' || po.status === 'PARTIALLY_BILLED';
+    });
   }, [purchaseOrders]);
 
   // Form Validation
@@ -127,16 +143,28 @@ export const BillCreatePage: React.FC = () => {
         setFieldValue('vendorId', po.vendorId || '');
         setFieldValue('shippingCharge', po.shippingCharge || 0);
         setLineItems(
-          po.items.map((item) => ({
-            productId: item.productId,
-            productName: item.productName,
-            hsnCode: item.hsnCode || '81089010',
-            quantity: item.quantity,
-            unitPrice: item.unitPrice,
-            uom: item.uom || 'Nos',
-            discountPercent: item.discountPercent || 0,
-            taxRate: item.taxRate ?? 18,
-          }))
+          (po.items || [])
+            .map((item) => {
+              const billed = item.billedQuantity ?? 0;
+              const remaining =
+                item.remainingQuantity !== undefined
+                  ? item.remainingQuantity
+                  : Math.max(0, item.quantity - billed);
+              return {
+                productId: item.productId,
+                productName: item.productName,
+                hsnCode: item.hsnCode || '81089010',
+                orderedQuantity: item.orderedQuantity ?? item.quantity,
+                billedQuantity: billed,
+                remainingQuantity: remaining,
+                quantity: remaining,
+                unitPrice: item.unitPrice,
+                uom: item.uom || 'Nos',
+                discountPercent: item.discountPercent || 0,
+                taxRate: item.taxRate ?? 18,
+              };
+            })
+            .filter((i) => (i.remainingQuantity ?? 0) > 0)
         );
       }
     }
@@ -165,6 +193,10 @@ export const BillCreatePage: React.FC = () => {
   const activeVendor = useMemo(() => {
     return vendors.find((v) => v.id === selectedVendorId) || vendors[0];
   }, [vendors, selectedVendorId]);
+
+  const selectedPo = useMemo(() => {
+    return creationMode === 'po' ? purchaseOrders.find((p) => p.id === selectedPoId) : null;
+  }, [creationMode, selectedPoId, purchaseOrders]);
 
   const vendorState = activeVendor?.billingState || activeVendor?.state || 'Tamil Nadu';
   const vendorGstin = activeVendor?.gstin || '';
@@ -465,6 +497,21 @@ export const BillCreatePage: React.FC = () => {
           </div>
         </div>
 
+        {/* Advance Payment Banner */}
+        {creationMode === 'po' && selectedPo && (selectedPo.paidAmount || 0) > 0 && (
+          <div className="p-4 bg-indigo-50 border border-indigo-200 rounded-2xl flex items-center justify-between text-xs">
+            <div className="flex items-center gap-2 text-indigo-950 font-medium">
+              <DollarSign className="h-5 w-5 text-indigo-600 shrink-0" />
+              <span>
+                <strong>Vendor Advance Available on PO:</strong> ₹{(selectedPo.paidAmount || 0).toLocaleString('en-IN', { minimumFractionDigits: 2 })}
+              </span>
+            </div>
+            <span className="text-[11px] text-indigo-700 font-semibold bg-white/80 border border-indigo-200 px-2.5 py-1 rounded-lg">
+              Will be automatically adjusted against this Bill
+            </span>
+          </div>
+        )}
+
         {/* Line Items Table */}
         <div className="rounded-2xl border border-slate-200 bg-white p-5 shadow-xs space-y-4">
           <div className="flex items-center justify-between">
@@ -521,14 +568,38 @@ export const BillCreatePage: React.FC = () => {
 
                 {/* Quantity */}
                 <div className="col-span-2">
-                  <label className="block text-[10px] text-slate-500 font-medium mb-1">Qty ({item.uom})</label>
+                  <div className="flex items-center justify-between mb-1">
+                    <label className="block text-[10px] text-slate-500 font-medium">Qty ({item.uom})</label>
+                    {creationMode === 'po' && item.remainingQuantity !== undefined && (
+                      <span className="text-[9px] font-mono text-blue-600 font-bold">
+                        Rem: {item.remainingQuantity}
+                      </span>
+                    )}
+                  </div>
                   <input
                     type="number"
                     min="1"
+                    max={creationMode === 'po' && item.remainingQuantity !== undefined ? item.remainingQuantity : undefined}
                     value={item.quantity}
-                    onChange={(e) => handleQuantityChange(idx, e.target.value)}
-                    className="w-full rounded-lg border border-slate-200 bg-white p-2 font-mono text-right outline-none focus:border-blue-500 text-slate-800"
+                    onChange={(e) => {
+                      const val = Number(e.target.value);
+                      if (creationMode === 'po' && item.remainingQuantity !== undefined && val > item.remainingQuantity) {
+                        showAppToast(`Quantity cannot exceed remaining PO quantity of ${item.remainingQuantity}`, 'warning');
+                        return;
+                      }
+                      handleQuantityChange(idx, e.target.value);
+                    }}
+                    className={`w-full rounded-lg border bg-white p-2 font-mono text-right outline-none text-slate-800 ${
+                      creationMode === 'po' && item.remainingQuantity !== undefined && item.quantity > item.remainingQuantity
+                        ? 'border-red-500 bg-red-50/40'
+                        : 'border-slate-200 focus:border-blue-500'
+                    }`}
                   />
+                  {creationMode === 'po' && (
+                    <div className="text-[9px] text-slate-400 mt-0.5 text-right font-mono">
+                      Ord: {item.orderedQuantity ?? item.quantity} &bull; Billed: {item.billedQuantity ?? 0}
+                    </div>
+                  )}
                 </div>
 
                 {/* Rate */}
