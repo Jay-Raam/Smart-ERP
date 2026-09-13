@@ -104,11 +104,22 @@ export const Sidebar: React.FC<SidebarProps> = ({
   ];
 
   return (
-    <aside
-      className={`relative flex flex-col h-screen shrink-0 border-r border-slate-200 bg-white transition-all duration-300 ${
-        isCollapsed ? 'w-20' : 'w-64'
-      } z-20 select-none shadow-sm overflow-hidden`}
-    >
+    <>
+      {/* Mobile Backdrop Overlay */}
+      {!isCollapsed && (
+        <div
+          className="fixed inset-0 z-40 bg-slate-900/40 backdrop-blur-xs lg:hidden animate-in fade-in duration-150"
+          onClick={() => setIsCollapsed(true)}
+        />
+      )}
+
+      <aside
+        className={`fixed inset-y-0 left-0 z-50 lg:static flex flex-col h-screen shrink-0 border-r border-slate-200 bg-white transition-all duration-300 ${
+          isCollapsed
+            ? '-translate-x-full lg:translate-x-0 lg:w-20'
+            : 'translate-x-0 w-64 shadow-xl lg:shadow-none'
+        } select-none overflow-hidden`}
+      >
       {/* Brand Header */}
       <div className="flex h-16 items-center justify-between border-b border-slate-200 px-4">
         {!isCollapsed ? (
@@ -210,5 +221,6 @@ export const Sidebar: React.FC<SidebarProps> = ({
         </div>
       )}
     </aside>
+    </>
   );
 };
