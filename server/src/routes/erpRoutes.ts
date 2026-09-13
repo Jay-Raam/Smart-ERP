@@ -879,10 +879,15 @@ erpRouter.get('/customers', async (req: Request, res: Response) => {
 
 erpRouter.post('/customers', async (req: Request, res: Response) => {
   try {
+    const { creditLimit } = req.body;
+    if (creditLimit !== undefined && Number(creditLimit) <= 10000) {
+      return res.status(400).json({ error: 'Credit limit must be strictly more than ₹10,000' });
+    }
     const count = (await Customer.countDocuments()) + 1;
     const code = `CUST-${String(req.body.name).slice(0, 4).toUpperCase()}-${count}`;
     const customer = await Customer.create({
       ...req.body,
+      creditLimit: Number(creditLimit) || 10001,
       code,
     });
     res.status(201).json({ ...customer.toObject(), id: customer._id.toString() });
@@ -893,6 +898,9 @@ erpRouter.post('/customers', async (req: Request, res: Response) => {
 
 erpRouter.patch('/customers/:id', async (req: Request, res: Response) => {
   try {
+    if (req.body.creditLimit !== undefined && Number(req.body.creditLimit) <= 10000) {
+      return res.status(400).json({ error: 'Credit limit must be strictly more than ₹10,000' });
+    }
     const updated = await Customer.findByIdAndUpdate(req.params.id, req.body, { new: true });
     if (!updated) return res.status(404).json({ error: 'Customer not found' });
     res.json({ ...updated.toObject(), id: updated._id.toString() });
