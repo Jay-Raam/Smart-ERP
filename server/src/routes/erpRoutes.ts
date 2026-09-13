@@ -9,11 +9,13 @@ import {
   SalesOrder,
   Invoice,
   PurchaseOrder,
+  Vendor,
   StoreItem,
   DeliveryChallan,
   UserAccount,
 } from '../models/ErpModels';
 import { generateTokens, verifyAccessToken } from '../security/auth';
+import { calculateDocumentTaxes } from '../utils/taxCalculation';
 
 export const erpRouter = Router();
 
@@ -214,6 +216,7 @@ erpRouter.get('/bootstrap', async (req: Request, res: Response) => {
       salesOrders,
       invoices,
       purchaseOrders,
+      vendors,
       storeItems,
       deliveryChallans,
     ] = await Promise.all([
@@ -222,6 +225,7 @@ erpRouter.get('/bootstrap', async (req: Request, res: Response) => {
       SalesOrder.find(txFilter).sort({ createdAt: -1 }),
       Invoice.find(txFilter).sort({ createdAt: -1 }),
       PurchaseOrder.find(txFilter).sort({ createdAt: -1 }),
+      Vendor.find(finalOrgId ? { organisationId: finalOrgId } : {}).sort({ createdAt: -1 }),
       StoreItem.find(storeFilter).sort({ createdAt: -1 }),
       DeliveryChallan.find(txFilter).sort({ createdAt: -1 }),
     ]);
@@ -255,8 +259,13 @@ erpRouter.get('/bootstrap', async (req: Request, res: Response) => {
         contactPerson: c.contactPerson,
         email: c.email,
         phone: c.phone,
+        address: c.address || '',
+        billingAddress: c.billingAddress || c.address || '',
+        shippingAddress: c.shippingAddress || c.address || '',
         city: c.city,
         state: c.state,
+        billingState: c.billingState || c.state || 'Tamil Nadu',
+        shippingState: c.shippingState || c.state || 'Tamil Nadu',
         gstin: c.gstin,
         outstandingBalance: c.outstandingBalance,
         creditLimit: c.creditLimit,
@@ -274,6 +283,10 @@ erpRouter.get('/bootstrap', async (req: Request, res: Response) => {
         purchaseCost: p.purchaseCost,
         currentStock: p.currentStock,
         minReorderLevel: p.minReorderLevel,
+        taxRate: p.taxRate ?? 18,
+        approvalStatus: p.approvalStatus || 'Approved',
+        approvedBy: p.approvedBy || '',
+        approvedAt: p.approvedAt,
         organisationId: p.organisationId,
         branchId: p.branchId,
       })),
@@ -299,29 +312,69 @@ erpRouter.get('/bootstrap', async (req: Request, res: Response) => {
         salesOrderNumber: inv.salesOrderNumber,
         customerId: inv.customerId,
         customerName: inv.customerName,
+        customerGstin: inv.customerGstin || '',
+        customerState: inv.customerState || 'Tamil Nadu',
+        billingAddress: inv.billingAddress || '',
+        shippingAddress: inv.shippingAddress || '',
         invoiceDate: inv.invoiceDate,
         dueDate: inv.dueDate,
         branchId: inv.branchId,
         organisationId: inv.organisationId,
         financialYear: inv.financialYear,
+        items: inv.items || [],
         subtotal: inv.subtotal,
+        taxableAmount: inv.taxableAmount || inv.subtotal,
+        totalDiscount: inv.totalDiscount || 0,
         gstRate: inv.gstRate,
+        cgstAmount: inv.cgstAmount || 0,
+        sgstAmount: inv.sgstAmount || 0,
+        igstAmount: inv.igstAmount || 0,
         taxAmount: inv.taxAmount,
         totalAmount: inv.totalAmount,
+        totalInWords: inv.totalInWords || '',
         status: inv.status,
       })),
       purchaseOrders: purchaseOrders.map((po) => ({
         id: po._id.toString(),
         poNumber: po.poNumber,
+        vendorId: po.vendorId || '',
         vendorName: po.vendorName,
         vendorGstin: po.vendorGstin,
+        vendorAddress: po.vendorAddress || '',
+        vendorState: po.vendorState || 'Tamil Nadu',
+        billingAddress: po.billingAddress || '',
+        shippingAddress: po.shippingAddress || '',
         poDate: po.poDate,
         expectedDate: po.expectedDate,
         branchId: po.branchId,
         organisationId: po.organisationId,
         financialYear: po.financialYear,
+        items: po.items || [],
+        subtotal: po.subtotal,
+        taxableAmount: po.taxableAmount || po.subtotal,
+        totalDiscount: po.totalDiscount || 0,
+        cgstAmount: po.cgstAmount || 0,
+        sgstAmount: po.sgstAmount || 0,
+        igstAmount: po.igstAmount || 0,
+        taxAmount: po.taxAmount,
         totalAmount: po.totalAmount,
+        totalInWords: po.totalInWords || '',
         status: po.status,
+      })),
+      vendors: vendors.map((v) => ({
+        id: v._id.toString(),
+        code: v.code,
+        name: v.name,
+        contactPerson: v.contactPerson,
+        email: v.email,
+        phone: v.phone,
+        address: v.address,
+        city: v.city,
+        state: v.state,
+        gstin: v.gstin,
+        pan: v.pan,
+        organisationId: v.organisationId,
+        branchId: v.branchId,
       })),
       storeItems: storeItems.map((st) => ({
         id: st._id.toString(),
@@ -545,11 +598,43 @@ erpRouter.get('/invoices', async (req: Request, res: Response) => {
 
 erpRouter.post('/invoices', async (req: Request, res: Response) => {
   try {
+    const { items, customerState, customerGstin } = req.body;
+
+    // Check that all selected products are approved by Super Admin
+    if (items && Array.isArray(items) && items.length > 0) {
+      const productIds = items.map((it: any) => it.productId).filter(Boolean);
+      if (productIds.length > 0) {
+        const unapproved = await Product.find({
+          _id: { $in: productIds },
+          approvalStatus: { $ne: 'Approved' },
+        });
+        if (unapproved.length > 0) {
+          return res.status(400).json({
+            error: `Product "${unapproved[0].name}" is not approved. Only Super Admin approved products can be invoiced.`,
+          });
+        }
+      }
+    }
+
     const count = (await Invoice.countDocuments()) + 1;
     const invoiceNumber = `INV-2026-00${count}`;
+
+    // Dynamic state-based GST calculation
+    const taxResult = calculateDocumentTaxes(items || [], customerState, customerGstin);
+
     const invoice = await Invoice.create({
       ...req.body,
       invoiceNumber,
+      items: taxResult.items,
+      subtotal: taxResult.subtotal,
+      taxableAmount: taxResult.taxableAmount,
+      totalDiscount: taxResult.totalDiscount,
+      cgstAmount: taxResult.cgstAmount,
+      sgstAmount: taxResult.sgstAmount,
+      igstAmount: taxResult.igstAmount,
+      taxAmount: taxResult.totalTax,
+      totalAmount: taxResult.grandTotal,
+      totalInWords: taxResult.totalInWords,
     });
     res.status(201).json({ ...invoice.toObject(), id: invoice._id.toString() });
   } catch (err: any) {
@@ -613,11 +698,43 @@ erpRouter.get('/purchase-orders', async (req: Request, res: Response) => {
 
 erpRouter.post('/purchase-orders', async (req: Request, res: Response) => {
   try {
+    const { items, vendorState, vendorGstin } = req.body;
+
+    // Check that all selected products are approved by Super Admin
+    if (items && Array.isArray(items) && items.length > 0) {
+      const productIds = items.map((it: any) => it.productId).filter(Boolean);
+      if (productIds.length > 0) {
+        const unapproved = await Product.find({
+          _id: { $in: productIds },
+          approvalStatus: { $ne: 'Approved' },
+        });
+        if (unapproved.length > 0) {
+          return res.status(400).json({
+            error: `Product "${unapproved[0].name}" is not approved. Only Super Admin approved products can be purchased.`,
+          });
+        }
+      }
+    }
+
     const count = (await PurchaseOrder.countDocuments()) + 44;
     const poNumber = `PO-2026-0${count}`;
+
+    // Dynamic state-based GST calculation
+    const taxResult = calculateDocumentTaxes(items || [], vendorState, vendorGstin);
+
     const po = await PurchaseOrder.create({
       ...req.body,
       poNumber,
+      items: taxResult.items,
+      subtotal: taxResult.subtotal,
+      taxableAmount: taxResult.taxableAmount,
+      totalDiscount: taxResult.totalDiscount,
+      cgstAmount: taxResult.cgstAmount,
+      sgstAmount: taxResult.sgstAmount,
+      igstAmount: taxResult.igstAmount,
+      taxAmount: taxResult.totalTax,
+      totalAmount: taxResult.grandTotal,
+      totalInWords: taxResult.totalInWords,
     });
     res.status(201).json({ ...po.toObject(), id: po._id.toString() });
   } catch (err: any) {
@@ -630,8 +747,11 @@ erpRouter.post('/purchase-orders', async (req: Request, res: Response) => {
 // ==========================================
 erpRouter.get('/products', async (req: Request, res: Response) => {
   try {
-    const { organisationId } = req.query;
-    const query = organisationId ? { organisationId } : {};
+    const { organisationId, approvedOnly } = req.query;
+    const query: any = organisationId ? { organisationId } : {};
+    if (approvedOnly === 'true') {
+      query.approvalStatus = 'Approved';
+    }
     const products = await Product.find(query).sort({ createdAt: -1 });
     res.json(products.map((p) => ({ ...p.toObject(), id: p._id.toString() })));
   } catch (err: any) {
@@ -641,22 +761,64 @@ erpRouter.get('/products', async (req: Request, res: Response) => {
 
 erpRouter.post('/products', async (req: Request, res: Response) => {
   try {
-    const product = await Product.create(req.body);
+    const product = await Product.create({
+      ...req.body,
+      taxRate: req.body.taxRate !== undefined ? Number(req.body.taxRate) : 18,
+      approvalStatus: 'Pending',
+    });
     await StoreItem.create({
       productId: product._id.toString(),
       productName: product.name,
       sku: product.sku,
       warehouse: 'Chennai Central Depot',
       binLocation: 'BIN-GEN-01',
-      availableStock: product.currentStock,
-      minLevel: product.minReorderLevel,
+      availableStock: product.currentStock || 0,
+      minLevel: product.minReorderLevel || 10,
       maxLevel: 500,
       lastAudited: new Date().toISOString().split('T')[0],
-      status: product.currentStock <= product.minReorderLevel ? 'Low Stock' : 'In Stock',
+      status: (product.currentStock || 0) <= (product.minReorderLevel || 10) ? 'Low Stock' : 'In Stock',
       branchId: req.body.branchId || '',
       organisationId: req.body.organisationId || '',
     });
     res.status(201).json({ ...product.toObject(), id: product._id.toString() });
+  } catch (err: any) {
+    res.status(400).json({ error: err.message });
+  }
+});
+
+erpRouter.patch('/products/:id/approve', async (req: Request, res: Response) => {
+  try {
+    const { id } = req.params;
+    const updated = await Product.findByIdAndUpdate(
+      id,
+      {
+        approvalStatus: 'Approved',
+        approvedBy: req.body.approvedBy || 'SuperAdmin',
+        approvedAt: new Date(),
+      },
+      { new: true }
+    );
+    if (!updated) return res.status(404).json({ error: 'Product not found' });
+    res.json({ ...updated.toObject(), id: updated._id.toString() });
+  } catch (err: any) {
+    res.status(400).json({ error: err.message });
+  }
+});
+
+erpRouter.patch('/products/:id/reject', async (req: Request, res: Response) => {
+  try {
+    const { id } = req.params;
+    const updated = await Product.findByIdAndUpdate(
+      id,
+      {
+        approvalStatus: 'Rejected',
+        approvedBy: req.body.approvedBy || 'SuperAdmin',
+        approvedAt: new Date(),
+      },
+      { new: true }
+    );
+    if (!updated) return res.status(404).json({ error: 'Product not found' });
+    res.json({ ...updated.toObject(), id: updated._id.toString() });
   } catch (err: any) {
     res.status(400).json({ error: err.message });
   }
@@ -726,6 +888,65 @@ erpRouter.post('/customers', async (req: Request, res: Response) => {
     res.status(201).json({ ...customer.toObject(), id: customer._id.toString() });
   } catch (err: any) {
     res.status(400).json({ error: err.message });
+  }
+});
+
+erpRouter.patch('/customers/:id', async (req: Request, res: Response) => {
+  try {
+    const updated = await Customer.findByIdAndUpdate(req.params.id, req.body, { new: true });
+    if (!updated) return res.status(404).json({ error: 'Customer not found' });
+    res.json({ ...updated.toObject(), id: updated._id.toString() });
+  } catch (err: any) {
+    res.status(400).json({ error: err.message });
+  }
+});
+
+// ==========================================
+// 8B. VENDORS
+// ==========================================
+erpRouter.get('/vendors', async (req: Request, res: Response) => {
+  try {
+    const { organisationId } = req.query;
+    const query: any = {};
+    if (organisationId) query.organisationId = organisationId;
+
+    const vendors = await Vendor.find(query).sort({ createdAt: -1 });
+    res.json(vendors.map((v) => ({ ...v.toObject(), id: v._id.toString() })));
+  } catch (err: any) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+erpRouter.post('/vendors', async (req: Request, res: Response) => {
+  try {
+    const count = (await Vendor.countDocuments()) + 1;
+    const code = req.body.code || `VEND-${String(req.body.name).slice(0, 4).toUpperCase()}-${count}`;
+    const vendor = await Vendor.create({
+      ...req.body,
+      code,
+    });
+    res.status(201).json({ ...vendor.toObject(), id: vendor._id.toString() });
+  } catch (err: any) {
+    res.status(400).json({ error: err.message });
+  }
+});
+
+erpRouter.patch('/vendors/:id', async (req: Request, res: Response) => {
+  try {
+    const updated = await Vendor.findByIdAndUpdate(req.params.id, req.body, { new: true });
+    if (!updated) return res.status(404).json({ error: 'Vendor not found' });
+    res.json({ ...updated.toObject(), id: updated._id.toString() });
+  } catch (err: any) {
+    res.status(400).json({ error: err.message });
+  }
+});
+
+erpRouter.delete('/vendors/:id', async (req: Request, res: Response) => {
+  try {
+    await Vendor.findByIdAndDelete(req.params.id);
+    res.json({ success: true });
+  } catch (err: any) {
+    res.status(500).json({ error: err.message });
   }
 });
 

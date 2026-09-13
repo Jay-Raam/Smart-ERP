@@ -30,11 +30,32 @@ export interface Customer {
   contactPerson: string;
   email: string;
   phone: string;
+  address?: string;
+  billingAddress?: string;
+  shippingAddress?: string;
   city: string;
   state: string;
+  billingState?: string;
+  shippingState?: string;
   gstin: string;
   outstandingBalance: number;
   creditLimit: number;
+  organisationId?: string;
+  branchId?: string;
+}
+
+export interface Vendor {
+  id: string;
+  code: string;
+  name: string;
+  contactPerson?: string;
+  email?: string;
+  phone?: string;
+  address?: string;
+  city?: string;
+  state?: string;
+  gstin?: string;
+  pan?: string;
   organisationId?: string;
   branchId?: string;
 }
@@ -47,11 +68,35 @@ export interface Product {
   category: string;
   uom: string; // Nos, Kg, Mtr, Box
   sellingPrice: number;
-  purchaseCost: number;
+  purchaseCost?: number;
   currentStock: number;
   minReorderLevel: number;
+  taxRate: number;
+  approvalStatus: 'Pending' | 'Approved' | 'Rejected';
+  approvedBy?: string;
+  approvedAt?: string;
   organisationId?: string;
   branchId?: string;
+}
+
+export interface DocumentItem {
+  id?: string;
+  productId: string;
+  productName: string;
+  sku?: string;
+  hsnCode: string;
+  quantity: number;
+  unitPrice: number;
+  uom?: string;
+  discountAmount?: number;
+  discountPercent?: number;
+  taxRate: number;
+  taxableAmount?: number;
+  cgstAmount?: number;
+  sgstAmount?: number;
+  igstAmount?: number;
+  totalTax?: number;
+  totalAmount?: number;
 }
 
 export interface SalesOrderItem {
@@ -83,32 +128,57 @@ export interface SalesOrder {
 export interface Invoice {
   id: string;
   invoiceNumber: string;
-  salesOrderNumber: string;
+  salesOrderNumber?: string;
   customerId: string;
   customerName: string;
+  customerGstin?: string;
+  customerState?: string;
+  billingAddress?: string;
+  shippingAddress?: string;
   invoiceDate: string;
   dueDate: string;
   branchId?: string;
   organisationId?: string;
   financialYear?: string;
+  items: DocumentItem[];
   subtotal: number;
+  taxableAmount: number;
+  totalDiscount?: number;
   gstRate: number;
+  cgstAmount?: number;
+  sgstAmount?: number;
+  igstAmount?: number;
   taxAmount: number;
   totalAmount: number;
+  totalInWords?: string;
   status: 'Paid' | 'Pending' | 'Overdue';
 }
 
 export interface PurchaseOrder {
   id: string;
   poNumber: string;
+  vendorId?: string;
   vendorName: string;
-  vendorGstin: string;
+  vendorGstin?: string;
+  vendorAddress?: string;
+  vendorState?: string;
+  billingAddress?: string;
+  shippingAddress?: string;
   poDate: string;
   expectedDate: string;
   branchId: string;
   organisationId?: string;
   financialYear?: string;
+  items: DocumentItem[];
+  subtotal: number;
+  taxableAmount: number;
+  totalDiscount?: number;
+  cgstAmount?: number;
+  sgstAmount?: number;
+  igstAmount?: number;
+  taxAmount: number;
   totalAmount: number;
+  totalInWords?: string;
   status: 'Approved' | 'Pending Approval' | 'Received' | 'Cancelled';
 }
 
@@ -165,6 +235,7 @@ interface ErpState {
   activeBranchId: string;
   activeFinancialYear: string;
   customers: Customer[];
+  vendors: Vendor[];
   products: Product[];
   salesOrders: SalesOrder[];
   invoices: Invoice[];
@@ -184,7 +255,12 @@ interface ErpState {
   addFinancialYear: (fy: Omit<FinancialYear, 'id'>) => Promise<void>;
   updateFinancialYear: (id: string, updates: Partial<FinancialYear>) => Promise<void>;
   addCustomer: (customer: Omit<Customer, 'id' | 'code'>) => Promise<void>;
+  updateCustomer: (id: string, updates: Partial<Customer>) => Promise<void>;
+  addVendor: (vendor: Omit<Vendor, 'id' | 'code'>) => Promise<void>;
+  updateVendor: (id: string, updates: Partial<Vendor>) => Promise<void>;
   addProduct: (product: Omit<Product, 'id'>) => Promise<void>;
+  approveProduct: (id: string) => Promise<void>;
+  rejectProduct: (id: string) => Promise<void>;
   addSalesOrder: (so: Omit<SalesOrder, 'id' | 'orderNumber'>) => Promise<void>;
   addInvoice: (inv: Omit<Invoice, 'id' | 'invoiceNumber'>) => Promise<void>;
   addPurchaseOrder: (po: Omit<PurchaseOrder, 'id' | 'poNumber'>) => Promise<void>;
@@ -209,6 +285,7 @@ export const useErpStore = create<ErpState>((set, get) => ({
   activeBranchId: localStorage.getItem('Branch') || '',
   activeFinancialYear: localStorage.getItem('FinancialYear') || '2026-2027',
   customers: [],
+  vendors: [],
   products: [],
   salesOrders: [],
   invoices: [],
@@ -275,6 +352,7 @@ export const useErpStore = create<ErpState>((set, get) => ({
         activeBranchId: activeBrId,
         activeFinancialYear: activeFy,
         customers: finalData.customers || [],
+        vendors: finalData.vendors || [],
         products: finalData.products || [],
         salesOrders: finalData.salesOrders || [],
         invoices: finalData.invoices || [],
@@ -393,6 +471,62 @@ export const useErpStore = create<ErpState>((set, get) => ({
     }
   },
 
+  updateCustomer: async (id, updates) => {
+    try {
+      const res = await fetch(`/api/erp/customers/${id}`, {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(updates),
+      });
+      if (!res.ok) throw new Error('Failed to update customer');
+      const updated = await res.json();
+      set((state) => ({
+        customers: state.customers.map((c) => (c.id === id ? updated : c)),
+      }));
+      showAppToast(`Customer updated successfully`, 'success');
+    } catch (err: any) {
+      showAppToast('Error updating customer: ' + err.message, 'error');
+    }
+  },
+
+  addVendor: async (vendor) => {
+    try {
+      const res = await fetch('/api/erp/vendors', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          ...vendor,
+          organisationId: get().activeOrganisationId || localStorage.getItem('OrganizationId'),
+          branchId: get().activeBranchId || localStorage.getItem('Branch'),
+        }),
+      });
+      if (!res.ok) throw new Error('Failed to create vendor');
+      const created = await res.json();
+      set((state) => ({ vendors: [created, ...state.vendors] }));
+      showAppToast(`Vendor ${created.name} added successfully`, 'success');
+    } catch (err: any) {
+      showAppToast('Error adding vendor: ' + err.message, 'error');
+    }
+  },
+
+  updateVendor: async (id, updates) => {
+    try {
+      const res = await fetch(`/api/erp/vendors/${id}`, {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(updates),
+      });
+      if (!res.ok) throw new Error('Failed to update vendor');
+      const updated = await res.json();
+      set((state) => ({
+        vendors: state.vendors.map((v) => (v.id === id ? updated : v)),
+      }));
+      showAppToast(`Vendor updated successfully`, 'success');
+    } catch (err: any) {
+      showAppToast('Error updating vendor: ' + err.message, 'error');
+    }
+  },
+
   addProduct: async (product) => {
     try {
       const res = await fetch('/api/erp/products', {
@@ -407,9 +541,49 @@ export const useErpStore = create<ErpState>((set, get) => ({
       if (!res.ok) throw new Error('Failed to create product');
       const created = await res.json();
       set((state) => ({ products: [created, ...state.products] }));
-      showAppToast(`Product ${created.sku} added to catalog`, 'success');
+      showAppToast(`Product ${created.sku} submitted for approval`, 'success');
     } catch (err: any) {
       showAppToast('Error saving product: ' + err.message, 'error');
+    }
+  },
+
+  approveProduct: async (id: string) => {
+    try {
+      const res = await fetch(`/api/erp/products/${id}/approve`, {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+      });
+      if (!res.ok) {
+        const errData = await res.json();
+        throw new Error(errData.error || 'Failed to approve product');
+      }
+      const updated = await res.json();
+      set((state) => ({
+        products: state.products.map((p) => (p.id === id ? { ...p, ...updated, approvalStatus: 'Approved' } : p)),
+      }));
+      showAppToast(`Product approved successfully`, 'success');
+    } catch (err: any) {
+      showAppToast('Error approving product: ' + err.message, 'error');
+    }
+  },
+
+  rejectProduct: async (id: string) => {
+    try {
+      const res = await fetch(`/api/erp/products/${id}/reject`, {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+      });
+      if (!res.ok) {
+        const errData = await res.json();
+        throw new Error(errData.error || 'Failed to reject product');
+      }
+      const updated = await res.json();
+      set((state) => ({
+        products: state.products.map((p) => (p.id === id ? { ...p, ...updated, approvalStatus: 'Rejected' } : p)),
+      }));
+      showAppToast(`Product rejected`, 'info');
+    } catch (err: any) {
+      showAppToast('Error rejecting product: ' + err.message, 'error');
     }
   },
 
