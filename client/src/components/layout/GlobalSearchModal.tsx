@@ -25,7 +25,7 @@ export const GlobalSearchModal: React.FC<GlobalSearchProps> = ({
   onNavigate,
 }) => {
   const [query, setQuery] = useState('');
-  const { customers, products, salesOrders, invoices, branches } = useErpStore();
+  const { customers, products, bills, invoices, branches } = useErpStore();
 
   useEffect(() => {
     const handleKeyDown = (e: KeyboardEvent) => {
@@ -41,8 +41,8 @@ export const GlobalSearchModal: React.FC<GlobalSearchProps> = ({
 
   if (!isOpen) return null;
 
-  const filteredSales = salesOrders
-    .filter((so) => so.orderNumber.toLowerCase().includes(query.toLowerCase()) || so.customerName.toLowerCase().includes(query.toLowerCase()))
+  const filteredBills = bills
+    .filter((b) => b.billNumber.toLowerCase().includes(query.toLowerCase()) || b.vendorName.toLowerCase().includes(query.toLowerCase()))
     .slice(0, 3);
 
   const filteredInvoices = invoices
@@ -78,28 +78,28 @@ export const GlobalSearchModal: React.FC<GlobalSearchProps> = ({
 
         {/* Results List */}
         <div className="max-h-96 overflow-y-auto p-3 space-y-4 text-xs">
-          {/* Sales Orders */}
-          {filteredSales.length > 0 && (
+          {/* Vendor Bills */}
+          {filteredBills.length > 0 && (
             <div>
               <div className="px-2 pb-1.5 text-[10px] font-bold uppercase tracking-wider text-slate-400">
-                Sales Orders
+                Vendor Bills
               </div>
               <div className="space-y-1">
-                {filteredSales.map((so) => (
+                {filteredBills.map((b) => (
                   <div
-                    key={so.id}
+                    key={b.id}
                     onClick={() => {
-                      onNavigate('sales');
+                      onNavigate('bills');
                       onClose();
                     }}
                     className="flex cursor-pointer items-center justify-between rounded-lg p-2 hover:bg-slate-50 transition"
                   >
                     <div className="flex items-center gap-2">
-                      <ShoppingCart className="h-3.5 w-3.5 text-blue-600" />
-                      <span className="font-bold text-slate-900 font-mono">{so.orderNumber}</span>
-                      <span className="text-slate-600">— {so.customerName}</span>
+                      <Receipt className="h-3.5 w-3.5 text-indigo-600" />
+                      <span className="font-bold text-slate-900 font-mono">{b.billNumber}</span>
+                      <span className="text-slate-600">— {b.vendorName}</span>
                     </div>
-                    <span className="font-bold text-slate-800 font-mono">₹{so.totalAmount.toLocaleString('en-IN')}</span>
+                    <span className="font-bold text-slate-800 font-mono">₹{b.totalAmount.toLocaleString('en-IN')}</span>
                   </div>
                 ))}
               </div>

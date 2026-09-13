@@ -9,167 +9,232 @@ import {
   Building,
   CreditCard,
   X,
+  CheckCircle2,
+  AlertCircle,
+  ExternalLink,
 } from 'lucide-react';
 import { useErpStore, Customer } from '../../store/erpStore';
 import { DataTable, ColumnDef } from '../shared/DataTable';
 import { Combobox } from '../shared/Combobox';
 import { useIndiaStates } from '../../utils/indiaStates';
+import { CustomerDetailsDrawer } from './customers/CustomerDetailsDrawer';
+import {
+  useFormValidation,
+  isValidGSTIN,
+  isValidCreditLimit,
+  EMAIL_REGEX,
+  PHONE_REGEX,
+} from '../../utils/validation';
+
+interface CustomerFormData {
+  name: string;
+  contactPerson: string;
+  email: string;
+  phone: string;
+  city: string;
+  billingState: string;
+  billingAddress: string;
+  shippingState: string;
+  shippingAddress: string;
+  sameAsBilling: boolean;
+  gstin: string;
+  creditLimit: number | string;
+}
 
 interface CustomerModuleProps {
   initialOpenAdd?: boolean;
+  onNavigateToInvoiceCreate?: (customerId: string) => void;
 }
 
-export const CustomerModule: React.FC<CustomerModuleProps> = ({ initialOpenAdd = false }) => {
+export const CustomerModule: React.FC<CustomerModuleProps> = ({
+  initialOpenAdd = false,
+  onNavigateToInvoiceCreate,
+}) => {
   const { customers, addCustomer } = useErpStore();
   const { states: stateOptions, isLoading: isStatesLoading } = useIndiaStates();
-  const [searchQuery, setSearchQuery] = useState('');
   const [isAddModalOpen, setIsAddModalOpen] = useState(initialOpenAdd);
+  const [selectedCustomer, setSelectedCustomer] = useState<Customer | null>(null);
 
-  // Form State
-  const [name, setName] = useState('');
-  const [contactPerson, setContactPerson] = useState('');
-  const [email, setEmail] = useState('');
-  const [phone, setPhone] = useState('');
-  const [city, setCity] = useState('Chennai');
-  const [state, setState] = useState('Tamil Nadu');
-  const [billingAddress, setBillingAddress] = useState('');
-  const [shippingAddress, setShippingAddress] = useState('');
-  const [billingState, setBillingState] = useState('Tamil Nadu');
-  const [shippingState, setShippingState] = useState('Tamil Nadu');
-  const [sameAsBilling, setSameAsBilling] = useState(true);
-  const [gstin, setGstin] = useState('');
-  const [creditLimit, setCreditLimit] = useState(2500000);
-  const [creditLimitError, setCreditLimitError] = useState('');
-
-  const filteredCustomers = customers.filter((c) => {
-    return (
-      c.name.toLowerCase().includes(searchQuery.toLowerCase()) ||
-      c.contactPerson.toLowerCase().includes(searchQuery.toLowerCase()) ||
-      c.city.toLowerCase().includes(searchQuery.toLowerCase()) ||
-      c.gstin.toLowerCase().includes(searchQuery.toLowerCase())
-    );
+  // 3-Tier Form Validation Setup
+  const {
+    values,
+    errors,
+    touched,
+    handleChange,
+    handleBlur,
+    handleSubmit,
+    setFieldValue,
+    resetForm,
+  } = useFormValidation<CustomerFormData>({
+    initialValues: {
+      name: '',
+      contactPerson: '',
+      email: '',
+      phone: '',
+      city: 'Chennai',
+      billingState: 'Tamil Nadu',
+      billingAddress: '',
+      shippingState: 'Tamil Nadu',
+      shippingAddress: '',
+      sameAsBilling: true,
+      gstin: '',
+      creditLimit: 2500000,
+    },
+    validationSchema: {
+      name: [
+        {
+          validate: (val: any) => Boolean(val && String(val).trim().length >= 2),
+          message: 'Company name must be at least 2 characters.',
+        },
+      ],
+      contactPerson: [
+        {
+          validate: (val: any) => Boolean(val && String(val).trim().length >= 2),
+          message: 'Contact person name is required.',
+        },
+      ],
+      email: [
+        {
+          validate: (val: any) => Boolean(val && EMAIL_REGEX.test(String(val).trim())),
+          message: 'Valid business email is required.',
+        },
+      ],
+      phone: [
+        {
+          validate: (val: any) => Boolean(val && PHONE_REGEX.test(String(val).trim())),
+          message: 'Valid 10-digit Indian phone number required.',
+        },
+      ],
+      city: [
+        {
+          validate: (val: any) => Boolean(val && String(val).trim().length > 0),
+          message: 'City is required.',
+        },
+      ],
+      billingState: [
+        {
+          validate: (val: any) => Boolean(val && String(val).trim().length > 0),
+          message: 'Billing State is required.',
+        },
+      ],
+      billingAddress: [
+        {
+          validate: (val: any) => Boolean(val && String(val).trim().length >= 5),
+          message: 'Complete billing address is required (min 5 characters).',
+        },
+      ],
+      creditLimit: [
+        {
+          validate: (val: any) => isValidCreditLimit(val),
+          message: 'Credit limit must be strictly more than ₹10,000 (minimum ₹10,001).',
+        },
+      ],
+      gstin: [
+        {
+          validate: (val: any, all?: CustomerFormData) => {
+            if (!val || !String(val).trim()) return true; // Optional field
+            const res = isValidGSTIN(String(val).trim(), all?.billingState);
+            return res.valid || res.error || 'Invalid GSTIN';
+          },
+          message: 'Invalid GSTIN format or State Code mismatch.',
+        },
+      ],
+    },
   });
 
-  const handleCreateCustomer = (e: React.FormEvent) => {
-    e.preventDefault();
+  const onSubmitAddCustomer = async (formVals: CustomerFormData) => {
+    const finalShipAddr = formVals.sameAsBilling
+      ? formVals.billingAddress
+      : formVals.shippingAddress || formVals.billingAddress;
+    const finalShipState = formVals.sameAsBilling
+      ? formVals.billingState
+      : formVals.shippingState || formVals.billingState;
 
-    if (!creditLimit || creditLimit <= 10000) {
-      setCreditLimitError('Credit limit must be strictly more than ₹10,000 (minimum ₹10,001)');
-      return;
-    }
-
-    const finalShipAddr = sameAsBilling ? billingAddress : (shippingAddress || billingAddress);
-    const finalShipState = sameAsBilling ? billingState : (shippingState || billingState);
-
-    addCustomer({
-      name,
-      contactPerson,
-      email,
-      phone,
-      city,
-      state: billingState || state,
-      address: billingAddress,
-      billingAddress,
-      shippingAddress: finalShipAddr,
-      billingState: billingState || state,
+    await addCustomer({
+      name: formVals.name.trim(),
+      contactPerson: formVals.contactPerson.trim(),
+      email: formVals.email.trim(),
+      phone: formVals.phone.trim(),
+      city: formVals.city.trim(),
+      state: formVals.billingState,
+      address: formVals.billingAddress.trim(),
+      billingAddress: formVals.billingAddress.trim(),
+      shippingAddress: finalShipAddr.trim(),
+      billingState: formVals.billingState,
       shippingState: finalShipState,
-      gstin,
+      gstin: formVals.gstin ? formVals.gstin.trim().toUpperCase() : '',
       outstandingBalance: 0,
-      creditLimit,
+      creditLimit: Number(formVals.creditLimit),
     });
+
     setIsAddModalOpen(false);
-    setName('');
-    setContactPerson('');
-    setEmail('');
-    setPhone('');
-    setBillingAddress('');
-    setShippingAddress('');
-    setGstin('');
-    setCreditLimitError('');
+    resetForm();
   };
 
+  // STRICTLY 4 COLUMNS AS MANDATED BY REQUIREMENTS
   const columns: ColumnDef<Customer>[] = [
     {
       key: 'code',
       header: 'Code',
       sortable: true,
-      render: (c) => <span className="font-mono font-bold text-blue-700">{c.code}</span>,
+      className: 'w-32',
+      render: (c) => (
+        <span className="font-mono font-bold text-xs text-blue-700 bg-blue-50 border border-blue-200/80 px-2.5 py-1 rounded-md inline-block">
+          {c.code}
+        </span>
+      ),
     },
     {
       key: 'name',
-      header: 'Company Name',
+      header: 'Customer / Company Name',
       sortable: true,
-      render: (c) => <span className="font-bold text-slate-900">{c.name}</span>,
-    },
-    {
-      key: 'contactPerson',
-      header: 'Key Contact Person',
-      sortable: true,
-      render: (c) => <span className="text-slate-600">{c.contactPerson}</span>,
+      render: (c) => (
+        <div>
+          <div className="font-bold text-slate-900 group-hover:text-blue-600 transition">
+            {c.name}
+          </div>
+          <div className="text-[11px] text-slate-400 mt-0.5 flex items-center gap-1.5 font-mono">
+            <span>GSTIN: {c.gstin || 'Unregistered'}</span>
+          </div>
+        </div>
+      ),
     },
     {
       key: 'contact',
       header: 'Contact Details',
       render: (c) => (
-        <div>
-          <div className="text-slate-700">{c.email}</div>
-          <div className="text-[11px] text-slate-400 font-mono">{c.phone}</div>
-        </div>
-      ),
-    },
-    {
-      key: 'city',
-      header: 'Location',
-      sortable: true,
-      render: (c) => (
-        <span className="text-slate-600 flex items-center gap-1">
-          <MapPin className="h-3 w-3 text-slate-400" />
-          <span>{c.city}, {c.billingState || c.state}</span>
-        </span>
-      ),
-    },
-    {
-      key: 'address',
-      header: 'Billing & Shipping Address',
-      render: (c) => (
-        <div className="max-w-xs text-xs space-y-0.5">
-          <div className="text-slate-700 truncate" title={c.billingAddress || c.address}>
-            <span className="font-semibold text-slate-500">Bill: </span>
-            {c.billingAddress || c.address || '—'}
+        <div className="space-y-0.5 text-xs">
+          <div className="font-semibold text-slate-800 flex items-center gap-1">
+            <span>{c.contactPerson || '—'}</span>
           </div>
-          <div className="text-slate-500 truncate" title={c.shippingAddress || c.address}>
-            <span className="font-semibold text-slate-400">Ship: </span>
-            {c.shippingAddress || c.address || '—'}
+          <div className="text-slate-500 flex items-center gap-1">
+            <Mail className="h-3 w-3 text-slate-400 shrink-0" />
+            <span className="truncate max-w-[200px]">{c.email}</span>
+          </div>
+          <div className="text-[11px] text-slate-400 font-mono flex items-center gap-1">
+            <Phone className="h-3 w-3 text-slate-400 shrink-0" />
+            <span>{c.phone}</span>
           </div>
         </div>
       ),
-    },
-    {
-      key: 'gstin',
-      header: 'GSTIN',
-      sortable: true,
-      render: (c) => <span className="font-mono text-slate-500">{c.gstin}</span>,
     },
     {
       key: 'outstandingBalance',
-      header: 'Outstanding',
+      header: 'Outstanding Balance & Location',
       sortable: true,
       align: 'right',
       render: (c) => (
-        <span className="font-mono font-bold text-amber-600">
-          ₹{c.outstandingBalance.toLocaleString('en-IN')}
-        </span>
-      ),
-    },
-    {
-      key: 'creditLimit',
-      header: 'Credit Limit',
-      sortable: true,
-      align: 'right',
-      render: (c) => (
-        <span className="font-mono text-slate-500">
-          ₹{c.creditLimit.toLocaleString('en-IN')}
-        </span>
+        <div className="text-right">
+          <div className="font-mono font-bold text-sm text-amber-600">
+            ₹{(c.outstandingBalance || 0).toLocaleString('en-IN')}
+          </div>
+          <div className="text-[11px] text-slate-500 flex items-center justify-end gap-1 mt-0.5">
+            <MapPin className="h-3 w-3 text-slate-400 shrink-0" />
+            <span>
+              {c.city}, {c.billingState || c.state || 'Tamil Nadu'}
+            </span>
+          </div>
+        </div>
       ),
     },
   ];
@@ -179,260 +244,344 @@ export const CustomerModule: React.FC<CustomerModuleProps> = ({ initialOpenAdd =
       {/* Header */}
       <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
         <div>
-          <h2 className="text-lg font-bold text-slate-900">Customer Directory Master</h2>
-          <p className="text-xs text-slate-500">
-            Enterprise client accounts, GSTIN verification, credit terms, and receivables
+          <h2 className="text-lg font-bold text-slate-900 flex items-center gap-2">
+            <Users className="h-5 w-5 text-blue-600" />
+            <span>Customer Directory Master</span>
+          </h2>
+          <p className="text-xs text-slate-500 mt-0.5">
+            Registered customer entities, GST compliance, credit term controls, and live account receivable statuses
           </p>
         </div>
 
         <button
+          type="button"
           onClick={() => setIsAddModalOpen(true)}
-          className="flex items-center gap-1.5 rounded-lg bg-blue-600 px-3.5 py-2 text-xs font-semibold text-white hover:bg-blue-700 transition shadow-xs self-start"
+          className="flex items-center gap-1.5 rounded-xl bg-blue-600 px-3.5 py-2 text-xs font-semibold text-white hover:bg-blue-700 transition shadow-xs self-start cursor-pointer"
         >
           <Plus className="h-4 w-4" />
           <span>New Customer</span>
         </button>
       </div>
 
-      {/* Modern Smart ERP DataTable */}
-      <DataTable
-        data={customers}
-        columns={columns}
-        searchPlaceholder="Search company, contact person, city, or GSTIN..."
-        searchKeys={['name', 'contactPerson', 'city', 'gstin', 'code']}
-        pageSizeDefault={10}
+      {/* Main Table: Strictly 4 Columns with Interactive Row Click */}
+      <div className="bg-white rounded-2xl shadow-xs border border-slate-200 overflow-hidden">
+        <DataTable
+          data={customers}
+          columns={columns}
+          searchPlaceholder="Search by customer code, company name, contact, city, or GSTIN..."
+          searchKeys={['name', 'contactPerson', 'city', 'gstin', 'code', 'email', 'phone']}
+          pageSizeDefault={10}
+          onRowClick={(cust) => setSelectedCustomer(cust)}
+        />
+      </div>
+
+      {/* Slide-over Customer Details Drawer */}
+      <CustomerDetailsDrawer
+        customer={selectedCustomer}
+        isOpen={Boolean(selectedCustomer)}
+        onClose={() => setSelectedCustomer(null)}
+        onGenerateInvoice={(custId) => {
+          if (onNavigateToInvoiceCreate) {
+            onNavigateToInvoiceCreate(custId);
+          } else {
+            window.location.href = `/invoices/new?customerId=${custId}`;
+          }
+        }}
       />
 
-      {/* Modal: Add Customer */}
+      {/* 3-Tier Validated Modal: Add Customer */}
       {isAddModalOpen && (
         <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-900/40 backdrop-blur-xs">
-          <div className="relative w-full max-w-lg h-[88vh] max-h-[720px] rounded-2xl bg-white shadow-2xl border border-slate-200 flex flex-col overflow-hidden">
-            <div className="flex items-center justify-between border-b border-slate-200 px-6 py-4 shrink-0 bg-white">
+          <div className="relative w-full max-w-lg h-[90vh] max-h-[740px] rounded-2xl bg-white shadow-2xl border border-slate-200 flex flex-col overflow-hidden animate-in fade-in zoom-in-95 duration-150">
+            {/* Modal Header */}
+            <div className="flex items-center justify-between border-b border-slate-200 px-6 py-4 shrink-0 bg-slate-50/60">
               <div>
-                <h3 className="text-base font-bold text-slate-900">Add New Customer</h3>
-                <p className="text-[11px] text-slate-500">Register company account, billing state & credit limit</p>
+                <h3 className="text-base font-bold text-slate-900 flex items-center gap-2">
+                  <Users className="h-4 w-4 text-blue-600" />
+                  <span>Register New Customer Master</span>
+                </h3>
+                <p className="text-[11px] text-slate-500">
+                  3-tier validation (onChange, onBlur, submit) with Indian State & GST check
+                </p>
               </div>
-              <button onClick={() => { setIsAddModalOpen(false); setCreditLimitError(''); }} className="text-slate-400 hover:text-slate-600 cursor-pointer p-1 rounded-lg hover:bg-slate-100 transition">
+              <button
+                type="button"
+                onClick={() => {
+                  setIsAddModalOpen(false);
+                  resetForm();
+                }}
+                className="text-slate-400 hover:text-slate-600 cursor-pointer p-1 rounded-lg hover:bg-slate-100 transition"
+              >
                 <X className="h-4 w-4" />
               </button>
             </div>
 
-            <form onSubmit={handleCreateCustomer} className="flex flex-col flex-1 min-h-0">
+            {/* Modal Form Body */}
+            <form onSubmit={handleSubmit(onSubmitAddCustomer)} className="flex flex-col flex-1 min-h-0">
               <div className="flex-1 overflow-y-auto px-6 py-4 space-y-3.5 text-xs">
+                {/* Company Name */}
                 <div>
-                  <label className="block font-semibold text-slate-700 mb-1">Company / Entity Name</label>
+                  <label className="block font-semibold text-slate-700 mb-1">
+                    Company / Entity Name <span className="text-rose-500">*</span>
+                  </label>
                   <input
                     type="text"
-                    required
+                    name="name"
+                    value={values.name}
+                    onChange={handleChange}
+                    onBlur={handleBlur}
                     placeholder="e.g. Bharat Electronics Ltd"
-                    value={name}
-                    onChange={(e) => setName(e.target.value)}
-                    className="w-full rounded-lg border border-slate-200 p-2.5 outline-none focus:border-blue-500"
-                  />
-                </div>
-
-                <div className="grid grid-cols-2 gap-4">
-                  <div>
-                    <label className="block font-semibold text-slate-700 mb-1">Contact Person</label>
-                    <input
-                      type="text"
-                      required
-                      placeholder="e.g. S. Ramanathan"
-                      value={contactPerson}
-                      onChange={(e) => setContactPerson(e.target.value)}
-                      className="w-full rounded-lg border border-slate-200 p-2.5 outline-none focus:border-blue-500"
-                    />
-                  </div>
-                  <div>
-                    <label className="block font-semibold text-slate-700 mb-1">GSTIN</label>
-                    <input
-                      type="text"
-                      required
-                      placeholder="33AAACB1234P1Z1"
-                      value={gstin}
-                      onChange={(e) => setGstin(e.target.value)}
-                      className="w-full rounded-lg border border-slate-200 p-2.5 outline-none focus:border-blue-500 font-mono uppercase"
-                    />
-                  </div>
-                </div>
-
-                <div className="grid grid-cols-2 gap-4">
-                  <div>
-                    <label className="block font-semibold text-slate-700 mb-1">Email</label>
-                    <input
-                      type="email"
-                      required
-                      placeholder="procurement@company.com"
-                      value={email}
-                      onChange={(e) => setEmail(e.target.value)}
-                      className="w-full rounded-lg border border-slate-200 p-2.5 outline-none focus:border-blue-500"
-                    />
-                  </div>
-                  <div>
-                    <label className="block font-semibold text-slate-700 mb-1">Phone / Mobile</label>
-                    <input
-                      type="text"
-                      required
-                      placeholder="+91 98400 12345"
-                      value={phone}
-                      onChange={(e) => setPhone(e.target.value)}
-                      className="w-full rounded-lg border border-slate-200 p-2.5 outline-none focus:border-blue-500"
-                    />
-                  </div>
-                </div>
-
-                <div className="grid grid-cols-2 gap-4">
-                  <div>
-                    <label className="block font-semibold text-slate-700 mb-1">City</label>
-                    <input
-                      type="text"
-                      required
-                      value={city}
-                      onChange={(e) => setCity(e.target.value)}
-                      className="w-full rounded-lg border border-slate-200 p-2.5 outline-none focus:border-blue-500 text-slate-800"
-                    />
-                  </div>
-                  <div>
-                    <div className="flex items-center justify-between mb-1">
-                      <label className="block font-semibold text-slate-700">Billing State</label>
-                      {isStatesLoading && (
-                        <span className="text-[10px] text-blue-600 animate-pulse">Loading API...</span>
-                      )}
-                    </div>
-                    <Combobox
-                      value={billingState}
-                      onChange={(val) => {
-                        setBillingState(val);
-                        if (sameAsBilling) setShippingState(val);
-                      }}
-                      options={stateOptions}
-                      placeholder="Select State / UT..."
-                      searchable
-                    />
-                  </div>
-                </div>
-
-                <div>
-                  <label className="block font-semibold text-slate-700 mb-1">Billing Address</label>
-                  <textarea
-                    rows={2}
-                    required
-                    placeholder="e.g. Plot 14, Guindy Industrial Area, Chennai - 600032"
-                    value={billingAddress}
-                    onChange={(e) => {
-                      setBillingAddress(e.target.value);
-                      if (sameAsBilling) setShippingAddress(e.target.value);
-                    }}
-                    className="w-full rounded-lg border border-slate-200 p-2.5 outline-none focus:border-blue-500 text-slate-800 resize-none text-xs"
-                  />
-                </div>
-
-                <div className="flex items-center gap-2 pt-1 pb-1">
-                  <input
-                    type="checkbox"
-                    id="sameAsBilling"
-                    checked={sameAsBilling}
-                    onChange={(e) => {
-                      setSameAsBilling(e.target.checked);
-                      if (e.target.checked) {
-                        setShippingAddress(billingAddress);
-                        setShippingState(billingState);
-                      }
-                    }}
-                    className="h-4 w-4 rounded text-blue-600 focus:ring-blue-500 border-slate-300"
-                  />
-                  <label htmlFor="sameAsBilling" className="text-xs font-semibold text-slate-700 select-none cursor-pointer">
-                    Shipping address same as billing address
-                  </label>
-                </div>
-
-                {!sameAsBilling && (
-                  <div className="space-y-3 rounded-lg border border-slate-200 bg-slate-50/50 p-3">
-                    <div>
-                      <Combobox
-                        label="Shipping State"
-                        value={shippingState}
-                        onChange={(val) => setShippingState(val)}
-                        options={stateOptions}
-                        placeholder="Select Shipping State / UT..."
-                        searchable
-                      />
-                    </div>
-                    <div>
-                      <label className="block font-semibold text-slate-700 mb-1">Shipping Address</label>
-                      <textarea
-                        rows={2}
-                        required={!sameAsBilling}
-                        placeholder="e.g. Warehouse 3B, SIPCOT Sriperumbudur, Tamil Nadu"
-                        value={shippingAddress}
-                        onChange={(e) => setShippingAddress(e.target.value)}
-                        className="w-full rounded-lg border border-slate-200 p-2.5 outline-none focus:border-blue-500 text-slate-800 resize-none text-xs bg-white"
-                      />
-                    </div>
-                  </div>
-                )}
-
-                <div>
-                  <div className="flex items-center justify-between mb-1">
-                    <label className="block font-semibold text-slate-700">Credit Limit (₹)</label>
-                    <span className={`text-[11px] font-semibold ${creditLimit <= 10000 ? 'text-rose-600' : 'text-blue-600'}`}>
-                      Must be &gt; ₹10,000
-                    </span>
-                  </div>
-                  <input
-                    type="number"
-                    min="10001"
-                    step="1"
-                    required
-                    placeholder="Enter amount strictly > 10000 (e.g. 50000)"
-                    value={creditLimit === 0 ? '' : creditLimit}
-                    onChange={(e) => {
-                      const text = e.target.value;
-                      const val = text === '' ? 0 : parseFloat(text);
-                      setCreditLimit(val);
-                      if (val <= 10000) {
-                        setCreditLimitError('Credit limit must be strictly more than ₹10,000 (minimum ₹10,001)');
-                      } else {
-                        setCreditLimitError('');
-                      }
-                    }}
-                    className={`w-full rounded-lg border p-2.5 outline-none font-mono text-slate-800 ${
-                      creditLimit <= 10000
-                        ? 'border-rose-400 bg-rose-50/30 focus:border-rose-500 ring-1 ring-rose-200'
+                    className={`w-full rounded-xl border p-2.5 outline-none transition ${
+                      touched.name && errors.name
+                        ? 'border-rose-400 bg-rose-50/20 focus:border-rose-500'
                         : 'border-slate-200 focus:border-blue-500'
                     }`}
                   />
-                  {creditLimit <= 10000 ? (
-                    <p className="mt-1 text-[11px] font-semibold text-rose-600">
-                      {creditLimitError || 'Credit limit must be strictly more than ₹10,000 (minimum ₹10,001)'}
-                    </p>
-                  ) : (
-                    <p className="mt-1 text-[11px] text-slate-400">
-                      Only amounts strictly greater than ₹10,000 are permitted.
+                  {touched.name && errors.name && (
+                    <p className="text-[11px] text-rose-600 mt-1 flex items-center gap-1">
+                      <AlertCircle className="h-3 w-3" />
+                      {errors.name}
                     </p>
                   )}
                 </div>
+
+                {/* Contact Person & Phone */}
+                <div className="grid grid-cols-2 gap-3">
+                  <div>
+                    <label className="block font-semibold text-slate-700 mb-1">
+                      Contact Person <span className="text-rose-500">*</span>
+                    </label>
+                    <input
+                      type="text"
+                      name="contactPerson"
+                      value={values.contactPerson}
+                      onChange={handleChange}
+                      onBlur={handleBlur}
+                      placeholder="e.g. S. Ramanathan"
+                      className={`w-full rounded-xl border p-2.5 outline-none transition ${
+                        touched.contactPerson && errors.contactPerson
+                          ? 'border-rose-400 bg-rose-50/20 focus:border-rose-500'
+                          : 'border-slate-200 focus:border-blue-500'
+                      }`}
+                    />
+                    {touched.contactPerson && errors.contactPerson && (
+                      <p className="text-[11px] text-rose-600 mt-1">{errors.contactPerson}</p>
+                    )}
+                  </div>
+
+                  <div>
+                    <label className="block font-semibold text-slate-700 mb-1">
+                      Phone Number <span className="text-rose-500">*</span>
+                    </label>
+                    <input
+                      type="tel"
+                      name="phone"
+                      value={values.phone}
+                      onChange={handleChange}
+                      onBlur={handleBlur}
+                      placeholder="e.g. 9840123456"
+                      className={`w-full rounded-xl border p-2.5 outline-none font-mono transition ${
+                        touched.phone && errors.phone
+                          ? 'border-rose-400 bg-rose-50/20 focus:border-rose-500'
+                          : 'border-slate-200 focus:border-blue-500'
+                      }`}
+                    />
+                    {touched.phone && errors.phone && (
+                      <p className="text-[11px] text-rose-600 mt-1">{errors.phone}</p>
+                    )}
+                  </div>
+                </div>
+
+                {/* Email Address */}
+                <div>
+                  <label className="block font-semibold text-slate-700 mb-1">
+                    Business Email <span className="text-rose-500">*</span>
+                  </label>
+                  <input
+                    type="email"
+                    name="email"
+                    value={values.email}
+                    onChange={handleChange}
+                    onBlur={handleBlur}
+                    placeholder="e.g. accounts@bharatelectronics.com"
+                    className={`w-full rounded-xl border p-2.5 outline-none transition ${
+                      touched.email && errors.email
+                        ? 'border-rose-400 bg-rose-50/20 focus:border-rose-500'
+                        : 'border-slate-200 focus:border-blue-500'
+                    }`}
+                  />
+                  {touched.email && errors.email && (
+                    <p className="text-[11px] text-rose-600 mt-1">{errors.email}</p>
+                  )}
+                </div>
+
+                {/* City & Indian Billing State Combobox */}
+                <div className="grid grid-cols-2 gap-3">
+                  <div>
+                    <label className="block font-semibold text-slate-700 mb-1">
+                      City <span className="text-rose-500">*</span>
+                    </label>
+                    <input
+                      type="text"
+                      name="city"
+                      value={values.city}
+                      onChange={handleChange}
+                      onBlur={handleBlur}
+                      placeholder="e.g. Chennai"
+                      className={`w-full rounded-xl border p-2.5 outline-none transition ${
+                        touched.city && errors.city
+                          ? 'border-rose-400 bg-rose-50/20 focus:border-rose-500'
+                          : 'border-slate-200 focus:border-blue-500'
+                      }`}
+                    />
+                  </div>
+
+                  <div>
+                    <label className="block font-semibold text-slate-700 mb-1">
+                      Indian Billing State <span className="text-rose-500">*</span>
+                    </label>
+                    <Combobox
+                      options={stateOptions}
+                      value={values.billingState}
+                      onChange={(val) => {
+                        setFieldValue('billingState', val);
+                      }}
+                      placeholder="Search Indian State..."
+                    />
+                  </div>
+                </div>
+
+                {/* Full Billing Address */}
+                <div>
+                  <label className="block font-semibold text-slate-700 mb-1">
+                    Billing Address <span className="text-rose-500">*</span>
+                  </label>
+                  <textarea
+                    rows={2}
+                    name="billingAddress"
+                    value={values.billingAddress}
+                    onChange={handleChange}
+                    onBlur={handleBlur}
+                    placeholder="Enter registered physical billing address..."
+                    className={`w-full rounded-xl border p-2.5 outline-none transition resize-none ${
+                      touched.billingAddress && errors.billingAddress
+                        ? 'border-rose-400 bg-rose-50/20 focus:border-rose-500'
+                        : 'border-slate-200 focus:border-blue-500'
+                    }`}
+                  />
+                  {touched.billingAddress && errors.billingAddress && (
+                    <p className="text-[11px] text-rose-600 mt-0.5">{errors.billingAddress}</p>
+                  )}
+                </div>
+
+                {/* Separate Shipping Address Toggle */}
+                <div className="rounded-xl border border-slate-200 p-3 bg-slate-50/50">
+                  <label className="flex items-center gap-2 cursor-pointer">
+                    <input
+                      type="checkbox"
+                      checked={values.sameAsBilling}
+                      onChange={(e) => setFieldValue('sameAsBilling', e.target.checked)}
+                      className="rounded border-slate-300 text-blue-600 focus:ring-blue-500 h-4 w-4"
+                    />
+                    <span className="font-semibold text-slate-800 text-xs">
+                      Shipping Address is identical to Billing Address
+                    </span>
+                  </label>
+
+                  {!values.sameAsBilling && (
+                    <div className="mt-3 space-y-3 pt-3 border-t border-slate-200">
+                      <div>
+                        <label className="block font-semibold text-slate-700 mb-1">Shipping State</label>
+                        <Combobox
+                          options={stateOptions}
+                          value={values.shippingState}
+                          onChange={(val) => setFieldValue('shippingState', val)}
+                          placeholder="Select Shipping State..."
+                        />
+                      </div>
+                      <div>
+                        <label className="block font-semibold text-slate-700 mb-1">Shipping Address</label>
+                        <textarea
+                          rows={2}
+                          name="shippingAddress"
+                          value={values.shippingAddress}
+                          onChange={handleChange}
+                          onBlur={handleBlur}
+                          placeholder="Enter consignee / delivery site address..."
+                          className="w-full rounded-xl border border-slate-200 p-2.5 outline-none focus:border-blue-500 resize-none"
+                        />
+                      </div>
+                    </div>
+                  )}
+                </div>
+
+                {/* GSTIN & Credit Limit (> 10,000) */}
+                <div className="grid grid-cols-2 gap-3">
+                  <div>
+                    <label className="block font-semibold text-slate-700 mb-1">
+                      GSTIN (Optional)
+                    </label>
+                    <input
+                      type="text"
+                      name="gstin"
+                      value={values.gstin}
+                      onChange={handleChange}
+                      onBlur={handleBlur}
+                      placeholder="e.g. 33AAACB1234P1Z1"
+                      className={`w-full rounded-xl border p-2.5 outline-none font-mono uppercase transition ${
+                        touched.gstin && errors.gstin
+                          ? 'border-rose-400 bg-rose-50/20 focus:border-rose-500'
+                          : 'border-slate-200 focus:border-blue-500'
+                      }`}
+                    />
+                    {touched.gstin && errors.gstin && (
+                      <p className="text-[11px] text-rose-600 mt-1">{errors.gstin}</p>
+                    )}
+                  </div>
+
+                  <div>
+                    <label className="block font-semibold text-slate-700 mb-1">
+                      Credit Limit (₹) <span className="text-rose-500">* (&gt; ₹10,000)</span>
+                    </label>
+                    <input
+                      type="number"
+                      name="creditLimit"
+                      min={10001}
+                      value={values.creditLimit}
+                      onChange={handleChange}
+                      onBlur={handleBlur}
+                      placeholder="Minimum ₹10,001"
+                      className={`w-full rounded-xl border p-2.5 outline-none font-mono transition ${
+                        touched.creditLimit && errors.creditLimit
+                          ? 'border-rose-400 bg-rose-50/20 focus:border-rose-500'
+                          : 'border-slate-200 focus:border-blue-500'
+                      }`}
+                    />
+                    {touched.creditLimit && errors.creditLimit && (
+                      <p className="text-[11px] text-rose-600 mt-1 font-semibold">{errors.creditLimit}</p>
+                    )}
+                  </div>
+                </div>
               </div>
 
-              {/* Fixed Footer */}
-              <div className="flex justify-end gap-2 px-6 py-3 border-t border-slate-200 shrink-0 bg-slate-50/80">
+              {/* Modal Footer */}
+              <div className="flex items-center justify-end gap-3 border-t border-slate-200 px-6 py-4 shrink-0 bg-slate-50/70">
                 <button
                   type="button"
-                  onClick={() => { setIsAddModalOpen(false); setCreditLimitError(''); }}
-                  className="rounded-lg border border-slate-200 bg-white px-4 py-2 font-semibold text-slate-600 hover:bg-slate-100 cursor-pointer shadow-xs"
+                  onClick={() => {
+                    setIsAddModalOpen(false);
+                    resetForm();
+                  }}
+                  className="rounded-xl border border-slate-200 bg-white px-4 py-2 text-xs font-semibold text-slate-700 hover:bg-slate-100 transition cursor-pointer"
                 >
                   Cancel
                 </button>
                 <button
                   type="submit"
-                  disabled={creditLimit <= 10000}
-                  className={`rounded-lg px-4 py-2 font-semibold text-white transition shadow-xs ${
-                    creditLimit <= 10000
-                      ? 'bg-slate-300 cursor-not-allowed opacity-70'
-                      : 'bg-blue-600 hover:bg-blue-700 cursor-pointer'
-                  }`}
+                  className="rounded-xl bg-blue-600 px-4 py-2 text-xs font-semibold text-white hover:bg-blue-700 transition shadow-xs cursor-pointer flex items-center gap-1.5"
                 >
-                  Register Customer
+                  <CheckCircle2 className="h-4 w-4" />
+                  <span>Save Customer Master</span>
                 </button>
               </div>
             </form>

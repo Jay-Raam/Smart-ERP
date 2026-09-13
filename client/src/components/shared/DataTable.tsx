@@ -33,6 +33,7 @@ export interface DataTableProps<T> {
   actions?: React.ReactNode;
   pageSizeDefault?: number;
   syncWithUrl?: boolean;
+  onRowClick?: (item: T) => void;
 }
 
 export function DataTable<T extends Record<string, any>>({
@@ -47,6 +48,7 @@ export function DataTable<T extends Record<string, any>>({
   actions,
   pageSizeDefault = 10,
   syncWithUrl = true,
+  onRowClick,
 }: DataTableProps<T>) {
   const urlState = useUrlTableState({
     perPage: pageSizeDefault,
@@ -349,7 +351,10 @@ export function DataTable<T extends Record<string, any>>({
                 paginatedData.map((row, idx) => (
                   <tr
                     key={row.id || idx}
-                    className="hover:bg-blue-50/40 transition-colors"
+                    onClick={() => onRowClick && onRowClick(row)}
+                    className={`hover:bg-blue-50/40 transition-colors ${
+                      onRowClick ? 'cursor-pointer hover:bg-blue-50/60' : ''
+                    }`}
                   >
                     {columns.map((col) => (
                       <td

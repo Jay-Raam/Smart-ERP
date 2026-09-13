@@ -66,6 +66,8 @@ export const FALLBACK_INDIA_STATES: IndiaStateOption[] = Object.entries(GST_STAT
   return a.label.localeCompare(b.label);
 });
 
+export const INDIA_STATES_LIST = FALLBACK_INDIA_STATES;
+
 const CACHE_KEY = 'smart_erp_india_states_v1';
 
 /**

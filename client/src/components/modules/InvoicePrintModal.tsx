@@ -135,8 +135,8 @@ export const InvoicePrintModal: React.FC<InvoicePrintModalProps> = ({ invoice, o
                 <span className="font-semibold text-slate-900">{invoice.dueDate}</span>
               </div>
               <div className="flex justify-between border-b border-slate-200 pb-1">
-                <span className="font-semibold text-slate-600">SO Reference:</span>
-                <span className="font-mono font-semibold text-slate-800">{invoice.salesOrderNumber || 'SO-DIRECT'}</span>
+                <span className="font-semibold text-slate-600">Document Type:</span>
+                <span className="font-semibold text-slate-800">Tax Invoice</span>
               </div>
               <div className="flex justify-between border-b border-slate-200 pb-1">
                 <span className="font-semibold text-slate-600">Reverse Charge:</span>

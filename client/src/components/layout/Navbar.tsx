@@ -6,7 +6,8 @@ import {
   Bell,
   ChevronDown,
   FileText,
-  ShoppingCart,
+  ReceiptText,
+  FileCheck,
   Users,
   Package,
   Menu,
@@ -163,13 +164,24 @@ export const Navbar: React.FC<NavbarProps> = ({
                 <button
                   type="button"
                   onClick={() => {
-                    onOpenQuickAdd('sales');
+                    onOpenQuickAdd('bill');
                     setIsQuickAddOpen(false);
                   }}
                   className="flex w-full items-center gap-2.5 px-3.5 py-2 text-xs text-slate-700 hover:bg-slate-50 cursor-pointer"
                 >
-                  <ShoppingCart className="h-3.5 w-3.5 text-emerald-600" />
-                  <span>New Sales Order</span>
+                  <ReceiptText className="h-3.5 w-3.5 text-indigo-600" />
+                  <span>New Vendor Bill</span>
+                </button>
+                <button
+                  type="button"
+                  onClick={() => {
+                    onOpenQuickAdd('po');
+                    setIsQuickAddOpen(false);
+                  }}
+                  className="flex w-full items-center gap-2.5 px-3.5 py-2 text-xs text-slate-700 hover:bg-slate-50 cursor-pointer"
+                >
+                  <FileCheck className="h-3.5 w-3.5 text-emerald-600" />
+                  <span>New Purchase Order</span>
                 </button>
                 <button
                   type="button"
