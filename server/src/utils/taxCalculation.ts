@@ -47,6 +47,8 @@ export interface TaxCalculationResult {
   items: CalculatedLineItem[];
   hsnSummary: HsnTaxSummary[];
   subtotal: number;
+  shippingCharge: number;
+  shippingTax: number;
   taxableAmount: number;
   totalDiscount: number;
   cgstAmount: number;
@@ -80,22 +82,35 @@ export function isStateTamilNadu(stateName?: string | null, gstin?: string | nul
 }
 
 export function calculateDocumentTaxes(
-  itemsOrOptions: TaxLineItem[] | { items: any[]; billingState?: string | null; customerState?: string | null; partyGstin?: string | null; customerGstin?: string | null },
+  itemsOrOptions:
+    | TaxLineItem[]
+    | {
+        items: any[];
+        billingState?: string | null;
+        customerState?: string | null;
+        partyGstin?: string | null;
+        customerGstin?: string | null;
+        shippingCharge?: number;
+      },
   billingStateArg?: string | null,
-  partyGstinArg?: string | null
+  partyGstinArg?: string | null,
+  shippingChargeArg?: number
 ): TaxCalculationResult {
   let rawItems: any[] = [];
   let billingState: string | null = null;
   let partyGstin: string | null = null;
+  let shippingCharge = 0;
 
   if (Array.isArray(itemsOrOptions)) {
     rawItems = itemsOrOptions;
     billingState = billingStateArg ?? null;
     partyGstin = partyGstinArg ?? null;
+    shippingCharge = Math.max(0, shippingChargeArg ?? 0);
   } else if (itemsOrOptions && typeof itemsOrOptions === 'object') {
     rawItems = itemsOrOptions.items || [];
     billingState = itemsOrOptions.billingState ?? itemsOrOptions.customerState ?? billingStateArg ?? null;
     partyGstin = itemsOrOptions.partyGstin ?? itemsOrOptions.customerGstin ?? partyGstinArg ?? null;
+    shippingCharge = Math.max(0, itemsOrOptions.shippingCharge ?? shippingChargeArg ?? 0);
   }
 
   const isTN = isStateTamilNadu(billingState, partyGstin);
@@ -177,26 +192,55 @@ export function calculateDocumentTaxes(
     hsnMap.set(key, existing);
   }
 
+  // Calculate Shipping Charge Tax (18% GST SAC 9965 / 9967)
+  let shippingCgst = 0;
+  let shippingSgst = 0;
+  let shippingIgst = 0;
+  if (shippingCharge > 0) {
+    if (isTN) {
+      shippingCgst = Math.round(((shippingCharge * 9) / 100) * 100) / 100;
+      shippingSgst = Math.round(((shippingCharge * 9) / 100) * 100) / 100;
+    } else {
+      shippingIgst = Math.round(((shippingCharge * 18) / 100) * 100) / 100;
+    }
+    const shippingTax = Math.round((shippingCgst + shippingSgst + shippingIgst) * 100) / 100;
+    hsnMap.set('9965_18', {
+      hsnCode: '9965',
+      taxRate: 18,
+      taxableAmount: shippingCharge,
+      cgstAmount: shippingCgst,
+      sgstAmount: shippingSgst,
+      igstAmount: shippingIgst,
+      totalTax: shippingTax,
+      totalAmount: Math.round((shippingCharge + shippingTax) * 100) / 100,
+    });
+  }
+
   const hsnSummary = Array.from(hsnMap.values());
 
   const subtotal = calculatedItems.reduce((sum, i) => sum + i.grossAmount, 0);
   const totalDiscount = calculatedItems.reduce((sum, i) => sum + i.discountAmount, 0);
-  const taxableAmount = calculatedItems.reduce((sum, i) => sum + i.taxableAmount, 0);
-  const cgstAmount = calculatedItems.reduce((sum, i) => sum + i.cgstAmount, 0);
-  const sgstAmount = calculatedItems.reduce((sum, i) => sum + i.sgstAmount, 0);
-  const igstAmount = calculatedItems.reduce((sum, i) => sum + i.igstAmount, 0);
+  const itemsTaxable = calculatedItems.reduce((sum, i) => sum + i.taxableAmount, 0);
+  const totalTaxable = Math.round((itemsTaxable + shippingCharge) * 100) / 100;
+
+  const cgstAmount = Math.round((calculatedItems.reduce((sum, i) => sum + i.cgstAmount, 0) + shippingCgst) * 100) / 100;
+  const sgstAmount = Math.round((calculatedItems.reduce((sum, i) => sum + i.sgstAmount, 0) + shippingSgst) * 100) / 100;
+  const igstAmount = Math.round((calculatedItems.reduce((sum, i) => sum + i.igstAmount, 0) + shippingIgst) * 100) / 100;
+  const shippingTax = Math.round((shippingCgst + shippingSgst + shippingIgst) * 100) / 100;
   const totalTax = Math.round((cgstAmount + sgstAmount + igstAmount) * 100) / 100;
-  const grandTotal = Math.round((taxableAmount + totalTax) * 100) / 100;
+  const grandTotal = Math.round((totalTaxable + totalTax) * 100) / 100;
 
   return {
     items: calculatedItems,
     hsnSummary,
     subtotal: Math.round(subtotal * 100) / 100,
-    taxableAmount: Math.round(taxableAmount * 100) / 100,
+    shippingCharge,
+    shippingTax,
+    taxableAmount: totalTaxable,
     totalDiscount: Math.round(totalDiscount * 100) / 100,
-    cgstAmount: Math.round(cgstAmount * 100) / 100,
-    sgstAmount: Math.round(sgstAmount * 100) / 100,
-    igstAmount: Math.round(igstAmount * 100) / 100,
+    cgstAmount,
+    sgstAmount,
+    igstAmount,
     totalTax,
     taxAmount: totalTax,
     grandTotal,
