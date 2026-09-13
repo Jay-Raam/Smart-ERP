@@ -162,61 +162,7 @@ const ProductSchema = new Schema<IProduct>(
   { timestamps: true }
 );
 
-// 6. Sales Order
-export interface ISalesOrderItem {
-  productId: string;
-  productName: string;
-  sku: string;
-  quantity: number;
-  unitPrice: number;
-  total: number;
-}
-
-export interface ISalesOrder extends Document {
-  orderNumber: string;
-  customerId: string;
-  customerName: string;
-  orderDate: string;
-  deliveryDate: string;
-  branchId: string;
-  organisationId: string;
-  financialYear: string;
-  items: ISalesOrderItem[];
-  subtotal: number;
-  taxAmount: number;
-  totalAmount: number;
-  status: string;
-}
-
-const SalesOrderSchema = new Schema<ISalesOrder>(
-  {
-    orderNumber: { type: String, required: true, unique: true },
-    customerId: { type: String, required: true },
-    customerName: { type: String, required: true },
-    orderDate: { type: String, required: true },
-    deliveryDate: { type: String, required: true },
-    branchId: { type: String, required: true },
-    organisationId: { type: String, default: '' },
-    financialYear: { type: String, default: '2026-2027' },
-    items: [
-      {
-        productId: { type: String, required: true },
-        productName: { type: String, required: true },
-        sku: { type: String, required: true },
-        quantity: { type: Number, required: true },
-        unitPrice: { type: Number, required: true },
-        total: { type: Number, required: true },
-      },
-    ],
-    subtotal: { type: Number, required: true },
-    taxAmount: { type: Number, required: true },
-    totalAmount: { type: Number, required: true },
-    status: { type: String, default: 'Confirmed' },
-  },
-  { timestamps: true }
-);
-
-// 7. Document Line Item (Used for Invoices and Purchase Orders)
+// 6. Document Line Item (Used for Invoices, Purchase Orders, Bills, and Delivery Challans)
 export interface IDocumentItem {
   productId?: string;
   productName: string;
@@ -256,10 +202,9 @@ export const DocumentItemSchema = new Schema<IDocumentItem>(
   { _id: false }
 );
 
-// 8. Invoice
+// 7. Invoice
 export interface IInvoice extends Document {
   invoiceNumber: string;
-  salesOrderNumber: string;
   customerId: string;
   customerName: string;
   customerGstin: string;
@@ -273,6 +218,8 @@ export interface IInvoice extends Document {
   financialYear: string;
   items: IDocumentItem[];
   subtotal: number;
+  shippingCharge: number;
+  shippingTax: number;
   taxableAmount: number;
   totalDiscount: number;
   gstRate: number;
@@ -288,7 +235,6 @@ export interface IInvoice extends Document {
 const InvoiceSchema = new Schema<IInvoice>(
   {
     invoiceNumber: { type: String, required: true, unique: true },
-    salesOrderNumber: { type: String, required: true },
     customerId: { type: String, required: true },
     customerName: { type: String, required: true },
     customerGstin: { type: String, default: '' },
@@ -302,6 +248,8 @@ const InvoiceSchema = new Schema<IInvoice>(
     financialYear: { type: String, default: '2026-2027' },
     items: [DocumentItemSchema],
     subtotal: { type: Number, required: true },
+    shippingCharge: { type: Number, default: 0 },
+    shippingTax: { type: Number, default: 0 },
     taxableAmount: { type: Number, default: 0 },
     totalDiscount: { type: Number, default: 0 },
     gstRate: { type: Number, default: 18 },
@@ -316,7 +264,7 @@ const InvoiceSchema = new Schema<IInvoice>(
   { timestamps: true }
 );
 
-// 9. Vendor
+// 8. Vendor
 export interface IVendor extends Document {
   code: string;
   name: string;
@@ -324,8 +272,12 @@ export interface IVendor extends Document {
   email: string;
   phone: string;
   address: string;
+  billingAddress: string;
+  shippingAddress: string;
   city: string;
   state: string;
+  billingState: string;
+  shippingState: string;
   gstin: string;
   pan?: string;
   organisationId: string;
@@ -340,8 +292,12 @@ const VendorSchema = new Schema<IVendor>(
     email: { type: String, required: true },
     phone: { type: String, required: true },
     address: { type: String, default: '' },
+    billingAddress: { type: String, default: '' },
+    shippingAddress: { type: String, default: '' },
     city: { type: String, required: true },
     state: { type: String, required: true, default: 'Tamil Nadu' },
+    billingState: { type: String, default: 'Tamil Nadu' },
+    shippingState: { type: String, default: 'Tamil Nadu' },
     gstin: { type: String, required: true },
     pan: { type: String, default: '' },
     organisationId: { type: String, default: '' },
@@ -350,7 +306,7 @@ const VendorSchema = new Schema<IVendor>(
   { timestamps: true }
 );
 
-// 10. Purchase Order
+// 9. Purchase Order
 export interface IPurchaseOrder extends Document {
   poNumber: string;
   vendorId?: string;
@@ -367,6 +323,8 @@ export interface IPurchaseOrder extends Document {
   financialYear: string;
   items: IDocumentItem[];
   subtotal: number;
+  shippingCharge: number;
+  shippingTax: number;
   taxableAmount: number;
   totalDiscount: number;
   cgstAmount: number;
@@ -395,6 +353,8 @@ const PurchaseOrderSchema = new Schema<IPurchaseOrder>(
     financialYear: { type: String, default: '2026-2027' },
     items: [DocumentItemSchema],
     subtotal: { type: Number, required: true },
+    shippingCharge: { type: Number, default: 0 },
+    shippingTax: { type: Number, default: 0 },
     taxableAmount: { type: Number, default: 0 },
     totalDiscount: { type: Number, default: 0 },
     cgstAmount: { type: Number, default: 0 },
@@ -408,7 +368,69 @@ const PurchaseOrderSchema = new Schema<IPurchaseOrder>(
   { timestamps: true }
 );
 
-// 9. Store Item
+// 10. Bill (Vendor Invoices / Bills with or without PO)
+export interface IBill extends Document {
+  billNumber: string;
+  billDate: string;
+  dueDate: string;
+  poId?: string;
+  poNumber?: string;
+  vendorId?: string;
+  vendorName: string;
+  vendorGstin: string;
+  vendorState: string;
+  billingAddress: string;
+  shippingAddress: string;
+  items: IDocumentItem[];
+  subtotal: number;
+  shippingCharge: number;
+  shippingTax: number;
+  taxableAmount: number;
+  cgstAmount: number;
+  sgstAmount: number;
+  igstAmount: number;
+  taxAmount: number;
+  totalAmount: number;
+  totalInWords: string;
+  status: 'Pending' | 'Paid' | 'Approved';
+  branchId: string;
+  organisationId: string;
+  financialYear: string;
+}
+
+const BillSchema = new Schema<IBill>(
+  {
+    billNumber: { type: String, required: true, unique: true },
+    billDate: { type: String, required: true },
+    dueDate: { type: String, required: true },
+    poId: { type: String, default: '' },
+    poNumber: { type: String, default: '' },
+    vendorId: { type: String, default: '' },
+    vendorName: { type: String, required: true },
+    vendorGstin: { type: String, required: true },
+    vendorState: { type: String, default: 'Tamil Nadu' },
+    billingAddress: { type: String, default: '' },
+    shippingAddress: { type: String, default: '' },
+    items: [DocumentItemSchema],
+    subtotal: { type: Number, required: true },
+    shippingCharge: { type: Number, default: 0 },
+    shippingTax: { type: Number, default: 0 },
+    taxableAmount: { type: Number, default: 0 },
+    cgstAmount: { type: Number, default: 0 },
+    sgstAmount: { type: Number, default: 0 },
+    igstAmount: { type: Number, default: 0 },
+    taxAmount: { type: Number, default: 0 },
+    totalAmount: { type: Number, required: true },
+    totalInWords: { type: String, default: '' },
+    status: { type: String, enum: ['Pending', 'Paid', 'Approved'], default: 'Pending' },
+    branchId: { type: String, default: '' },
+    organisationId: { type: String, default: '' },
+    financialYear: { type: String, default: '2026-2027' },
+  },
+  { timestamps: true }
+);
+
+// 11. Store Item
 export interface IStoreItem extends Document {
   productId: string;
   productName: string;
@@ -442,17 +464,23 @@ const StoreItemSchema = new Schema<IStoreItem>(
   { timestamps: true }
 );
 
-// 10. Delivery Challan
+// 12. Delivery Challan (Generated against Tax Invoice)
 export interface IDeliveryChallan extends Document {
   dcNumber: string;
-  salesOrderNumber: string;
+  invoiceId?: string;
+  invoiceNumber: string;
+  customerId?: string;
   customerName: string;
+  customerGstin?: string;
+  billingAddress?: string;
+  shippingAddress?: string;
   dispatchDate: string;
   transportMode: string;
   vehicleNumber: string;
   ewayBillNumber: string;
   driverName: string;
   driverPhone: string;
+  items?: IDocumentItem[];
   status: string;
   branchId: string;
   organisationId: string;
@@ -462,14 +490,20 @@ export interface IDeliveryChallan extends Document {
 const DeliveryChallanSchema = new Schema<IDeliveryChallan>(
   {
     dcNumber: { type: String, required: true, unique: true },
-    salesOrderNumber: { type: String, required: true },
+    invoiceId: { type: String, default: '' },
+    invoiceNumber: { type: String, required: true },
+    customerId: { type: String, default: '' },
     customerName: { type: String, required: true },
+    customerGstin: { type: String, default: '' },
+    billingAddress: { type: String, default: '' },
+    shippingAddress: { type: String, default: '' },
     dispatchDate: { type: String, required: true },
     transportMode: { type: String, required: true },
     vehicleNumber: { type: String, required: true },
     ewayBillNumber: { type: String, required: true },
     driverName: { type: String, required: true },
     driverPhone: { type: String, required: true },
+    items: [DocumentItemSchema],
     status: { type: String, default: 'In Transit' },
     branchId: { type: String, default: '' },
     organisationId: { type: String, default: '' },
@@ -531,7 +565,7 @@ export const Branch = mongoose.model<IBranch>('Branch', BranchSchema);
 export const FinancialYear = mongoose.model<IFinancialYear>('FinancialYear', FinancialYearSchema);
 export const Customer = mongoose.model<ICustomer>('Customer', CustomerSchema);
 export const Product = mongoose.model<IProduct>('Product', ProductSchema);
-export const SalesOrder = mongoose.model<ISalesOrder>('SalesOrder', SalesOrderSchema);
+export const Bill = mongoose.model<IBill>('Bill', BillSchema);
 export const Invoice = mongoose.model<IInvoice>('Invoice', InvoiceSchema);
 export const PurchaseOrder = mongoose.model<IPurchaseOrder>('PurchaseOrder', PurchaseOrderSchema);
 export const Vendor = mongoose.model<IVendor>('Vendor', VendorSchema);

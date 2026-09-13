@@ -6,7 +6,7 @@ import {
   FinancialYear,
   Customer,
   Product,
-  SalesOrder,
+  Bill,
   Invoice,
   PurchaseOrder,
   Vendor,
@@ -16,6 +16,7 @@ import {
 } from '../models/ErpModels';
 import { generateTokens, verifyAccessToken } from '../security/auth';
 import { calculateDocumentTaxes } from '../utils/taxCalculation';
+import { validateGSTIN, validateQuantity, validateCreditLimit } from '../utils/validation';
 
 export const erpRouter = Router();
 
@@ -213,7 +214,7 @@ erpRouter.get('/bootstrap', async (req: Request, res: Response) => {
     const [
       customers,
       products,
-      salesOrders,
+      bills,
       invoices,
       purchaseOrders,
       vendors,
@@ -222,7 +223,7 @@ erpRouter.get('/bootstrap', async (req: Request, res: Response) => {
     ] = await Promise.all([
       Customer.find(custFilter).sort({ createdAt: -1 }),
       Product.find(finalOrgId ? { organisationId: finalOrgId } : {}).sort({ createdAt: -1 }),
-      SalesOrder.find(txFilter).sort({ createdAt: -1 }),
+      Bill.find(txFilter).sort({ createdAt: -1 }),
       Invoice.find(txFilter).sort({ createdAt: -1 }),
       PurchaseOrder.find(txFilter).sort({ createdAt: -1 }),
       Vendor.find(finalOrgId ? { organisationId: finalOrgId } : {}).sort({ createdAt: -1 }),
@@ -290,26 +291,38 @@ erpRouter.get('/bootstrap', async (req: Request, res: Response) => {
         organisationId: p.organisationId,
         branchId: p.branchId,
       })),
-      salesOrders: salesOrders.map((so) => ({
-        id: so._id.toString(),
-        orderNumber: so.orderNumber,
-        customerId: so.customerId,
-        customerName: so.customerName,
-        orderDate: so.orderDate,
-        deliveryDate: so.deliveryDate,
-        branchId: so.branchId,
-        organisationId: so.organisationId,
-        financialYear: so.financialYear,
-        items: so.items,
-        subtotal: so.subtotal,
-        taxAmount: so.taxAmount,
-        totalAmount: so.totalAmount,
-        status: so.status,
+      bills: bills.map((b) => ({
+        id: b._id.toString(),
+        billNumber: b.billNumber,
+        billDate: b.billDate,
+        dueDate: b.dueDate,
+        poId: b.poId || '',
+        poNumber: b.poNumber || '',
+        vendorId: b.vendorId || '',
+        vendorName: b.vendorName,
+        vendorGstin: b.vendorGstin,
+        vendorState: b.vendorState || 'Tamil Nadu',
+        billingAddress: b.billingAddress || '',
+        shippingAddress: b.shippingAddress || '',
+        items: b.items || [],
+        subtotal: b.subtotal,
+        shippingCharge: b.shippingCharge || 0,
+        shippingTax: b.shippingTax || 0,
+        taxableAmount: b.taxableAmount || b.subtotal,
+        cgstAmount: b.cgstAmount || 0,
+        sgstAmount: b.sgstAmount || 0,
+        igstAmount: b.igstAmount || 0,
+        taxAmount: b.taxAmount,
+        totalAmount: b.totalAmount,
+        totalInWords: b.totalInWords || '',
+        status: b.status,
+        branchId: b.branchId,
+        organisationId: b.organisationId,
+        financialYear: b.financialYear,
       })),
       invoices: invoices.map((inv) => ({
         id: inv._id.toString(),
         invoiceNumber: inv.invoiceNumber,
-        salesOrderNumber: inv.salesOrderNumber,
         customerId: inv.customerId,
         customerName: inv.customerName,
         customerGstin: inv.customerGstin || '',
@@ -323,6 +336,8 @@ erpRouter.get('/bootstrap', async (req: Request, res: Response) => {
         financialYear: inv.financialYear,
         items: inv.items || [],
         subtotal: inv.subtotal,
+        shippingCharge: inv.shippingCharge || 0,
+        shippingTax: inv.shippingTax || 0,
         taxableAmount: inv.taxableAmount || inv.subtotal,
         totalDiscount: inv.totalDiscount || 0,
         gstRate: inv.gstRate,
@@ -351,6 +366,8 @@ erpRouter.get('/bootstrap', async (req: Request, res: Response) => {
         financialYear: po.financialYear,
         items: po.items || [],
         subtotal: po.subtotal,
+        shippingCharge: po.shippingCharge || 0,
+        shippingTax: po.shippingTax || 0,
         taxableAmount: po.taxableAmount || po.subtotal,
         totalDiscount: po.totalDiscount || 0,
         cgstAmount: po.cgstAmount || 0,
@@ -369,8 +386,12 @@ erpRouter.get('/bootstrap', async (req: Request, res: Response) => {
         email: v.email,
         phone: v.phone,
         address: v.address,
+        billingAddress: v.billingAddress || v.address || '',
+        shippingAddress: v.shippingAddress || v.address || '',
         city: v.city,
         state: v.state,
+        billingState: v.billingState || v.state || 'Tamil Nadu',
+        shippingState: v.shippingState || v.state || 'Tamil Nadu',
         gstin: v.gstin,
         pan: v.pan,
         organisationId: v.organisationId,
@@ -394,14 +415,20 @@ erpRouter.get('/bootstrap', async (req: Request, res: Response) => {
       deliveryChallans: deliveryChallans.map((dc) => ({
         id: dc._id.toString(),
         dcNumber: dc.dcNumber,
-        salesOrderNumber: dc.salesOrderNumber,
+        invoiceId: dc.invoiceId || '',
+        invoiceNumber: dc.invoiceNumber,
+        customerId: dc.customerId || '',
         customerName: dc.customerName,
+        customerGstin: dc.customerGstin || '',
+        billingAddress: dc.billingAddress || '',
+        shippingAddress: dc.shippingAddress || '',
         dispatchDate: dc.dispatchDate,
         transportMode: dc.transportMode,
         vehicleNumber: dc.vehicleNumber,
         ewayBillNumber: dc.ewayBillNumber,
         driverName: dc.driverName,
         driverPhone: dc.driverPhone,
+        items: dc.items || [],
         status: dc.status,
         branchId: dc.branchId,
         organisationId: dc.organisationId,
@@ -474,9 +501,9 @@ erpRouter.patch('/financial-years/:id', async (req: Request, res: Response) => {
 });
 
 // ==========================================
-// 4. SALES ORDERS (WITH URL PARAMS & SCOPING)
+// 4. BILLS (VENDOR INVOICES WITH PO CONVERSION & DIRECT BILLS)
 // ==========================================
-erpRouter.get('/sales-orders', async (req: Request, res: Response) => {
+erpRouter.get('/bills', async (req: Request, res: Response) => {
   try {
     const { branchId, organisationId, financialYear, page, per_page, search, sort_column, sort_order, filter_by } = req.query;
 
@@ -494,8 +521,9 @@ erpRouter.get('/sales-orders', async (req: Request, res: Response) => {
     if (search) {
       const term = String(search).trim();
       query.$or = [
-        { orderNumber: { $regex: term, $options: 'i' } },
-        { customerName: { $regex: term, $options: 'i' } },
+        { billNumber: { $regex: term, $options: 'i' } },
+        { vendorName: { $regex: term, $options: 'i' } },
+        { poNumber: { $regex: term, $options: 'i' } },
       ];
     }
 
@@ -506,17 +534,17 @@ erpRouter.get('/sales-orders', async (req: Request, res: Response) => {
       sortOpt.createdAt = -1;
     }
 
-    const total = await SalesOrder.countDocuments(query);
+    const total = await Bill.countDocuments(query);
     const p = Math.max(1, Number(page) || 1);
     const pp = Number(per_page) || 0;
 
-    let q = SalesOrder.find(query).sort(sortOpt);
+    let q = Bill.find(query).sort(sortOpt);
     if (pp > 0) {
       q = q.skip((p - 1) * pp).limit(pp);
     }
 
-    const orders = await q;
-    const data = orders.map((so) => ({ ...so.toObject(), id: so._id.toString() }));
+    const bills = await q;
+    const data = bills.map((b) => ({ ...b.toObject(), id: b._id.toString() }));
 
     if (per_page !== undefined) {
       return res.json({ message: 'success', data, total, page: p, per_page: pp });
@@ -527,15 +555,80 @@ erpRouter.get('/sales-orders', async (req: Request, res: Response) => {
   }
 });
 
-erpRouter.post('/sales-orders', async (req: Request, res: Response) => {
+erpRouter.get('/bills/:id', async (req: Request, res: Response) => {
   try {
-    const count = (await SalesOrder.countDocuments()) + 81;
-    const orderNumber = `SO-2026-0${count}`;
-    const order = await SalesOrder.create({
+    const bill = await Bill.findById(req.params.id);
+    if (!bill) return res.status(404).json({ error: 'Bill not found' });
+    res.json({ ...bill.toObject(), id: bill._id.toString() });
+  } catch (err: any) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+erpRouter.post('/bills', async (req: Request, res: Response) => {
+  try {
+    const { items, vendorState, vendorGstin, shippingCharge, poId } = req.body;
+
+    if (vendorGstin && !validateGSTIN(vendorGstin)) {
+      return res.status(400).json({ error: 'Invalid Vendor GSTIN format' });
+    }
+
+    if (!items || !Array.isArray(items) || items.length === 0) {
+      return res.status(400).json({ error: 'At least one line item is required.' });
+    }
+
+    for (const it of items) {
+      if (!validateQuantity(it.quantity)) {
+        return res.status(400).json({ error: `Quantity must be greater than 0 for item "${it.productName || 'Line Item'}".` });
+      }
+      if (it.productId) {
+        const prod = await Product.findById(it.productId);
+        if (!prod) {
+          return res.status(400).json({ error: `Product not found for item "${it.productName}".` });
+        }
+        if (prod.approvalStatus !== 'Approved') {
+          return res.status(400).json({ error: `Product "${prod.name}" is not approved.` });
+        }
+      }
+    }
+
+    const count = (await Bill.countDocuments()) + 1;
+    const billNumber = `BILL-2026-00${count}`;
+
+    const numShipping = Math.max(0, Number(shippingCharge) || 0);
+    const taxResult = calculateDocumentTaxes(items, vendorState || 'Tamil Nadu', vendorGstin, numShipping);
+
+    const bill = await Bill.create({
       ...req.body,
-      orderNumber,
+      billNumber,
+      items: taxResult.items,
+      subtotal: taxResult.subtotal,
+      shippingCharge: taxResult.shippingCharge,
+      shippingTax: taxResult.shippingTax,
+      taxableAmount: taxResult.taxableAmount,
+      cgstAmount: taxResult.cgstAmount,
+      sgstAmount: taxResult.sgstAmount,
+      igstAmount: taxResult.igstAmount,
+      taxAmount: taxResult.totalTax,
+      totalAmount: taxResult.grandTotal,
+      totalInWords: taxResult.totalInWords,
     });
-    res.status(201).json({ ...order.toObject(), id: order._id.toString() });
+
+    if (poId) {
+      await PurchaseOrder.findByIdAndUpdate(poId, { status: 'Billed' });
+    }
+
+    res.status(201).json({ ...bill.toObject(), id: bill._id.toString() });
+  } catch (err: any) {
+    res.status(400).json({ error: err.message });
+  }
+});
+
+erpRouter.patch('/bills/:id', async (req: Request, res: Response) => {
+  try {
+    const updated = await Bill.findByIdAndUpdate(req.params.id, req.body, { new: true });
+    if (!updated) return res.status(404).json({ error: 'Bill not found' });
+    res.json({ ...updated.toObject(), id: updated._id.toString() });
   } catch (err: any) {
     res.status(400).json({ error: err.message });
   }
@@ -564,7 +657,6 @@ erpRouter.get('/invoices', async (req: Request, res: Response) => {
       query.$or = [
         { invoiceNumber: { $regex: term, $options: 'i' } },
         { customerName: { $regex: term, $options: 'i' } },
-        { salesOrderNumber: { $regex: term, $options: 'i' } },
       ];
     }
 
@@ -598,20 +690,39 @@ erpRouter.get('/invoices', async (req: Request, res: Response) => {
 
 erpRouter.post('/invoices', async (req: Request, res: Response) => {
   try {
-    const { items, customerState, customerGstin } = req.body;
+    const { items, customerState, customerGstin, shippingCharge } = req.body;
 
-    // Check that all selected products are approved by Super Admin
-    if (items && Array.isArray(items) && items.length > 0) {
-      const productIds = items.map((it: any) => it.productId).filter(Boolean);
-      if (productIds.length > 0) {
-        const unapproved = await Product.find({
-          _id: { $in: productIds },
-          approvalStatus: { $ne: 'Approved' },
-        });
-        if (unapproved.length > 0) {
+    if (customerGstin && !validateGSTIN(customerGstin)) {
+      return res.status(400).json({ error: 'Invalid Customer GSTIN format' });
+    }
+
+    if (!items || !Array.isArray(items) || items.length === 0) {
+      return res.status(400).json({ error: 'At least one line item is required.' });
+    }
+
+    // Backend validation: Verify every item against Product Master
+    for (const it of items) {
+      if (!validateQuantity(it.quantity)) {
+        return res.status(400).json({ error: `Quantity must be greater than 0 for item "${it.productName || 'Line Item'}".` });
+      }
+      if (it.productId) {
+        const prod = await Product.findById(it.productId);
+        if (!prod) {
+          return res.status(400).json({ error: `Product not found for item "${it.productName}".` });
+        }
+        if (prod.approvalStatus !== 'Approved') {
           return res.status(400).json({
-            error: `Product "${unapproved[0].name}" is not approved. Only Super Admin approved products can be invoiced.`,
+            error: `Product "${prod.name}" is not approved. Only Super Admin approved products can be invoiced.`,
           });
+        }
+        if (it.hsnCode && it.hsnCode !== prod.hsnCode) {
+          return res.status(400).json({ error: `HSN code mismatch for product "${prod.name}". Master HSN is ${prod.hsnCode}.` });
+        }
+        if (Math.abs(Number(it.unitPrice) - Number(prod.sellingPrice)) > 0.01) {
+          return res.status(400).json({ error: `Unit price mismatch for product "${prod.name}". Master selling price is ₹${prod.sellingPrice}.` });
+        }
+        if (Number(it.taxRate) !== Number(prod.taxRate ?? 18)) {
+          return res.status(400).json({ error: `Tax rate mismatch for product "${prod.name}". Master tax rate is ${prod.taxRate}%.` });
         }
       }
     }
@@ -619,14 +730,16 @@ erpRouter.post('/invoices', async (req: Request, res: Response) => {
     const count = (await Invoice.countDocuments()) + 1;
     const invoiceNumber = `INV-2026-00${count}`;
 
-    // Dynamic state-based GST calculation
-    const taxResult = calculateDocumentTaxes(items || [], customerState, customerGstin);
+    const numShipping = Math.max(0, Number(shippingCharge) || 0);
+    const taxResult = calculateDocumentTaxes(items, customerState || 'Tamil Nadu', customerGstin, numShipping);
 
     const invoice = await Invoice.create({
       ...req.body,
       invoiceNumber,
       items: taxResult.items,
       subtotal: taxResult.subtotal,
+      shippingCharge: taxResult.shippingCharge,
+      shippingTax: taxResult.shippingTax,
       taxableAmount: taxResult.taxableAmount,
       totalDiscount: taxResult.totalDiscount,
       cgstAmount: taxResult.cgstAmount,
@@ -698,20 +811,35 @@ erpRouter.get('/purchase-orders', async (req: Request, res: Response) => {
 
 erpRouter.post('/purchase-orders', async (req: Request, res: Response) => {
   try {
-    const { items, vendorState, vendorGstin } = req.body;
+    const { items, vendorState, vendorGstin, shippingCharge } = req.body;
 
-    // Check that all selected products are approved by Super Admin
-    if (items && Array.isArray(items) && items.length > 0) {
-      const productIds = items.map((it: any) => it.productId).filter(Boolean);
-      if (productIds.length > 0) {
-        const unapproved = await Product.find({
-          _id: { $in: productIds },
-          approvalStatus: { $ne: 'Approved' },
-        });
-        if (unapproved.length > 0) {
+    if (vendorGstin && !validateGSTIN(vendorGstin)) {
+      return res.status(400).json({ error: 'Invalid Vendor GSTIN format' });
+    }
+
+    if (!items || !Array.isArray(items) || items.length === 0) {
+      return res.status(400).json({ error: 'At least one line item is required.' });
+    }
+
+    for (const it of items) {
+      if (!validateQuantity(it.quantity)) {
+        return res.status(400).json({ error: `Quantity must be greater than 0 for item "${it.productName || 'Line Item'}".` });
+      }
+      if (it.productId) {
+        const prod = await Product.findById(it.productId);
+        if (!prod) {
+          return res.status(400).json({ error: `Product not found for item "${it.productName}".` });
+        }
+        if (prod.approvalStatus !== 'Approved') {
           return res.status(400).json({
-            error: `Product "${unapproved[0].name}" is not approved. Only Super Admin approved products can be purchased.`,
+            error: `Product "${prod.name}" is not approved. Only Super Admin approved products can be purchased.`,
           });
+        }
+        if (it.hsnCode && it.hsnCode !== prod.hsnCode) {
+          return res.status(400).json({ error: `HSN code mismatch for product "${prod.name}". Master HSN is ${prod.hsnCode}.` });
+        }
+        if (it.taxRate !== undefined && Number(it.taxRate) !== Number(prod.taxRate ?? 18)) {
+          return res.status(400).json({ error: `Tax rate mismatch for product "${prod.name}". Master tax rate is ${prod.taxRate}%.` });
         }
       }
     }
@@ -719,14 +847,16 @@ erpRouter.post('/purchase-orders', async (req: Request, res: Response) => {
     const count = (await PurchaseOrder.countDocuments()) + 44;
     const poNumber = `PO-2026-0${count}`;
 
-    // Dynamic state-based GST calculation
-    const taxResult = calculateDocumentTaxes(items || [], vendorState, vendorGstin);
+    const numShipping = Math.max(0, Number(shippingCharge) || 0);
+    const taxResult = calculateDocumentTaxes(items, vendorState || 'Tamil Nadu', vendorGstin, numShipping);
 
     const po = await PurchaseOrder.create({
       ...req.body,
       poNumber,
       items: taxResult.items,
       subtotal: taxResult.subtotal,
+      shippingCharge: taxResult.shippingCharge,
+      shippingTax: taxResult.shippingTax,
       taxableAmount: taxResult.taxableAmount,
       totalDiscount: taxResult.totalDiscount,
       cgstAmount: taxResult.cgstAmount,
@@ -879,9 +1009,12 @@ erpRouter.get('/customers', async (req: Request, res: Response) => {
 
 erpRouter.post('/customers', async (req: Request, res: Response) => {
   try {
-    const { creditLimit } = req.body;
-    if (creditLimit !== undefined && Number(creditLimit) <= 10000) {
+    const { creditLimit, gstin } = req.body;
+    if (creditLimit !== undefined && !validateCreditLimit(creditLimit)) {
       return res.status(400).json({ error: 'Credit limit must be strictly more than ₹10,000' });
+    }
+    if (gstin && !validateGSTIN(gstin)) {
+      return res.status(400).json({ error: 'Invalid Customer GSTIN format' });
     }
     const count = (await Customer.countDocuments()) + 1;
     const code = `CUST-${String(req.body.name).slice(0, 4).toUpperCase()}-${count}`;
@@ -898,8 +1031,11 @@ erpRouter.post('/customers', async (req: Request, res: Response) => {
 
 erpRouter.patch('/customers/:id', async (req: Request, res: Response) => {
   try {
-    if (req.body.creditLimit !== undefined && Number(req.body.creditLimit) <= 10000) {
+    if (req.body.creditLimit !== undefined && !validateCreditLimit(req.body.creditLimit)) {
       return res.status(400).json({ error: 'Credit limit must be strictly more than ₹10,000' });
+    }
+    if (req.body.gstin && !validateGSTIN(req.body.gstin)) {
+      return res.status(400).json({ error: 'Invalid Customer GSTIN format' });
     }
     const updated = await Customer.findByIdAndUpdate(req.params.id, req.body, { new: true });
     if (!updated) return res.status(404).json({ error: 'Customer not found' });
@@ -927,6 +1063,10 @@ erpRouter.get('/vendors', async (req: Request, res: Response) => {
 
 erpRouter.post('/vendors', async (req: Request, res: Response) => {
   try {
+    const { gstin } = req.body;
+    if (gstin && !validateGSTIN(gstin)) {
+      return res.status(400).json({ error: 'Invalid Vendor GSTIN format' });
+    }
     const count = (await Vendor.countDocuments()) + 1;
     const code = req.body.code || `VEND-${String(req.body.name).slice(0, 4).toUpperCase()}-${count}`;
     const vendor = await Vendor.create({
@@ -941,6 +1081,9 @@ erpRouter.post('/vendors', async (req: Request, res: Response) => {
 
 erpRouter.patch('/vendors/:id', async (req: Request, res: Response) => {
   try {
+    if (req.body.gstin && !validateGSTIN(req.body.gstin)) {
+      return res.status(400).json({ error: 'Invalid Vendor GSTIN format' });
+    }
     const updated = await Vendor.findByIdAndUpdate(req.params.id, req.body, { new: true });
     if (!updated) return res.status(404).json({ error: 'Vendor not found' });
     res.json({ ...updated.toObject(), id: updated._id.toString() });
@@ -978,6 +1121,17 @@ erpRouter.get('/delivery-challans', async (req: Request, res: Response) => {
 
 erpRouter.post('/delivery-challans', async (req: Request, res: Response) => {
   try {
+    const { invoiceNumber, items } = req.body;
+    if (!invoiceNumber) {
+      return res.status(400).json({ error: 'Tax Invoice reference is required to generate Delivery Challan.' });
+    }
+    if (items && Array.isArray(items)) {
+      for (const it of items) {
+        if (!validateQuantity(it.quantity)) {
+          return res.status(400).json({ error: `Quantity must be greater than 0 for item "${it.productName || 'Line Item'}".` });
+        }
+      }
+    }
     const count = (await DeliveryChallan.countDocuments()) + 41;
     const dcNumber = `DC-2026-00${count}`;
     const dc = await DeliveryChallan.create({
