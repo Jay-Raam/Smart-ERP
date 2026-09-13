@@ -1,18 +1,12 @@
 import React from 'react';
 import {
   X,
-  User,
   Building,
-  MapPin,
-  Shield,
   LogOut,
   CheckCircle2,
-  Mail,
-  Key,
   Database,
-  ExternalLink,
 } from 'lucide-react';
-import { useAuthStore, UserRole } from '../../store/authStore';
+import { useAuthStore } from '../../store/authStore';
 import { useErpStore } from '../../store/erpStore';
 import { Combobox } from '../shared/Combobox';
 
@@ -22,7 +16,7 @@ interface ProfileDrawerProps {
 }
 
 export const ProfileDrawer: React.FC<ProfileDrawerProps> = ({ isOpen, onClose }) => {
-  const { user, logout, setRole, setBranch } = useAuthStore();
+  const { user, logout, setBranch } = useAuthStore();
   const { branches, organisation } = useErpStore();
 
   if (!isOpen) return null;
@@ -31,10 +25,6 @@ export const ProfileDrawer: React.FC<ProfileDrawerProps> = ({ isOpen, onClose })
     id: user.branchId || 'hq',
     code: 'HQ',
     name: user.branchName || 'Headquarters & Assembly Plant',
-  };
-
-  const handleRoleChange = (newRole: UserRole) => {
-    setRole(newRole);
   };
 
   const handleBranchChange = (branchId: string) => {
@@ -140,41 +130,6 @@ export const ProfileDrawer: React.FC<ProfileDrawerProps> = ({ isOpen, onClose })
                   }))}
                   searchable={false}
                 />
-              </div>
-            </div>
-
-            {/* Role Switcher Matrix */}
-            <div>
-              <div className="flex items-center justify-between mb-2">
-                <label className="text-xs font-bold text-slate-800">
-                  Switch Active Role (RBAC Simulation)
-                </label>
-                <span className="text-[11px] text-slate-400 font-medium">
-                  Instant Privilege Update
-                </span>
-              </div>
-              <div className="grid grid-cols-2 gap-2">
-                {(['SuperAdmin', 'Admin', 'Manager', 'Staff', 'Viewer'] as UserRole[]).map(
-                  (role) => (
-                    <button
-                      key={role}
-                      type="button"
-                      onClick={() => handleRoleChange(role)}
-                      className={`flex items-center gap-2 p-2.5 rounded-xl border text-xs font-semibold transition text-left cursor-pointer ${
-                        user.role === role
-                          ? 'border-blue-600 bg-blue-50 text-blue-700 shadow-xs'
-                          : 'border-slate-200 bg-white text-slate-700 hover:border-slate-300 hover:bg-slate-50'
-                      }`}
-                    >
-                      <Shield
-                        className={`h-3.5 w-3.5 shrink-0 ${
-                          user.role === role ? 'text-blue-600' : 'text-slate-400'
-                        }`}
-                      />
-                      <span className="truncate">{role}</span>
-                    </button>
-                  )
-                )}
               </div>
             </div>
 
