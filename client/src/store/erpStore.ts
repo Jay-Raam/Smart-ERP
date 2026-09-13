@@ -76,6 +76,7 @@ export interface Product {
   currentStock: number;
   minReorderLevel: number;
   taxRate: number;
+  status?: 'ACTIVE' | 'INACTIVE';
   approvalStatus: 'Pending' | 'Approved' | 'Rejected';
   approvedBy?: string;
   approvedAt?: string;
@@ -90,6 +91,11 @@ export interface DocumentItem {
   sku?: string;
   hsnCode: string;
   quantity: number;
+  orderedQuantity?: number;
+  billedQuantity?: number;
+  remainingQuantity?: number;
+  movedToStoreQuantity?: number;
+  remainingToMoveQuantity?: number;
   unitPrice: number;
   uom?: string;
   discountAmount?: number;
@@ -101,6 +107,57 @@ export interface DocumentItem {
   igstAmount?: number;
   totalTax?: number;
   totalAmount?: number;
+}
+
+export interface BankAccount {
+  id: string;
+  accountHolderName: string;
+  accountHolderType: 'ORGANISATION' | 'CUSTOMER' | 'VENDOR';
+  partyId?: string;
+  partyName?: string;
+  bankName: string;
+  branchName: string;
+  accountNumber: string;
+  ifscCode: string;
+  accountType: 'CURRENT' | 'SAVINGS' | 'OVERDRAFT' | 'CASH_CREDIT';
+  currency: string;
+  openingBalance: number;
+  balance: number;
+  isPrimary: boolean;
+  isActive: boolean;
+  notes?: string;
+  organisationId?: string;
+  branchId?: string;
+  createdBy?: string;
+  updatedBy?: string;
+}
+
+export interface FinancialTransaction {
+  id: string;
+  transactionNumber: string;
+  transactionDate: string;
+  type: 'CUSTOMER_PAYMENT' | 'VENDOR_PAYMENT' | 'EXPENSE' | 'TRANSFER' | 'ADJUSTMENT' | 'REVERSAL' | 'VENDOR_ADVANCE';
+  bankAccountId: string;
+  bankName?: string;
+  accountNumber?: string;
+  partyType?: 'CUSTOMER' | 'VENDOR' | 'INTERNAL' | 'OTHER';
+  partyId?: string;
+  partyName?: string;
+  invoiceId?: string;
+  billId?: string;
+  purchaseOrderId?: string;
+  debit: number;
+  credit: number;
+  runningBalance: number;
+  paymentMode: 'CASH' | 'CHEQUE' | 'NEFT' | 'RTGS' | 'UPI' | 'CARD' | 'NET_BANKING';
+  referenceNumber?: string;
+  notes?: string;
+  status: 'POSTED' | 'REVERSED';
+  reversalTxNumber?: string;
+  organisationId: string;
+  branchId?: string;
+  financialYear: string;
+  createdBy: string;
 }
 
 export interface Bill {
@@ -130,6 +187,11 @@ export interface Bill {
   igstAmount?: number;
   taxAmount: number;
   totalAmount: number;
+  paidAmount?: number;
+  outstandingAmount?: number;
+  advanceAdjusted?: number;
+  paymentStatus?: 'UNPAID' | 'PARTIALLY_PAID' | 'PAID';
+  storeMovementStatus?: 'PENDING' | 'PARTIALLY_MOVED' | 'FULLY_MOVED';
   totalInWords?: string;
   status: 'Pending' | 'Paid' | 'Approved' | 'Overdue';
   branchId?: string;
@@ -163,6 +225,9 @@ export interface Invoice {
   igstAmount?: number;
   taxAmount: number;
   totalAmount: number;
+  paidAmount?: number;
+  outstandingAmount?: number;
+  paymentStatus?: 'UNPAID' | 'PARTIALLY_PAID' | 'PAID';
   totalInWords?: string;
   status: 'Paid' | 'Pending' | 'Overdue';
 }
@@ -193,8 +258,12 @@ export interface PurchaseOrder {
   igstAmount?: number;
   taxAmount: number;
   totalAmount: number;
+  paidAmount?: number;
+  outstandingAmount?: number;
+  paymentStatus?: 'UNPAID' | 'PARTIALLY_PAID' | 'PAID';
+  isAutoReorder?: boolean;
   totalInWords?: string;
-  status: 'Approved' | 'Pending Approval' | 'Received' | 'Cancelled' | 'Billed';
+  status: 'Approved' | 'Pending Approval' | 'Received' | 'Cancelled' | 'Billed' | 'PARTIALLY_BILLED' | 'FULLY_BILLED' | 'AUTO_REORDER_PENDING';
 }
 
 export interface StoreItem {
@@ -263,6 +332,8 @@ interface ErpState {
   purchaseOrders: PurchaseOrder[];
   storeItems: StoreItem[];
   deliveryChallans: DeliveryChallan[];
+  bankAccounts: BankAccount[];
+  financialTransactions: FinancialTransaction[];
   isLoading: boolean;
   isInitialized: boolean;
 
@@ -282,6 +353,7 @@ interface ErpState {
   addProduct: (product: Omit<Product, 'id'>) => Promise<void>;
   approveProduct: (id: string) => Promise<void>;
   rejectProduct: (id: string) => Promise<void>;
+  updateProductStatus: (id: string, status: 'ACTIVE' | 'INACTIVE') => Promise<void>;
   addBill: (bill: Partial<Bill>) => Promise<Bill | undefined>;
   updateBill: (id: string, updates: Partial<Bill>) => Promise<void>;
   convertPoToBill: (
@@ -294,6 +366,15 @@ interface ErpState {
   addPurchaseOrder: (po: Omit<PurchaseOrder, 'id' | 'poNumber'>) => Promise<PurchaseOrder | undefined>;
   addDeliveryChallan: (dc: Omit<DeliveryChallan, 'id' | 'dcNumber'>) => Promise<void>;
   updateStoreStock: (productId: string, deltaQuantity: number) => Promise<void>;
+  fetchBankAccounts: () => Promise<void>;
+  addBankAccount: (account: Partial<BankAccount>) => Promise<BankAccount | undefined>;
+  setPrimaryBankAccount: (id: string) => Promise<void>;
+  fetchTransactions: (params?: Record<string, string>) => Promise<FinancialTransaction[]>;
+  recordCustomerPayment: (data: any) => Promise<any>;
+  recordVendorPayment: (data: any) => Promise<any>;
+  recordVendorAdvance: (data: any) => Promise<any>;
+  moveBillToStore: (billId: string, payload: any) => Promise<any>;
+  approveAutoReorderPO: (poId: string) => Promise<any>;
 }
 
 export const useErpStore = create<ErpState>((set, get) => ({
@@ -320,6 +401,8 @@ export const useErpStore = create<ErpState>((set, get) => ({
   purchaseOrders: [],
   storeItems: [],
   deliveryChallans: [],
+  bankAccounts: [],
+  financialTransactions: [],
   isLoading: false,
   isInitialized: false,
 
@@ -387,6 +470,7 @@ export const useErpStore = create<ErpState>((set, get) => ({
         purchaseOrders: finalData.purchaseOrders || [],
         storeItems: finalData.storeItems || [],
         deliveryChallans: finalData.deliveryChallans || [],
+        bankAccounts: finalData.bankAccounts || [],
         isLoading: false,
         isInitialized: true,
       });
@@ -800,6 +884,243 @@ export const useErpStore = create<ErpState>((set, get) => ({
       showAppToast(`Stock adjusted by ${deltaQuantity > 0 ? '+' : ''}${deltaQuantity}`, 'info');
     } catch (err: any) {
       showAppToast('Error updating stock: ' + err.message, 'error');
+    }
+  },
+
+  fetchBankAccounts: async () => {
+    try {
+      const res = await fetch('/api/erp/bank-accounts');
+      if (!res.ok) throw new Error('Failed to fetch bank accounts');
+      const data = await res.json();
+      set({ bankAccounts: data });
+    } catch (err: any) {
+      showAppToast('Error fetching bank accounts: ' + err.message, 'error');
+    }
+  },
+
+  addBankAccount: async (account) => {
+    try {
+      const res = await fetch('/api/erp/bank-accounts', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          ...account,
+          organisationId: get().activeOrganisationId || localStorage.getItem('OrganizationId'),
+          branchId: get().activeBranchId || localStorage.getItem('Branch'),
+        }),
+      });
+      if (!res.ok) {
+        const errData = await res.json().catch(() => ({}));
+        throw new Error(errData.error || 'Failed to create bank account');
+      }
+      const resp = await res.json();
+      const created = resp.data;
+      if (created.isPrimary) {
+        set((state) => ({
+          bankAccounts: [created, ...state.bankAccounts.map((b) => ({ ...b, isPrimary: false }))],
+        }));
+      } else {
+        set((state) => ({ bankAccounts: [created, ...state.bankAccounts] }));
+      }
+      showAppToast('Bank account created successfully', 'success');
+      return created;
+    } catch (err: any) {
+      showAppToast(err.message, 'error');
+      throw err;
+    }
+  },
+
+  setPrimaryBankAccount: async (id: string) => {
+    try {
+      const res = await fetch(`/api/erp/bank-accounts/${id}/set-primary`, {
+        method: 'POST',
+      });
+      if (!res.ok) {
+        const errData = await res.json().catch(() => ({}));
+        throw new Error(errData.error || 'Failed to set primary bank account');
+      }
+      set((state) => ({
+        bankAccounts: state.bankAccounts.map((b) => ({
+          ...b,
+          isPrimary: b.id === id,
+        })),
+      }));
+      showAppToast('Primary bank account updated', 'success');
+    } catch (err: any) {
+      showAppToast(err.message, 'error');
+      throw err;
+    }
+  },
+
+  fetchTransactions: async (params?: Record<string, string>) => {
+    try {
+      const query = new URLSearchParams(params || {});
+      const res = await fetch(`/api/erp/transactions?${query.toString()}`);
+      if (!res.ok) throw new Error('Failed to fetch transactions');
+      const data = await res.json();
+      const txs = data.transactions || [];
+      set({ financialTransactions: txs });
+      return txs;
+    } catch (err: any) {
+      showAppToast('Error fetching ledger: ' + err.message, 'error');
+      return [];
+    }
+  },
+
+  updateProductStatus: async (id: string, status: 'ACTIVE' | 'INACTIVE') => {
+    try {
+      const res = await fetch(`/api/erp/products/${id}/status`, {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ status }),
+      });
+      if (!res.ok) {
+        const errData = await res.json().catch(() => ({}));
+        throw new Error(errData.error || 'Failed to update product status');
+      }
+      const updated = await res.json();
+      set((state) => ({
+        products: state.products.map((p) => (p.id === id ? { ...p, status: updated.status } : p)),
+      }));
+      showAppToast(`Product status updated to ${status}`, 'success');
+    } catch (err: any) {
+      showAppToast(err.message, 'error');
+      throw err;
+    }
+  },
+
+  recordCustomerPayment: async (data: any) => {
+    try {
+      const res = await fetch('/api/erp/payments/customer', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(data),
+      });
+      if (!res.ok) {
+        const errData = await res.json().catch(() => ({}));
+        throw new Error(errData.error || 'Failed to record customer payment');
+      }
+      const result = await res.json();
+      const { invoice, transaction } = result.data;
+      set((state) => ({
+        invoices: state.invoices.map((inv) =>
+          inv.id === invoice.id || inv.id === invoice._id ? { ...inv, ...invoice, id: invoice.id || invoice._id } : inv
+        ),
+        bankAccounts: state.bankAccounts.map((b) =>
+          b.id === transaction.bankAccountId ? { ...b, balance: b.balance + transaction.credit } : b
+        ),
+        financialTransactions: [transaction, ...state.financialTransactions],
+      }));
+      showAppToast('Customer payment recorded successfully', 'success');
+      return result;
+    } catch (err: any) {
+      showAppToast(err.message, 'error');
+      throw err;
+    }
+  },
+
+  recordVendorPayment: async (data: any) => {
+    try {
+      const res = await fetch('/api/erp/payments/vendor', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(data),
+      });
+      if (!res.ok) {
+        const errData = await res.json().catch(() => ({}));
+        throw new Error(errData.error || 'Failed to record vendor payment');
+      }
+      const result = await res.json();
+      const { bill, transaction, bankBalance } = result.data;
+      set((state) => ({
+        bills: state.bills.map((b) =>
+          b.id === bill.id || b.id === bill._id ? { ...b, ...bill, id: bill.id || bill._id } : b
+        ),
+        bankAccounts: state.bankAccounts.map((b) =>
+          b.id === transaction.bankAccountId ? { ...b, balance: bankBalance ?? (b.balance - transaction.debit) } : b
+        ),
+        financialTransactions: [transaction, ...state.financialTransactions],
+      }));
+      showAppToast('Vendor payment recorded successfully', 'success');
+      return result;
+    } catch (err: any) {
+      showAppToast(err.message, 'error');
+      throw err;
+    }
+  },
+
+  recordVendorAdvance: async (data: any) => {
+    try {
+      const res = await fetch('/api/erp/payments/vendor-advance', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(data),
+      });
+      if (!res.ok) {
+        const errData = await res.json().catch(() => ({}));
+        throw new Error(errData.error || 'Failed to record vendor advance');
+      }
+      const result = await res.json();
+      const { purchaseOrder, transaction, bankBalance } = result.data;
+      set((state) => ({
+        purchaseOrders: state.purchaseOrders.map((po) =>
+          po.id === purchaseOrder.id || po.id === purchaseOrder._id
+            ? { ...po, ...purchaseOrder, id: purchaseOrder.id || purchaseOrder._id }
+            : po
+        ),
+        bankAccounts: state.bankAccounts.map((b) =>
+          b.id === transaction.bankAccountId ? { ...b, balance: bankBalance ?? (b.balance - transaction.debit) } : b
+        ),
+        financialTransactions: [transaction, ...state.financialTransactions],
+      }));
+      showAppToast('Vendor advance recorded successfully against PO', 'success');
+      return result;
+    } catch (err: any) {
+      showAppToast(err.message, 'error');
+      throw err;
+    }
+  },
+
+  moveBillToStore: async (billId: string, payload: any) => {
+    try {
+      const res = await fetch(`/api/erp/bills/${billId}/move-to-store`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(payload),
+      });
+      if (!res.ok) {
+        const errData = await res.json().catch(() => ({}));
+        throw new Error(errData.error || 'Failed to move items to store');
+      }
+      const result = await res.json();
+      get().fetchBootstrap();
+      showAppToast('Items successfully moved to Store / Inventory', 'success');
+      return result;
+    } catch (err: any) {
+      showAppToast(err.message, 'error');
+      throw err;
+    }
+  },
+
+  approveAutoReorderPO: async (poId: string) => {
+    try {
+      const res = await fetch(`/api/erp/purchase-orders/${poId}/approve-reorder`, {
+        method: 'POST',
+      });
+      if (!res.ok) {
+        const errData = await res.json().catch(() => ({}));
+        throw new Error(errData.error || 'Failed to approve auto-reorder PO');
+      }
+      const result = await res.json();
+      const updated = result.data;
+      set((state) => ({
+        purchaseOrders: state.purchaseOrders.map((po) => (po.id === poId ? { ...po, status: updated.status } : po)),
+      }));
+      showAppToast(`Auto-reorder Purchase Order ${updated.poNumber} approved`, 'success');
+      return updated;
+    } catch (err: any) {
+      showAppToast(err.message, 'error');
+      throw err;
     }
   },
 }));
