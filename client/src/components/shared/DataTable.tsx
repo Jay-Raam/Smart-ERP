@@ -180,9 +180,9 @@ export function DataTable<T extends Record<string, any>>({
   const hasActiveFilters = searchTerm.trim() !== '' || (selectedStatus && selectedStatus.toUpperCase() !== 'ALL');
 
   return (
-    <div className="flex flex-col w-full rounded-2xl border border-slate-200 bg-white shadow-xs overflow-hidden">
+    <div className="flex flex-col w-full rounded-2xl border border-slate-200 bg-white shadow-xs relative">
       {/* Table Toolbar */}
-      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 p-4 border-b border-slate-200 bg-slate-50/60">
+      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 p-4 border-b border-slate-200 bg-slate-50/60 rounded-t-2xl">
         {/* Left: Search input + Status Filter */}
         <div className="flex flex-wrap items-center gap-2.5 flex-1">
           {/* Search box */}
@@ -374,7 +374,7 @@ export function DataTable<T extends Record<string, any>>({
       </div>
 
       {/* Pagination Footer */}
-      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 px-4 py-3 border-t border-slate-200 bg-slate-50 text-xs text-slate-600">
+      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 px-4 py-3 border-t border-slate-200 bg-slate-50 text-xs text-slate-600 rounded-b-2xl relative z-20 overflow-visible">
         <div className="flex items-center gap-2">
           <span>
             Showing{' '}
@@ -403,6 +403,7 @@ export function DataTable<T extends Record<string, any>>({
                 { value: '50', label: '50 / page' },
               ]}
               searchable={false}
+              placement="top"
             />
           </div>
         </div>
