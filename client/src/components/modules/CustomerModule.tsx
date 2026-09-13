@@ -29,6 +29,11 @@ export const CustomerModule: React.FC<CustomerModuleProps> = ({ initialOpenAdd =
   const [phone, setPhone] = useState('');
   const [city, setCity] = useState('Chennai');
   const [state, setState] = useState('Tamil Nadu');
+  const [billingAddress, setBillingAddress] = useState('');
+  const [shippingAddress, setShippingAddress] = useState('');
+  const [billingState, setBillingState] = useState('Tamil Nadu');
+  const [shippingState, setShippingState] = useState('Tamil Nadu');
+  const [sameAsBilling, setSameAsBilling] = useState(true);
   const [gstin, setGstin] = useState('');
   const [creditLimit, setCreditLimit] = useState(2500000);
 
@@ -43,13 +48,21 @@ export const CustomerModule: React.FC<CustomerModuleProps> = ({ initialOpenAdd =
 
   const handleCreateCustomer = (e: React.FormEvent) => {
     e.preventDefault();
+    const finalShipAddr = sameAsBilling ? billingAddress : (shippingAddress || billingAddress);
+    const finalShipState = sameAsBilling ? billingState : (shippingState || billingState);
+
     addCustomer({
       name,
       contactPerson,
       email,
       phone,
       city,
-      state,
+      state: billingState || state,
+      address: billingAddress,
+      billingAddress,
+      shippingAddress: finalShipAddr,
+      billingState: billingState || state,
+      shippingState: finalShipState,
       gstin,
       outstandingBalance: 0,
       creditLimit,
@@ -59,6 +72,8 @@ export const CustomerModule: React.FC<CustomerModuleProps> = ({ initialOpenAdd =
     setContactPerson('');
     setEmail('');
     setPhone('');
+    setBillingAddress('');
+    setShippingAddress('');
     setGstin('');
   };
 
@@ -98,8 +113,24 @@ export const CustomerModule: React.FC<CustomerModuleProps> = ({ initialOpenAdd =
       render: (c) => (
         <span className="text-slate-600 flex items-center gap-1">
           <MapPin className="h-3 w-3 text-slate-400" />
-          <span>{c.city}, {c.state}</span>
+          <span>{c.city}, {c.billingState || c.state}</span>
         </span>
+      ),
+    },
+    {
+      key: 'address',
+      header: 'Billing & Shipping Address',
+      render: (c) => (
+        <div className="max-w-xs text-xs space-y-0.5">
+          <div className="text-slate-700 truncate" title={c.billingAddress || c.address}>
+            <span className="font-semibold text-slate-500">Bill: </span>
+            {c.billingAddress || c.address || '—'}
+          </div>
+          <div className="text-slate-500 truncate" title={c.shippingAddress || c.address}>
+            <span className="font-semibold text-slate-400">Ship: </span>
+            {c.shippingAddress || c.address || '—'}
+          </div>
+        </div>
       ),
     },
     {
@@ -243,20 +274,83 @@ export const CustomerModule: React.FC<CustomerModuleProps> = ({ initialOpenAdd =
                     required
                     value={city}
                     onChange={(e) => setCity(e.target.value)}
-                    className="w-full rounded-lg border border-slate-200 p-2.5 outline-none focus:border-blue-500"
+                    className="w-full rounded-lg border border-slate-200 p-2.5 outline-none focus:border-blue-500 text-slate-800"
                   />
                 </div>
                 <div>
-                  <label className="block font-semibold text-slate-700 mb-1">State</label>
+                  <label className="block font-semibold text-slate-700 mb-1">Billing State</label>
                   <input
                     type="text"
                     required
-                    value={state}
-                    onChange={(e) => setState(e.target.value)}
-                    className="w-full rounded-lg border border-slate-200 p-2.5 outline-none focus:border-blue-500"
+                    value={billingState}
+                    onChange={(e) => {
+                      setBillingState(e.target.value);
+                      if (sameAsBilling) setShippingState(e.target.value);
+                    }}
+                    className="w-full rounded-lg border border-slate-200 p-2.5 outline-none focus:border-blue-500 text-slate-800"
                   />
                 </div>
               </div>
+
+              <div>
+                <label className="block font-semibold text-slate-700 mb-1">Billing Address</label>
+                <textarea
+                  rows={2}
+                  required
+                  placeholder="e.g. Plot 14, Guindy Industrial Area, Chennai - 600032"
+                  value={billingAddress}
+                  onChange={(e) => {
+                    setBillingAddress(e.target.value);
+                    if (sameAsBilling) setShippingAddress(e.target.value);
+                  }}
+                  className="w-full rounded-lg border border-slate-200 p-2.5 outline-none focus:border-blue-500 text-slate-800 resize-none text-xs"
+                />
+              </div>
+
+              <div className="flex items-center gap-2 pt-1 pb-1">
+                <input
+                  type="checkbox"
+                  id="sameAsBilling"
+                  checked={sameAsBilling}
+                  onChange={(e) => {
+                    setSameAsBilling(e.target.checked);
+                    if (e.target.checked) {
+                      setShippingAddress(billingAddress);
+                      setShippingState(billingState);
+                    }
+                  }}
+                  className="h-4 w-4 rounded text-blue-600 focus:ring-blue-500 border-slate-300"
+                />
+                <label htmlFor="sameAsBilling" className="text-xs font-semibold text-slate-700 select-none cursor-pointer">
+                  Shipping address same as billing address
+                </label>
+              </div>
+
+              {!sameAsBilling && (
+                <div className="space-y-3 rounded-lg border border-slate-200 bg-slate-50/50 p-3">
+                  <div>
+                    <label className="block font-semibold text-slate-700 mb-1">Shipping State</label>
+                    <input
+                      type="text"
+                      required={!sameAsBilling}
+                      value={shippingState}
+                      onChange={(e) => setShippingState(e.target.value)}
+                      className="w-full rounded-lg border border-slate-200 p-2.5 outline-none focus:border-blue-500 text-slate-800 bg-white"
+                    />
+                  </div>
+                  <div>
+                    <label className="block font-semibold text-slate-700 mb-1">Shipping Address</label>
+                    <textarea
+                      rows={2}
+                      required={!sameAsBilling}
+                      placeholder="e.g. Warehouse 3B, SIPCOT Sriperumbudur, Tamil Nadu"
+                      value={shippingAddress}
+                      onChange={(e) => setShippingAddress(e.target.value)}
+                      className="w-full rounded-lg border border-slate-200 p-2.5 outline-none focus:border-blue-500 text-slate-800 resize-none text-xs bg-white"
+                    />
+                  </div>
+                </div>
+              )}
 
               <div>
                 <label className="block font-semibold text-slate-700 mb-1">Credit Limit (₹)</label>
@@ -266,7 +360,7 @@ export const CustomerModule: React.FC<CustomerModuleProps> = ({ initialOpenAdd =
                   required
                   value={creditLimit}
                   onChange={(e) => setCreditLimit(parseFloat(e.target.value) || 0)}
-                  className="w-full rounded-lg border border-slate-200 p-2.5 outline-none focus:border-blue-500 font-mono"
+                  className="w-full rounded-lg border border-slate-200 p-2.5 outline-none focus:border-blue-500 font-mono text-slate-800"
                 />
               </div>
 
