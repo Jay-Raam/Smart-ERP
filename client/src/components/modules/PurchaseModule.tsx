@@ -750,17 +750,18 @@ export const PurchaseModule: React.FC<PurchaseModuleProps> = ({ initialOpenAdd =
               <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                 <div>
                   <label className="block font-semibold text-slate-700 mb-1">Select Registered Vendor</label>
-                  <Combobox
+                  <select
                     value={selectedVendorId}
-                    onChange={(val) => setSelectedVendorId(val)}
-                    options={vendors.map((v) => ({
-                      value: v.id,
-                      label: v.name,
-                      sublabel: `GSTIN: ${v.gstin} • ${v.city}, ${v.state}`,
-                    }))}
-                    placeholder="Select vendor..."
-                    searchable={true}
-                  />
+                    onChange={(e) => setSelectedVendorId(e.target.value)}
+                    className="w-full rounded-xl border border-slate-300 p-2.5 bg-white text-xs text-slate-800 font-medium focus:outline-hidden focus:ring-2 focus:ring-blue-500"
+                  >
+                    <option value="">-- Select Registered Vendor --</option>
+                    {vendors.map((v) => (
+                      <option key={v.id} value={v.id}>
+                        {v.name} ({v.code}) — GSTIN: {v.gstin || 'None'} • {v.city || ''}, {v.state || ''}
+                      </option>
+                    ))}
+                  </select>
                 </div>
 
                 <div>
@@ -849,6 +850,7 @@ export const PurchaseModule: React.FC<PurchaseModuleProps> = ({ initialOpenAdd =
                           }}
                           className="w-full rounded-lg border border-slate-200 p-1.5 text-xs text-slate-800 outline-none focus:border-blue-500"
                         >
+                          <option value="">-- Select Product Master --</option>
                           {approvedProducts.map((p) => (
                             <option key={p.id} value={p.id}>
                               {p.name} ({p.sku})

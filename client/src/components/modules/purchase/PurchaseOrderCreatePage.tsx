@@ -258,7 +258,10 @@ export const PurchaseOrderCreatePage: React.FC = () => {
   };
 
   const onFormSubmit = async (data: PoFormData) => {
-    if (!activeVendor) return;
+    if (!activeVendor) {
+      showAppToast('Please select a valid registered vendor.', 'warning');
+      return;
+    }
 
     if (isEditLocked) {
       showAppToast('Editing is locked because payment or bills have been recorded.', 'error');
@@ -435,9 +438,10 @@ export const PurchaseOrderCreatePage: React.FC = () => {
                 }}
                 className="w-full rounded-xl border border-slate-300 p-2.5 bg-white text-xs text-slate-800 font-medium focus:outline-hidden focus:ring-2 focus:ring-blue-500"
               >
+                <option value="">-- Select Vendor / Supplier --</option>
                 {vendors.map((v) => (
                   <option key={v.id} value={v.id}>
-                    {v.name} ({v.code})
+                    {v.name} ({v.code}) — GSTIN: {v.gstin || 'None'} • {v.city || ''}, {v.state || ''}
                   </option>
                 ))}
               </select>
@@ -568,6 +572,7 @@ export const PurchaseOrderCreatePage: React.FC = () => {
                     onChange={(e) => handleProductSelect(idx, e.target.value)}
                     className="w-full rounded-lg border border-slate-300 bg-white p-2 text-slate-800 font-medium focus:outline-hidden focus:ring-2 focus:ring-blue-500"
                   >
+                    <option value="">-- Select Product Master --</option>
                     {approvedProducts.map((p) => (
                       <option key={p.id} value={p.id}>
                         {p.name} ({p.sku})
