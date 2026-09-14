@@ -17,6 +17,7 @@ import {
   History,
   Lock,
   QrCode,
+  RotateCw,
 } from 'lucide-react';
 import { useErpStore, Invoice, DocumentItem } from '../../store/erpStore';
 import { DataTable, ColumnDef } from '../shared/DataTable';
@@ -40,6 +41,7 @@ export const InvoiceModule: React.FC<InvoiceModuleProps> = ({ initialOpenAdd = f
   const [selectedInvoiceForPayment, setSelectedInvoiceForPayment] = useState<Invoice | null>(null);
   const [selectedInvoiceForHistory, setSelectedInvoiceForHistory] = useState<Invoice | null>(null);
   const [isExportModalOpen, setIsExportModalOpen] = useState(false);
+  const [generatingIrnId, setGeneratingIrnId] = useState<string | null>(null);
 
   const exportColumns: ExportColumn<Invoice>[] = [
     { key: 'invoiceNumber', label: 'Invoice No' },
@@ -266,12 +268,13 @@ export const InvoiceModule: React.FC<InvoiceModuleProps> = ({ initialOpenAdd = f
             ? inv.outstandingAmount
             : Math.max(0, inv.totalAmount - (inv.paidAmount || 0));
         const isUnpaid = inv.status !== 'Paid' && (inv.paidAmount || 0) === 0;
+        const isEditable = isUnpaid && !inv.irn;
 
         return (
           <div className="flex items-center justify-end gap-1.5 whitespace-nowrap">
-            {/* Edit Direct Tax Invoice (Locked if paid) */}
+            {/* Edit Direct Tax Invoice (Locked if paid or IRN generated) */}
             {canEdit && (
-              isUnpaid ? (
+              isEditable ? (
                 <button
                   type="button"
                   onClick={() => {
@@ -289,7 +292,11 @@ export const InvoiceModule: React.FC<InvoiceModuleProps> = ({ initialOpenAdd = f
                   type="button"
                   disabled
                   className="inline-flex items-center gap-1 rounded-lg border border-slate-100 bg-slate-50 px-2 py-1 text-xs font-medium text-slate-400 cursor-not-allowed opacity-60 shrink-0"
-                  title="Editing locked: Invoice has recorded payments"
+                  title={
+                    inv.irn
+                      ? 'Editing locked: Statutory GST IRN has already been generated'
+                      : 'Editing locked: Invoice has recorded payments'
+                  }
                 >
                   <Lock className="h-3 w-3 text-slate-400" />
                   <span>Edit</span>
@@ -310,24 +317,35 @@ export const InvoiceModule: React.FC<InvoiceModuleProps> = ({ initialOpenAdd = f
               </button>
             )}
 
-            {/* E-Invoice IRN Generator Button */}
+            {/* E-Invoice IRN Generator Button: Single unique IRN generation */}
             {canEdit && !inv.irn && (
               <button
                 type="button"
+                disabled={generatingIrnId === inv.id}
                 onClick={async () => {
-                  await generateEInvoice(inv.id);
+                  if (generatingIrnId) return;
+                  setGeneratingIrnId(inv.id);
+                  try {
+                    await generateEInvoice(inv.id);
+                  } finally {
+                    setGeneratingIrnId(null);
+                  }
                 }}
-                className="inline-flex items-center gap-1 rounded-lg border border-purple-200 bg-purple-50 px-2 py-1 text-xs font-semibold text-purple-700 hover:bg-purple-100 hover:text-purple-900 transition cursor-pointer shrink-0"
-                title="Generate Official Statutory IRN & Signed QR Code"
+                className="inline-flex items-center gap-1 rounded-lg border border-purple-200 bg-purple-50 px-2 py-1 text-xs font-semibold text-purple-700 hover:bg-purple-100 hover:text-purple-900 transition cursor-pointer shrink-0 disabled:opacity-60 disabled:cursor-not-allowed"
+                title="Generate Official Statutory IRN & Signed QR Code (Unique to this invoice)"
               >
-                <QrCode className="h-3.5 w-3.5 text-purple-600" />
-                <span>IRN</span>
+                {generatingIrnId === inv.id ? (
+                  <RotateCw className="h-3.5 w-3.5 text-purple-600 animate-spin" />
+                ) : (
+                  <QrCode className="h-3.5 w-3.5 text-purple-600" />
+                )}
+                <span>{generatingIrnId === inv.id ? 'Generating...' : 'IRN'}</span>
               </button>
             )}
             {inv.irn && (
               <span
                 className="inline-flex items-center gap-1 rounded-lg border border-purple-200 bg-purple-50/70 px-1.5 py-1 text-[11px] font-semibold text-purple-700 shrink-0"
-                title={`IRN: ${inv.irn}`}
+                title={`Official Statutory IRN: ${inv.irn} | Ack No: ${inv.ackNo || 'Registered'}`}
               >
                 <CheckCircle2 className="h-3 w-3 text-purple-600" />
                 <span>E-Inv</span>

@@ -422,7 +422,10 @@ InvoiceSchema.index({ paymentStatus: 1, invoiceDate: -1 });
 InvoiceSchema.index({ 'items.hsnCode': 1, invoiceDate: -1 });
 InvoiceSchema.index({ 'items.productId': 1 });
 InvoiceSchema.index({ customerState: 1, invoiceDate: -1 });
-InvoiceSchema.index({ irn: 1 }, { sparse: true });
+InvoiceSchema.index(
+  { irn: 1 },
+  { unique: true, partialFilterExpression: { irn: { $type: 'string' } } }
+);
 
 // 8. Vendor
 export interface IVendor extends Document {

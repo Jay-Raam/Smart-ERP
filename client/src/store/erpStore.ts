@@ -1038,7 +1038,9 @@ export const useErpStore = create<ErpState>((set, get) => ({
       const result = await res.json();
       const updated = result.data || result;
       set((state) => ({
-        invoices: state.invoices.map((i) => (i.id === id ? updated : i)),
+        invoices: state.invoices.map((i) =>
+          i.id === id || (i as any)._id === id ? { ...i, ...updated, id: updated.id || id } : i
+        ),
       }));
       showAppToast(`E-Invoice IRN generated for ${updated.invoiceNumber}`, 'success');
       return updated;

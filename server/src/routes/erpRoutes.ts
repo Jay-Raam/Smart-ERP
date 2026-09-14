@@ -485,6 +485,16 @@ erpRouter.get('/bootstrap', async (req: Request, res: Response) => {
         paymentStatus: inv.paymentStatus || (inv.status === 'Paid' ? 'PAID' : 'UNPAID'),
         totalInWords: inv.totalInWords || '',
         status: inv.status,
+        termsAndConditions: inv.termsAndConditions || '',
+        bankDetails: inv.bankDetails || undefined,
+        irn: inv.irn || undefined,
+        ackNo: inv.ackNo || undefined,
+        ackDate: inv.ackDate || undefined,
+        signedQrCode: inv.signedQrCode || undefined,
+        ewayBillNumber: inv.ewayBillNumber || undefined,
+        ewayBillDate: inv.ewayBillDate || undefined,
+        einvoiceStatus: inv.einvoiceStatus || 'PENDING',
+        history: inv.history || [],
       })),
       purchaseOrders: purchaseOrders.map((po) => ({
         id: po._id.toString(),
@@ -1548,10 +1558,15 @@ erpRouter.put('/invoices/:id', requirePermission('invoices', 'edit'), async (req
     const prevInvoice = await Invoice.findById(req.params.id);
     if (!prevInvoice) return res.status(404).json({ error: 'Invoice not found' });
 
-    // Document Edit Lock: If payment recorded or Paid, reject editing
+    // Document Edit Lock: If payment recorded, Paid, or official IRN generated, reject editing
     if ((prevInvoice.paidAmount && prevInvoice.paidAmount > 0) || prevInvoice.status === 'Paid') {
       return res.status(422).json({
         error: 'This Invoice cannot be edited because a payment has already been recorded.',
+      });
+    }
+    if (prevInvoice.irn) {
+      return res.status(422).json({
+        error: 'This Invoice cannot be edited because an official GST IRN has already been generated. Invoices with a registered statutory IRN are legally immutable.',
       });
     }
 
@@ -1677,6 +1692,14 @@ erpRouter.post('/invoices/:id/generate-irn', requirePermission('invoices', 'edit
     const invoice = await Invoice.findById(req.params.id);
     if (!invoice) return res.status(404).json({ error: 'Invoice not found' });
 
+    // 1. One invoice can only have ONE unique IRN (prevent generating multiple times)
+    if (invoice.irn) {
+      return res.status(400).json({
+        error: `E-Invoice IRN already generated for this invoice (${invoice.irn.substring(0, 16)}...). Multiple IRNs cannot be generated for the same invoice under statutory GST rules.`,
+        data: { ...invoice.toObject(), id: invoice._id.toString() },
+      });
+    }
+
     let supplierGstin = '';
     if (invoice.branchId && mongoose.isValidObjectId(invoice.branchId)) {
       const branch = await Branch.findById(invoice.branchId);
@@ -1692,6 +1715,14 @@ erpRouter.post('/invoices/:id/generate-irn', requirePermission('invoices', 'edit
     }
 
     const einvData = await GstIntegrationService.processEInvoice(invoice, supplierGstin);
+
+    // 2. Ensure generated IRN does not conflict with any other invoice
+    const duplicateInvoice = await Invoice.findOne({ irn: einvData.irn, _id: { $ne: invoice._id } });
+    if (duplicateInvoice) {
+      return res.status(409).json({
+        error: `Conflict: Generated IRN already belongs to Invoice ${duplicateInvoice.invoiceNumber}. Each invoice must have a unique IRN.`,
+      });
+    }
 
     const callerName = (req as any).callerUser?.name || (req as any).user?.name || 'Authorized Officer';
     const historyEntry = {

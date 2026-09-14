@@ -80,10 +80,11 @@ export const InvoiceCreatePage: React.FC<InvoiceCreatePageProps> = ({ isEdit, in
     return invoices.find((i) => i.id === editId || (i as any)._id === editId) || null;
   }, [invoices, isEditMode, editId]);
 
-  // Payment locking check
+  // Payment and Statutory IRN locking check
+  const hasIrn = Boolean(existingInvoice?.irn);
   const isPaidOrHasPayment = Boolean(
     existingInvoice &&
-    (((existingInvoice.paidAmount || 0) > 0) || existingInvoice.status === 'Paid')
+    (((existingInvoice.paidAmount || 0) > 0) || existingInvoice.status === 'Paid' || hasIrn)
   );
 
   const activeBranch = useMemo(() => {
@@ -399,6 +400,11 @@ export const InvoiceCreatePage: React.FC<InvoiceCreatePageProps> = ({ isEdit, in
       return;
     }
 
+    if (hasIrn) {
+      alert('Cannot modify an invoice with a registered statutory GST IRN.');
+      return;
+    }
+
     if (isPaidOrHasPayment) {
       alert('Cannot modify an invoice with recorded payments.');
       return;
@@ -568,8 +574,26 @@ export const InvoiceCreatePage: React.FC<InvoiceCreatePageProps> = ({ isEdit, in
         </div>
       )}
 
+      {/* Statutory IRN Lock Warning Banner if invoice has generated IRN */}
+      {hasIrn && (
+        <div className="rounded-2xl border border-purple-300 bg-purple-50 p-4 shadow-xs flex items-start gap-3">
+          <AlertTriangle className="h-5 w-5 text-purple-600 shrink-0 mt-0.5" />
+          <div>
+            <h3 className="text-sm font-bold text-purple-900 flex items-center gap-1.5">
+              <Lock className="h-4 w-4 text-purple-700" />
+              <span>Invoice Immutable: Statutory E-Invoice IRN Registered</span>
+            </h3>
+            <p className="text-xs text-purple-800 mt-1 leading-relaxed">
+              This invoice has already been registered with an official statutory IRN:{' '}
+              <span className="font-mono font-bold text-purple-900">{existingInvoice?.irn}</span>.
+              Under Indian GST e-Invoicing regulations, invoices with a registered IRN are legally permanent and cannot be modified.
+            </p>
+          </div>
+        </div>
+      )}
+
       {/* Payment Lock Warning Banner if invoice has recorded payment */}
-      {isPaidOrHasPayment && (
+      {isPaidOrHasPayment && !hasIrn && (
         <div className="rounded-2xl border border-amber-300 bg-amber-50 p-4 shadow-xs flex items-start gap-3">
           <AlertTriangle className="h-5 w-5 text-amber-600 shrink-0 mt-0.5" />
           <div>
