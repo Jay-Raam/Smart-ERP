@@ -21,6 +21,7 @@ import {
 import { useErpStore, DocumentItem, Invoice, CustomerAddress } from '../../../store/erpStore';
 import { calculateDocumentTaxes, isStateTamilNadu } from '../../../utils/taxCalculation';
 import { isValidQuantity } from '../../../utils/validation';
+import { Combobox } from '../../shared/Combobox';
 import { TaxInvoicePdfDocument } from './TaxInvoicePdfDocument';
 import { PdfPreviewModal } from '../../pdf/PdfPreviewModal';
 
@@ -78,7 +79,7 @@ export const InvoiceCreatePage: React.FC<InvoiceCreatePageProps> = ({ isEdit, in
   // Payment locking check
   const isPaidOrHasPayment = Boolean(
     existingInvoice &&
-      (((existingInvoice.paidAmount || 0) > 0) || existingInvoice.status === 'Paid')
+    (((existingInvoice.paidAmount || 0) > 0) || existingInvoice.status === 'Paid')
   );
 
   const activeBranch = useMemo(() => {
@@ -331,7 +332,7 @@ export const InvoiceCreatePage: React.FC<InvoiceCreatePageProps> = ({ isEdit, in
     }
   };
 
-  // Handle Billing Address Select Change
+  // Handle Billing Address Combobox Change
   const handleBillingAddressChange = (addrId: string) => {
     setSelectedBillingAddressId(addrId);
     if (addrId === 'default') {
@@ -356,7 +357,7 @@ export const InvoiceCreatePage: React.FC<InvoiceCreatePageProps> = ({ isEdit, in
     }
   };
 
-  // Handle Shipping Address Select Change
+  // Handle Shipping Address Combobox Change
   const handleShippingAddressChange = (addrId: string) => {
     setSelectedShippingAddressId(addrId);
     if (addrId === 'default') {
@@ -403,11 +404,6 @@ export const InvoiceCreatePage: React.FC<InvoiceCreatePageProps> = ({ isEdit, in
 
     setIsSubmitting(true);
     try {
-      const termsArray = termsText
-        .split('\n')
-        .map((t) => t.trim())
-        .filter(Boolean);
-
       const invoicePayload = {
         customerId: activeCustomer.id,
         customerName: activeCustomer.name,
@@ -464,6 +460,61 @@ export const InvoiceCreatePage: React.FC<InvoiceCreatePageProps> = ({ isEdit, in
     window.dispatchEvent(new PopStateEvent('popstate'));
   };
 
+  // Options for Combobox components
+  const customerComboboxOptions = useMemo(() => {
+    return customers.map((c) => ({
+      value: c.id,
+      label: `${c.name} (${c.code})`,
+      sublabel: `GSTIN: ${c.gstin || 'None'} • ${c.billingState || c.state || 'Tamil Nadu'}`,
+    }));
+  }, [customers]);
+
+  const billingComboboxOptions = useMemo(() => {
+    return [
+      {
+        value: 'default',
+        label: `Primary: ${activeCustomer?.billingAddress || 'Primary Billing Address on file'}`,
+        sublabel: `State: ${activeCustomer?.billingState || activeCustomer?.state || 'Tamil Nadu'}`,
+      },
+      ...billingAddresses.map((addr) => ({
+        value: addr._id || (addr as any).id,
+        label: `${addr.attention ? `${addr.attention} - ` : ''}${addr.addressLine1}, ${addr.city}`,
+        sublabel: `${addr.state} - ${addr.pincode} (${addr.isActive ? 'Active' : 'Archived'})`,
+      })),
+    ];
+  }, [activeCustomer, billingAddresses]);
+
+  const shippingComboboxOptions = useMemo(() => {
+    return [
+      {
+        value: 'default',
+        label: `Primary: ${activeCustomer?.shippingAddress || activeCustomer?.billingAddress || 'Primary Shipping Address on file'}`,
+        sublabel: `State: ${activeCustomer?.shippingState || activeCustomer?.billingState || activeCustomer?.state || 'Tamil Nadu'}`,
+      },
+      ...shippingAddresses.map((addr) => ({
+        value: addr._id || (addr as any).id,
+        label: `${addr.attention ? `${addr.attention} - ` : ''}${addr.addressLine1}, ${addr.city}`,
+        sublabel: `${addr.state} - ${addr.pincode} (${addr.isActive ? 'Active' : 'Archived'})`,
+      })),
+    ];
+  }, [activeCustomer, shippingAddresses]);
+
+  const productComboboxOptions = useMemo(() => {
+    return approvedProducts.map((p) => ({
+      value: p.id,
+      label: p.name,
+      sublabel: `SKU: ${p.sku} • HSN: ${p.hsnCode} • Rate: ₹${(p.sellingPrice || 0).toLocaleString('en-IN')}`,
+    }));
+  }, [approvedProducts]);
+
+  const bankComboboxOptions = useMemo(() => {
+    return (bankAccounts || []).map((b) => ({
+      value: b.id,
+      label: `${b.bankName} - ${b.accountNumber}`,
+      sublabel: `${b.branchName ? `${b.branchName} • ` : ''}${b.accountHolderName || organisation.name}`,
+    }));
+  }, [bankAccounts, organisation.name]);
+
   return (
     <div className="space-y-6 max-w-5xl mx-auto pb-16">
       {/* Top Navigation Bar */}
@@ -488,9 +539,6 @@ export const InvoiceCreatePage: React.FC<InvoiceCreatePageProps> = ({ isEdit, in
                 </span>
               )}
             </div>
-            <p className="text-xs text-slate-500">
-              GST compliant invoice generation, verified product catalog rates & automatic tax breakdown
-            </p>
           </div>
         </div>
       </div>
@@ -525,23 +573,19 @@ export const InvoiceCreatePage: React.FC<InvoiceCreatePageProps> = ({ isEdit, in
           </div>
 
           <div className="grid grid-cols-1 md:grid-cols-3 gap-4 text-xs">
-            {/* Customer Selector */}
+            {/* Customer Combobox */}
             <div>
               <label className="block font-semibold text-slate-700 mb-1">
                 Select Customer <span className="text-red-500">*</span>
               </label>
-              <select
+              <Combobox
                 disabled={isEditMode || isPaidOrHasPayment}
                 value={selectedCustomerId}
-                onChange={(e) => setSelectedCustomerId(e.target.value)}
-                className="w-full rounded-xl border border-slate-200 p-2.5 outline-none focus:border-blue-500 text-slate-800 bg-white font-medium disabled:bg-slate-100 disabled:cursor-not-allowed"
-              >
-                {customers.map((c) => (
-                  <option key={c.id} value={c.id}>
-                    {c.name} ({c.code}) - {c.billingState || c.state || 'Tamil Nadu'}
-                  </option>
-                ))}
-              </select>
+                onChange={(val) => setSelectedCustomerId(val)}
+                options={customerComboboxOptions}
+                placeholder="Search or select customer..."
+                searchable={true}
+              />
             </div>
 
             {/* Payment Due Date */}
@@ -569,67 +613,51 @@ export const InvoiceCreatePage: React.FC<InvoiceCreatePageProps> = ({ isEdit, in
             </div>
           </div>
 
-          {/* Dynamic Address Select Boxes */}
+          {/* Dynamic Address Comboboxes */}
           <div className="grid grid-cols-1 md:grid-cols-2 gap-4 text-xs pt-2 border-t border-slate-100">
-            {/* Billed To Address Select Box */}
+            {/* Billed To Address Combobox */}
             <div className="space-y-1.5">
               <label className="block font-semibold text-slate-700 flex items-center justify-between">
                 <span className="flex items-center gap-1.5">
                   <MapPin className="h-3.5 w-3.5 text-blue-600" />
-                  <span>Billed To Address (Select Box)</span>
+                  <span>Billed To Address (Combobox)</span>
                 </span>
                 <span className="text-[11px] font-mono text-blue-600 font-normal">
                   State: {selectedBillingState}
                 </span>
               </label>
-              <select
+              <Combobox
                 disabled={isPaidOrHasPayment}
                 value={selectedBillingAddressId}
-                onChange={(e) => handleBillingAddressChange(e.target.value)}
-                className="w-full rounded-xl border border-slate-200 bg-white p-2.5 outline-none focus:border-blue-500 text-slate-800 disabled:bg-slate-100"
-              >
-                <option value="default">
-                  Primary: {activeCustomer?.billingAddress || 'Primary Billing Address on file'}
-                </option>
-                {billingAddresses.map((addr) => (
-                  <option key={addr._id || (addr as any).id} value={addr._id || (addr as any).id}>
-                    {addr.attention ? `${addr.attention} - ` : ''}
-                    {addr.addressLine1}, {addr.city}, {addr.state} - {addr.pincode} ({addr.isActive ? 'Active' : 'Archived'})
-                  </option>
-                ))}
-              </select>
+                onChange={(val) => handleBillingAddressChange(val)}
+                options={billingComboboxOptions}
+                placeholder="Search or select billing address..."
+                searchable={true}
+              />
               <div className="p-2.5 rounded-xl bg-slate-50 border border-slate-200 text-slate-600 text-xs min-h-[44px]">
                 {customBillingAddress || 'No billing address selected'}
               </div>
             </div>
 
-            {/* Shipped To Address Select Box */}
+            {/* Shipped To Address Combobox */}
             <div className="space-y-1.5">
               <label className="block font-semibold text-slate-700 flex items-center justify-between">
                 <span className="flex items-center gap-1.5">
                   <Truck className="h-3.5 w-3.5 text-emerald-600" />
-                  <span>Shipped To Address (Select Box)</span>
+                  <span>Shipped To Address (Combobox)</span>
                 </span>
                 <span className="text-[11px] font-mono text-emerald-600 font-normal">
                   State: {selectedShippingState}
                 </span>
               </label>
-              <select
+              <Combobox
                 disabled={isPaidOrHasPayment}
                 value={selectedShippingAddressId}
-                onChange={(e) => handleShippingAddressChange(e.target.value)}
-                className="w-full rounded-xl border border-slate-200 bg-white p-2.5 outline-none focus:border-blue-500 text-slate-800 disabled:bg-slate-100"
-              >
-                <option value="default">
-                  Primary: {activeCustomer?.shippingAddress || activeCustomer?.billingAddress || 'Primary Shipping Address on file'}
-                </option>
-                {shippingAddresses.map((addr) => (
-                  <option key={addr._id || (addr as any).id} value={addr._id || (addr as any).id}>
-                    {addr.attention ? `${addr.attention} - ` : ''}
-                    {addr.addressLine1}, {addr.city}, {addr.state} - {addr.pincode} ({addr.isActive ? 'Active' : 'Archived'})
-                  </option>
-                ))}
-              </select>
+                onChange={(val) => handleShippingAddressChange(val)}
+                options={shippingComboboxOptions}
+                placeholder="Search or select shipping address..."
+                searchable={true}
+              />
               <div className="p-2.5 rounded-xl bg-slate-50 border border-slate-200 text-slate-600 text-xs min-h-[44px]">
                 {customShippingAddress || 'No shipping address selected'}
               </div>
@@ -660,33 +688,29 @@ export const InvoiceCreatePage: React.FC<InvoiceCreatePageProps> = ({ isEdit, in
             )}
           </div>
 
-          <div className="space-y-2">
+          <div className="space-y-3">
             {lineItems.map((item, idx) => (
               <div
                 key={idx}
                 className="grid grid-cols-12 gap-3 items-center rounded-xl border border-slate-200 p-3 bg-slate-50/50 text-xs"
               >
-                {/* Product Select */}
+                {/* Product Combobox */}
                 <div className="col-span-4">
                   <label className="block text-[10px] text-slate-500 font-medium mb-1">Product Master</label>
-                  <select
+                  <Combobox
                     disabled={isPaidOrHasPayment}
                     value={item.productId}
-                    onChange={(e) => handleProductSelect(idx, e.target.value)}
-                    className="w-full rounded-lg border border-slate-200 bg-white p-2 outline-none focus:border-blue-500 text-slate-800 font-medium disabled:bg-slate-100"
-                  >
-                    {approvedProducts.map((p) => (
-                      <option key={p.id} value={p.id}>
-                        {p.name} ({p.sku})
-                      </option>
-                    ))}
-                  </select>
+                    onChange={(val) => handleProductSelect(idx, val)}
+                    options={productComboboxOptions}
+                    placeholder="Search or select product..."
+                    searchable={true}
+                  />
                 </div>
 
                 {/* Locked HSN Code */}
                 <div className="col-span-2">
                   <label className="block text-[10px] text-slate-500 font-medium mb-1">HSN Code</label>
-                  <div className="p-2 rounded-lg bg-slate-100 border border-slate-200 font-mono text-slate-600 text-center">
+                  <div className="p-2.5 rounded-xl bg-slate-100 border border-slate-200 font-mono text-slate-600 text-center">
                     {item.hsnCode}
                   </div>
                 </div>
@@ -700,7 +724,7 @@ export const InvoiceCreatePage: React.FC<InvoiceCreatePageProps> = ({ isEdit, in
                     disabled={isPaidOrHasPayment}
                     value={item.quantity}
                     onChange={(e) => handleQuantityChange(idx, e.target.value)}
-                    className="w-full rounded-lg border border-slate-200 bg-white p-2 font-mono text-right outline-none focus:border-blue-500 text-slate-800 disabled:bg-slate-100"
+                    className="w-full rounded-xl border border-slate-200 bg-white p-2.5 font-mono text-right outline-none focus:border-blue-500 text-slate-800 disabled:bg-slate-100"
                   />
                 </div>
 
@@ -714,14 +738,14 @@ export const InvoiceCreatePage: React.FC<InvoiceCreatePageProps> = ({ isEdit, in
                     disabled={isPaidOrHasPayment}
                     value={item.unitPrice}
                     onChange={(e) => handleRateChange(idx, e.target.value)}
-                    className="w-full rounded-lg border border-slate-200 bg-white p-2 font-mono text-right outline-none focus:border-blue-500 text-slate-800 disabled:bg-slate-100"
+                    className="w-full rounded-xl border border-slate-200 bg-white p-2.5 font-mono text-right outline-none focus:border-blue-500 text-slate-800 disabled:bg-slate-100"
                   />
                 </div>
 
                 {/* GST Rate */}
                 <div className="col-span-1">
                   <label className="block text-[10px] text-slate-500 font-medium mb-1">GST %</label>
-                  <div className="p-2 rounded-lg bg-slate-100 border border-slate-200 font-mono text-center text-slate-700">
+                  <div className="p-2.5 rounded-xl bg-slate-100 border border-slate-200 font-mono text-center text-slate-700">
                     {item.taxRate}%
                   </div>
                 </div>
@@ -784,29 +808,27 @@ export const InvoiceCreatePage: React.FC<InvoiceCreatePageProps> = ({ isEdit, in
                 <span>Company Bank Details (Editable per Invoice)</span>
               </div>
               {bankAccounts && bankAccounts.length > 0 && (
-                <select
-                  disabled={isPaidOrHasPayment}
-                  onChange={(e) => {
-                    const acc = bankAccounts.find((b) => b.id === e.target.value);
-                    if (acc) {
-                      setBankDetails({
-                        bankName: acc.bankName,
-                        accountNumber: acc.accountNumber,
-                        ifscCode: acc.ifscCode,
-                        branchName: acc.branchName,
-                        accountName: acc.accountHolderName || organisation.name,
-                      });
-                    }
-                  }}
-                  className="text-[11px] border border-slate-200 rounded-lg p-1 bg-slate-50 text-slate-600 outline-none"
-                >
-                  <option value="">Quick Fill Bank Account...</option>
-                  {bankAccounts.map((b) => (
-                    <option key={b.id} value={b.id}>
-                      {b.bankName} - {b.accountNumber} ({b.branchName})
-                    </option>
-                  ))}
-                </select>
+                <div className="w-56">
+                  <Combobox
+                    disabled={isPaidOrHasPayment}
+                    value=""
+                    onChange={(val) => {
+                      const acc = bankAccounts.find((b) => b.id === val);
+                      if (acc) {
+                        setBankDetails({
+                          bankName: acc.bankName,
+                          accountNumber: acc.accountNumber,
+                          ifscCode: acc.ifscCode,
+                          branchName: acc.branchName,
+                          accountName: acc.accountHolderName || organisation.name,
+                        });
+                      }
+                    }}
+                    options={bankComboboxOptions}
+                    placeholder="Quick Fill Bank..."
+                    searchable={true}
+                  />
+                </div>
               )}
             </div>
 
@@ -818,7 +840,7 @@ export const InvoiceCreatePage: React.FC<InvoiceCreatePageProps> = ({ isEdit, in
                   disabled={isPaidOrHasPayment}
                   value={bankDetails.accountName}
                   onChange={(e) => setBankDetails({ ...bankDetails, accountName: e.target.value })}
-                  className="w-full rounded-lg border border-slate-200 p-2 text-slate-800 outline-none focus:border-blue-500 disabled:bg-slate-100"
+                  className="w-full rounded-xl border border-slate-200 p-2.5 text-slate-800 outline-none focus:border-blue-500 disabled:bg-slate-100"
                 />
               </div>
               <div className="grid grid-cols-2 gap-2">
@@ -829,7 +851,7 @@ export const InvoiceCreatePage: React.FC<InvoiceCreatePageProps> = ({ isEdit, in
                     disabled={isPaidOrHasPayment}
                     value={bankDetails.bankName}
                     onChange={(e) => setBankDetails({ ...bankDetails, bankName: e.target.value })}
-                    className="w-full rounded-lg border border-slate-200 p-2 text-slate-800 outline-none focus:border-blue-500 disabled:bg-slate-100"
+                    className="w-full rounded-xl border border-slate-200 p-2.5 text-slate-800 outline-none focus:border-blue-500 disabled:bg-slate-100"
                   />
                 </div>
                 <div>
@@ -839,7 +861,7 @@ export const InvoiceCreatePage: React.FC<InvoiceCreatePageProps> = ({ isEdit, in
                     disabled={isPaidOrHasPayment}
                     value={bankDetails.branchName}
                     onChange={(e) => setBankDetails({ ...bankDetails, branchName: e.target.value })}
-                    className="w-full rounded-lg border border-slate-200 p-2 text-slate-800 outline-none focus:border-blue-500 disabled:bg-slate-100"
+                    className="w-full rounded-xl border border-slate-200 p-2.5 text-slate-800 outline-none focus:border-blue-500 disabled:bg-slate-100"
                   />
                 </div>
               </div>
@@ -851,7 +873,7 @@ export const InvoiceCreatePage: React.FC<InvoiceCreatePageProps> = ({ isEdit, in
                     disabled={isPaidOrHasPayment}
                     value={bankDetails.accountNumber}
                     onChange={(e) => setBankDetails({ ...bankDetails, accountNumber: e.target.value })}
-                    className="w-full rounded-lg border border-slate-200 p-2 font-mono text-slate-800 outline-none focus:border-blue-500 disabled:bg-slate-100"
+                    className="w-full rounded-xl border border-slate-200 p-2.5 font-mono text-slate-800 outline-none focus:border-blue-500 disabled:bg-slate-100"
                   />
                 </div>
                 <div>
@@ -861,7 +883,7 @@ export const InvoiceCreatePage: React.FC<InvoiceCreatePageProps> = ({ isEdit, in
                     disabled={isPaidOrHasPayment}
                     value={bankDetails.ifscCode}
                     onChange={(e) => setBankDetails({ ...bankDetails, ifscCode: e.target.value.toUpperCase() })}
-                    className="w-full rounded-lg border border-slate-200 p-2 font-mono text-slate-800 outline-none focus:border-blue-500 uppercase disabled:bg-slate-100"
+                    className="w-full rounded-xl border border-slate-200 p-2.5 font-mono text-slate-800 outline-none focus:border-blue-500 uppercase disabled:bg-slate-100"
                   />
                 </div>
               </div>

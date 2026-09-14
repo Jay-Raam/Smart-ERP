@@ -23,6 +23,7 @@ import {
 import { useErpStore, Customer, CustomerAddress, Invoice } from '../../../store/erpStore';
 import { DataTable, ColumnDef } from '../../shared/DataTable';
 import { ExportModal, ExportColumn } from '../../shared/ExportModal';
+import { Combobox } from '../../shared/Combobox';
 import { RecordPaymentModal } from '../../shared/RecordPaymentModal';
 import { InvoicePrintModal } from '../InvoicePrintModal';
 import { FALLBACK_INDIA_STATES } from '../../../utils/indiaStates';
@@ -767,14 +768,15 @@ export const CustomerDetailPage: React.FC<CustomerDetailPageProps> = ({
               <div className="grid grid-cols-2 gap-3">
                 <div>
                   <label className="block font-semibold text-slate-700 mb-1">Address Type *</label>
-                  <select
+                  <Combobox
                     value={addrForm.type}
-                    onChange={(e) => setAddrForm({ ...addrForm, type: e.target.value as any })}
-                    className="w-full px-3 py-2 rounded-xl border border-slate-300 text-xs bg-white"
-                  >
-                    <option value="BILLING">Billing Address</option>
-                    <option value="SHIPPING">Shipping Address</option>
-                  </select>
+                    onChange={(val) => setAddrForm({ ...addrForm, type: val as any })}
+                    options={[
+                      { value: 'BILLING', label: 'Billing Address', sublabel: 'Official invoice & legal entity address' },
+                      { value: 'SHIPPING', label: 'Shipping Address', sublabel: 'Consignee / goods delivery location' },
+                    ]}
+                    searchable={false}
+                  />
                 </div>
                 <div>
                   <label className="block font-semibold text-slate-700 mb-1">Attention / Contact</label>
@@ -825,18 +827,17 @@ export const CustomerDetailPage: React.FC<CustomerDetailPageProps> = ({
 
                 <div>
                   <label className="block font-semibold text-slate-700 mb-1">State *</label>
-                  <select
+                  <Combobox
                     value={addrForm.state}
-                    onChange={(e) => setAddrForm({ ...addrForm, state: e.target.value })}
-                    className="w-full px-3 py-2 rounded-xl border border-slate-300 text-xs bg-white"
-                    required
-                  >
-                    {FALLBACK_INDIA_STATES.map((s) => (
-                      <option key={s.value} value={s.value}>
-                        {s.label} ({s.stateCode})
-                      </option>
-                    ))}
-                  </select>
+                    onChange={(val) => setAddrForm({ ...addrForm, state: val })}
+                    options={FALLBACK_INDIA_STATES.map((s) => ({
+                      value: s.value,
+                      label: s.label,
+                      sublabel: `Code: ${s.stateCode}`,
+                    }))}
+                    placeholder="Search State..."
+                    searchable={true}
+                  />
                 </div>
 
                 <div>
