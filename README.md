@@ -283,3 +283,20 @@ A few architectural improvements and features I plan to work on next:
 - **Asynchronous Report Generation**: Generating large PDF reports or exporting thousands of ledger entries is currently handled synchronously. Moving heavy export jobs to an asynchronous queue (e.g., BullMQ with Redis) would prevent request timeouts under higher concurrency.
 - **Soft Deletes**: Currently, deletions on master items use status flags (`isActive: false`) or direct document removal. Implementing a consistent soft-delete pattern across all transactional tables with an undo window would be a safer design.
 - **OAuth / SSO Integration**: Adding Google Workspace or SAML SSO alongside the existing email/mobile cookie authentication for enterprise environments.
+
+---
+
+## 🛠️ Developer Workflow & Git Standards
+
+This repository strictly enforces professional engineering workflow guidelines governed by [AGENTS.md](AGENTS.md) and [.agents/skills/professional-git-workflow](.agents/skills/professional-git-workflow/SKILL.md):
+
+- **Dedicated Branches**: All development occurs on isolated branches (`feature/*`, `fix/*`, `refactor/*`, `chore/*`).
+- **Imperative Commit Messages**: Authentic, human-written messages (`Add ...`, `Fix ...`, `Update ...`, `Refactor ...`).
+- **Milestone History**: Changes are broken down into logical engineering milestones (Implementation $\rightarrow$ Validation $\rightarrow$ Edge Cases $\rightarrow$ API Refactor $\rightarrow$ Testing).
+- **Pre-Push Review**: Automatic validation ensuring `npm run build` passes, zero secrets or `.env` files are committed, and tests pass before remote pushes.
+
+---
+
+<p align="center">
+  <b>Smart Enterprise ERP</b> ✦ Engineered for Precision Manufacturing &amp; Multi-Branch Excellence.
+</p>
