@@ -149,7 +149,6 @@ const styles = StyleSheet.create({
     fontSize: 8,
     fontFamily: 'Helvetica-Bold',
     color: '#1e293b',
-    fontStyle: 'italic',
   },
   summaryBox: {
     width: '40%',

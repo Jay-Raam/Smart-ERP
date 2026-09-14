@@ -526,6 +526,9 @@ export interface IPurchaseOrder extends Document {
     | 'REJECTED'
     | string;
   isAutoReorder?: boolean;
+  instructions?: string;
+  qualityTerms?: string;
+  termsAndConditions?: string;
   history?: IInvoiceHistoryItem[];
 }
 
@@ -567,6 +570,9 @@ const PurchaseOrderSchema = new Schema<IPurchaseOrder>(
       type: String,
       default: 'APPROVED',
     },
+    instructions: { type: String, default: '' },
+    qualityTerms: { type: String, default: '' },
+    termsAndConditions: { type: String, default: '' },
     isAutoReorder: { type: Boolean, default: false },
     history: [InvoiceHistorySchema],
   },

@@ -309,6 +309,9 @@ export interface PurchaseOrder {
   paymentStatus?: 'UNPAID' | 'PARTIALLY_PAID' | 'PAID';
   isAutoReorder?: boolean;
   totalInWords?: string;
+  instructions?: string;
+  qualityTerms?: string;
+  termsAndConditions?: string;
   history?: InvoiceHistoryItem[];
   status: 'Approved' | 'Pending Approval' | 'Received' | 'Cancelled' | 'Billed' | 'PARTIALLY_BILLED' | 'FULLY_BILLED' | 'AUTO_REORDER_PENDING';
 }

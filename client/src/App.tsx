@@ -69,6 +69,7 @@ export function App() {
       if (p.startsWith('/bills')) return 'bills';
       if (p.startsWith('/invoices')) return 'invoices';
       if (p.startsWith('/purchase-orders')) return 'purchase';
+      if (p.startsWith('/purchases')) return 'purchase';
       if (p === '/reports') return 'reports';
       if (p === '/bank') return 'bank';
       if (p === '/transactions') return 'transactions';
@@ -110,6 +111,7 @@ export function App() {
       else if (path.startsWith('/bills')) setActiveModule('bills');
       else if (path.startsWith('/invoices')) setActiveModule('invoices');
       else if (path.startsWith('/purchase-orders')) setActiveModule('purchase');
+      else if (path.startsWith('/purchases')) setActiveModule('purchase');
       else if (path === '/reports') setActiveModule('reports');
       else if (path === '/bank') setActiveModule('bank');
       else if (path === '/transactions') setActiveModule('transactions');
@@ -279,7 +281,7 @@ export function App() {
 
         {/* Dynamic Module Content Canvas: ONLY THIS BODY SCROLLS */}
         <main
-          className="flex-1 min-h-0 overflow-y-auto p-4 md:p-6 transition-colors duration-200"
+          className="flex-1 min-h-0 overflow-y-auto overflow-x-hidden p-4 md:p-6 transition-colors duration-200"
           style={{ backgroundColor: 'var(--bg-app)' }}
         >
           <div className="w-full pb-12">

@@ -4,8 +4,8 @@ import { PurchaseOrder } from '../../store/erpStore';
 
 const styles = StyleSheet.create({
   page: {
-    padding: 30,
-    fontSize: 9,
+    padding: 24,
+    fontSize: 8.5,
     fontFamily: 'Helvetica',
     color: '#0f172a',
     backgroundColor: '#ffffff',
@@ -15,22 +15,22 @@ const styles = StyleSheet.create({
     justifyContent: 'space-between',
     borderBottomWidth: 2,
     borderBottomColor: '#2563eb',
-    paddingBottom: 12,
-    marginBottom: 12,
+    paddingBottom: 10,
+    marginBottom: 10,
   },
   companyDetails: {
     width: '60%',
   },
   companyName: {
-    fontSize: 16,
+    fontSize: 15,
     fontFamily: 'Helvetica-Bold',
-    color: '#2563eb',
-    marginBottom: 4,
+    color: '#1d4ed8',
+    marginBottom: 3,
   },
   companyText: {
-    fontSize: 8,
+    fontSize: 7.5,
     color: '#475569',
-    lineHeight: 1.3,
+    lineHeight: 1.25,
   },
   docMeta: {
     width: '38%',
@@ -41,60 +41,60 @@ const styles = StyleSheet.create({
     fontFamily: 'Helvetica-Bold',
     color: '#0f172a',
     textTransform: 'uppercase',
-    marginBottom: 4,
+    marginBottom: 3,
   },
   badge: {
-    fontSize: 8,
+    fontSize: 7.5,
     fontFamily: 'Helvetica-Bold',
     backgroundColor: '#eff6ff',
     color: '#2563eb',
     paddingHorizontal: 6,
     paddingVertical: 2,
     borderRadius: 3,
-    marginBottom: 4,
+    marginBottom: 3,
   },
   metaText: {
-    fontSize: 8.5,
+    fontSize: 8,
     color: '#334155',
-    lineHeight: 1.3,
+    lineHeight: 1.25,
   },
   addressRow: {
     flexDirection: 'row',
     justifyContent: 'space-between',
-    marginBottom: 12,
+    marginBottom: 10,
     backgroundColor: '#f8fafc',
     borderRadius: 4,
     borderWidth: 1,
     borderColor: '#e2e8f0',
-    padding: 8,
+    padding: 7,
   },
   addressCol: {
     width: '48%',
   },
   addressTitle: {
-    fontSize: 8,
+    fontSize: 7.5,
     fontFamily: 'Helvetica-Bold',
     color: '#64748b',
     textTransform: 'uppercase',
-    marginBottom: 3,
+    marginBottom: 2,
   },
   partyName: {
-    fontSize: 10,
+    fontSize: 9.5,
     fontFamily: 'Helvetica-Bold',
     color: '#0f172a',
     marginBottom: 2,
   },
   partyText: {
-    fontSize: 8,
+    fontSize: 7.5,
     color: '#475569',
-    lineHeight: 1.3,
+    lineHeight: 1.25,
   },
   table: {
     width: '100%',
-    marginBottom: 10,
+    marginBottom: 8,
     borderWidth: 1,
-    borderColor: '#e2e8f0',
-    borderRadius: 4,
+    borderColor: '#cbd5e1',
+    borderRadius: 3,
     overflow: 'hidden',
   },
   tableHeader: {
@@ -102,22 +102,22 @@ const styles = StyleSheet.create({
     backgroundColor: '#f1f5f9',
     borderBottomWidth: 1,
     borderBottomColor: '#cbd5e1',
-    paddingVertical: 5,
-    paddingHorizontal: 6,
+    paddingVertical: 4,
+    paddingHorizontal: 5,
     fontFamily: 'Helvetica-Bold',
-    fontSize: 8,
+    fontSize: 7.5,
     color: '#334155',
   },
   tableRow: {
     flexDirection: 'row',
     borderBottomWidth: 1,
     borderBottomColor: '#f1f5f9',
-    paddingVertical: 5,
-    paddingHorizontal: 6,
-    fontSize: 8,
+    paddingVertical: 4,
+    paddingHorizontal: 5,
+    fontSize: 7.5,
   },
-  colNo: { width: '6%', textAlign: 'center' },
-  colDesc: { width: '36%' },
+  colNo: { width: '5%', textAlign: 'center' },
+  colDesc: { width: '37%' },
   colHsn: { width: '12%', textAlign: 'center' },
   colQty: { width: '10%', textAlign: 'right' },
   colRate: { width: '12%', textAlign: 'right' },
@@ -127,48 +127,48 @@ const styles = StyleSheet.create({
   totalsSection: {
     flexDirection: 'row',
     justifyContent: 'space-between',
-    marginTop: 6,
-    marginBottom: 10,
+    marginTop: 4,
+    marginBottom: 8,
   },
   wordsBox: {
     width: '56%',
-    padding: 8,
+    padding: 6,
     backgroundColor: '#f8fafc',
     borderRadius: 4,
     borderWidth: 1,
     borderColor: '#e2e8f0',
   },
   wordsLabel: {
-    fontSize: 7.5,
+    fontSize: 7,
     fontFamily: 'Helvetica-Bold',
     color: '#64748b',
     textTransform: 'uppercase',
     marginBottom: 2,
   },
   wordsText: {
-    fontSize: 8,
+    fontSize: 7.5,
     fontFamily: 'Helvetica-Bold',
     color: '#1e293b',
-    fontStyle: 'italic',
   },
   summaryBox: {
-    width: '40%',
+    width: '41%',
     borderWidth: 1,
     borderColor: '#e2e8f0',
     borderRadius: 4,
-    padding: 6,
+    padding: 5,
+    backgroundColor: '#ffffff',
   },
   summaryRow: {
     flexDirection: 'row',
     justifyContent: 'space-between',
-    paddingVertical: 2,
+    paddingVertical: 1.5,
   },
   summaryLabel: {
-    fontSize: 8,
+    fontSize: 7.5,
     color: '#475569',
   },
   summaryVal: {
-    fontSize: 8,
+    fontSize: 7.5,
     fontFamily: 'Helvetica-Bold',
     color: '#0f172a',
   },
@@ -177,45 +177,53 @@ const styles = StyleSheet.create({
     justifyContent: 'space-between',
     borderTopWidth: 1.5,
     borderTopColor: '#2563eb',
-    marginTop: 4,
-    paddingTop: 4,
+    marginTop: 3,
+    paddingTop: 3,
   },
   grandTotalLabel: {
-    fontSize: 9.5,
+    fontSize: 8.5,
     fontFamily: 'Helvetica-Bold',
     color: '#0f172a',
   },
   grandTotalVal: {
-    fontSize: 10.5,
+    fontSize: 9.5,
     fontFamily: 'Helvetica-Bold',
-    color: '#2563eb',
+    color: '#1d4ed8',
   },
 
-  termsBox: {
-    marginTop: 8,
-    padding: 6,
+  termsGrid: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    marginTop: 4,
+    marginBottom: 6,
+    gap: 6,
+  },
+  termCol: {
+    flex: 1,
+    padding: 5,
     backgroundColor: '#f8fafc',
-    borderRadius: 4,
+    borderRadius: 3,
     borderWidth: 1,
     borderColor: '#e2e8f0',
   },
-  termsTitle: {
-    fontSize: 7.5,
+  termTitle: {
+    fontSize: 7,
     fontFamily: 'Helvetica-Bold',
-    color: '#475569',
+    color: '#334155',
+    textTransform: 'uppercase',
     marginBottom: 2,
   },
-  termsText: {
-    fontSize: 7,
-    color: '#64748b',
-    lineHeight: 1.2,
+  termText: {
+    fontSize: 6.5,
+    color: '#475569',
+    lineHeight: 1.25,
   },
 
   signatureRow: {
     flexDirection: 'row',
     justifyContent: 'space-between',
-    marginTop: 18,
-    paddingTop: 12,
+    marginTop: 10,
+    paddingTop: 6,
   },
   signatureCol: {
     width: '45%',
@@ -226,16 +234,16 @@ const styles = StyleSheet.create({
     borderTopWidth: 1,
     borderTopColor: '#94a3b8',
     width: '100%',
-    marginTop: 30,
-    paddingTop: 4,
+    marginTop: 22,
+    paddingTop: 3,
   },
   signText: {
-    fontSize: 8,
+    fontSize: 7.5,
     fontFamily: 'Helvetica-Bold',
     color: '#334155',
   },
   signSub: {
-    fontSize: 7,
+    fontSize: 6.5,
     color: '#64748b',
   },
 });
@@ -245,6 +253,22 @@ interface PurchaseOrderPdfProps {
 }
 
 export const PurchaseOrderPdfDocument: React.FC<PurchaseOrderPdfProps> = ({ po }) => {
+  const items = po.items && po.items.length > 0 ? po.items : [];
+  const taxableAmount = po.taxableAmount || po.subtotal || 0;
+  const totalAmount = po.totalAmount || 0;
+
+  const defaultInstructions =
+    po.instructions ||
+    '1. Deliver to Central Stores Receiving Bay, Ambattur between 09:00 AM - 05:00 PM.\n2. Delivery Challan, Packing List & Invoices must strictly cite this PO Number.\n3. Goods must be packaged safely with protective wrapping against transit corrosion.';
+
+  const defaultQualityTerms =
+    po.qualityTerms ||
+    '1. All supplied materials must strictly match specification tolerances and engineering drawings.\n2. Manufacturer Test Certificate (MTC) and Certificate of Analysis (CoA) required at gate inward.\n3. Defective or non-compliant lots will be rejected with return freight on supplier account.';
+
+  const defaultCommercialTerms =
+    po.termsAndConditions ||
+    '1. Payment release: 30 days net following successful GRN quality approval.\n2. Prices are firm, fixed and inclusive of transit insurance up to factory delivery point.\n3. Smart ERP reserves statutory right of audit and dispute escalation under Tamil Nadu jurisdiction.';
+
   return (
     <Document title={`Purchase_Order_${po.poNumber}`}>
       <Page size="A4" style={styles.page}>
@@ -258,7 +282,7 @@ export const PurchaseOrderPdfDocument: React.FC<PurchaseOrderPdfProps> = ({ po }
           </View>
           <View style={styles.docMeta}>
             <Text style={styles.docTitle}>PURCHASE ORDER</Text>
-            <Text style={styles.badge}>Status: {po.status || 'Approved'}</Text>
+            <Text style={styles.badge}>Status: {po.status || 'APPROVED'}</Text>
             <Text style={styles.metaText}>PO No: {po.poNumber}</Text>
             <Text style={styles.metaText}>PO Date: {po.poDate}</Text>
             <Text style={styles.metaText}>Expected Delivery: {po.expectedDate || 'Immediate'}</Text>
@@ -295,17 +319,22 @@ export const PurchaseOrderPdfDocument: React.FC<PurchaseOrderPdfProps> = ({ po }
             <Text style={styles.colAmount}>Total (INR)</Text>
           </View>
 
-          {po.items.map((item, idx) => (
-            <View key={idx} style={styles.tableRow}>
-              <Text style={styles.colNo}>{idx + 1}</Text>
-              <Text style={styles.colDesc}>{item.productName}</Text>
-              <Text style={styles.colHsn}>{item.hsnCode || '—'}</Text>
-              <Text style={styles.colQty}>{item.quantity} {item.uom || 'Nos'}</Text>
-              <Text style={styles.colRate}>₹{item.unitPrice.toFixed(2)}</Text>
-              <Text style={styles.colGst}>{item.taxRate}%</Text>
-              <Text style={styles.colAmount}>₹{(item.totalAmount || item.taxableAmount || item.quantity * item.unitPrice).toFixed(2)}</Text>
-            </View>
-          ))}
+          {items.map((item, idx) => {
+            const itemTotal = item.totalAmount || item.taxableAmount || item.quantity * item.unitPrice;
+            return (
+              <View key={idx} style={styles.tableRow}>
+                <Text style={styles.colNo}>{idx + 1}</Text>
+                <Text style={styles.colDesc}>{item.productName}</Text>
+                <Text style={styles.colHsn}>{item.hsnCode || '—'}</Text>
+                <Text style={styles.colQty}>
+                  {item.quantity} {item.uom || 'Nos'}
+                </Text>
+                <Text style={styles.colRate}>{item.unitPrice.toFixed(2)}</Text>
+                <Text style={styles.colGst}>{item.taxRate ?? 18}%</Text>
+                <Text style={styles.colAmount}>{itemTotal.toFixed(2)}</Text>
+              </View>
+            );
+          })}
         </View>
 
         {/* Totals & Amount in Words */}
@@ -313,49 +342,73 @@ export const PurchaseOrderPdfDocument: React.FC<PurchaseOrderPdfProps> = ({ po }
           <View style={styles.wordsBox}>
             <Text style={styles.wordsLabel}>Amount Chargeable in Words</Text>
             <Text style={styles.wordsText}>
-              {po.totalInWords || `Indian Rupees ${po.totalAmount.toLocaleString('en-IN')} Only`}
+              {po.totalInWords || `INR ${totalAmount.toLocaleString('en-IN')} Only`}
             </Text>
-            <View style={styles.termsBox}>
-              <Text style={styles.termsTitle}>Procurement Terms & Conditions</Text>
-              <Text style={styles.termsText}>1. Materials must strictly adhere to specified drawings and metallurgical standards.</Text>
-              <Text style={styles.termsText}>2. Delivery Challan and Test Certificates must accompany every dispatch shipment.</Text>
-              <Text style={styles.termsText}>3. Payment will be released within 30 days after GRN inspection and Bill approval.</Text>
-            </View>
           </View>
 
           <View style={styles.summaryBox}>
             <View style={styles.summaryRow}>
               <Text style={styles.summaryLabel}>Subtotal Taxable:</Text>
-              <Text style={styles.summaryVal}>₹{(po.taxableAmount || po.subtotal).toFixed(2)}</Text>
+              <Text style={styles.summaryVal}>INR {taxableAmount.toFixed(2)}</Text>
             </View>
             {(po.shippingCharge || 0) > 0 && (
               <View style={styles.summaryRow}>
                 <Text style={styles.summaryLabel}>Freight / Logistics:</Text>
-                <Text style={styles.summaryVal}>₹{(po.shippingCharge || 0).toFixed(2)}</Text>
+                <Text style={styles.summaryVal}>INR {(po.shippingCharge || 0).toFixed(2)}</Text>
               </View>
             )}
             {(po.cgstAmount || 0) > 0 && (
               <View style={styles.summaryRow}>
                 <Text style={styles.summaryLabel}>CGST (Central Tax):</Text>
-                <Text style={styles.summaryVal}>₹{(po.cgstAmount || 0).toFixed(2)}</Text>
+                <Text style={styles.summaryVal}>INR {(po.cgstAmount || 0).toFixed(2)}</Text>
               </View>
             )}
             {(po.sgstAmount || 0) > 0 && (
               <View style={styles.summaryRow}>
                 <Text style={styles.summaryLabel}>SGST (State Tax):</Text>
-                <Text style={styles.summaryVal}>₹{(po.sgstAmount || 0).toFixed(2)}</Text>
+                <Text style={styles.summaryVal}>INR {(po.sgstAmount || 0).toFixed(2)}</Text>
               </View>
             )}
             {(po.igstAmount || 0) > 0 && (
               <View style={styles.summaryRow}>
                 <Text style={styles.summaryLabel}>IGST (Integrated Tax):</Text>
-                <Text style={styles.summaryVal}>₹{(po.igstAmount || 0).toFixed(2)}</Text>
+                <Text style={styles.summaryVal}>INR {(po.igstAmount || 0).toFixed(2)}</Text>
               </View>
             )}
             <View style={styles.grandTotalRow}>
               <Text style={styles.grandTotalLabel}>Grand PO Value:</Text>
-              <Text style={styles.grandTotalVal}>₹{po.totalAmount.toLocaleString('en-IN')}</Text>
+              <Text style={styles.grandTotalVal}>INR {totalAmount.toLocaleString('en-IN')}</Text>
             </View>
+          </View>
+        </View>
+
+        {/* PO Instructions, Quality Terms & Commercial Terms */}
+        <View style={styles.termsGrid}>
+          <View style={styles.termCol}>
+            <Text style={styles.termTitle}>Dispatch & Store Instructions</Text>
+            {defaultInstructions.split('\n').filter(Boolean).map((line, lIdx) => (
+              <Text key={lIdx} style={styles.termText}>
+                {line}
+              </Text>
+            ))}
+          </View>
+
+          <View style={styles.termCol}>
+            <Text style={styles.termTitle}>Quality & Inspection Standards</Text>
+            {defaultQualityTerms.split('\n').filter(Boolean).map((line, lIdx) => (
+              <Text key={lIdx} style={styles.termText}>
+                {line}
+              </Text>
+            ))}
+          </View>
+
+          <View style={styles.termCol}>
+            <Text style={styles.termTitle}>Commercial Terms & Conditions</Text>
+            {defaultCommercialTerms.split('\n').filter(Boolean).map((line, lIdx) => (
+              <Text key={lIdx} style={styles.termText}>
+                {line}
+              </Text>
+            ))}
           </View>
         </View>
 

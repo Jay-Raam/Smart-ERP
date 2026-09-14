@@ -386,12 +386,44 @@ export const PurchaseModule: React.FC<PurchaseModuleProps> = ({ initialOpenAdd =
       ),
     },
     {
+      key: 'payment',
+      header: 'Payment / Due',
+      sortable: false,
+      align: 'right',
+      render: (po) => {
+        const out = po.outstandingAmount !== undefined ? po.outstandingAmount : Math.max(0, po.totalAmount - (po.paidAmount || 0));
+        const paid = po.paidAmount || 0;
+        if (paid >= po.totalAmount && po.totalAmount > 0) {
+          return (
+            <span className="inline-flex items-center gap-1 rounded-full px-2 py-0.5 text-[10px] font-bold bg-emerald-50 text-emerald-700 border border-emerald-200">
+              <CheckCircle2 className="h-3 w-3" />
+              <span>Paid in Full</span>
+            </span>
+          );
+        }
+        if (paid > 0) {
+          return (
+            <div className="text-right text-[11px]">
+              <span className="font-bold text-emerald-700 font-mono">₹{paid.toLocaleString('en-IN')} paid</span>
+              <span className="text-amber-700 text-[10px] block font-mono font-semibold">Due: ₹{out.toLocaleString('en-IN')}</span>
+            </div>
+          );
+        }
+        return (
+          <span className="font-mono text-amber-700 font-semibold text-xs">
+            Due: ₹{out.toLocaleString('en-IN')}
+          </span>
+        );
+      },
+    },
+    {
       key: 'status',
       header: 'Status',
       sortable: true,
       align: 'center',
       render: (po) => {
-        if (po.status === 'AUTO_REORDER_PENDING') {
+        const st = (po.status || '').toUpperCase();
+        if (st === 'AUTO_REORDER_PENDING') {
           return (
             <span className="inline-flex items-center gap-1 rounded-full px-2.5 py-0.5 text-[10px] font-bold bg-amber-50 text-amber-800 border border-amber-300">
               <Clock className="h-3 w-3 text-amber-600" />
@@ -399,7 +431,7 @@ export const PurchaseModule: React.FC<PurchaseModuleProps> = ({ initialOpenAdd =
             </span>
           );
         }
-        if (po.status === 'PARTIALLY_BILLED') {
+        if (st === 'PARTIALLY_BILLED') {
           return (
             <span className="inline-flex items-center gap-1 rounded-full px-2.5 py-0.5 text-[10px] font-bold bg-indigo-50 text-indigo-700 border border-indigo-200">
               <FileCheck className="h-3 w-3 text-indigo-600" />
@@ -407,7 +439,7 @@ export const PurchaseModule: React.FC<PurchaseModuleProps> = ({ initialOpenAdd =
             </span>
           );
         }
-        if (po.status === 'FULLY_BILLED') {
+        if (st === 'FULLY_BILLED') {
           return (
             <span className="inline-flex items-center gap-1 rounded-full px-2.5 py-0.5 text-[10px] font-bold bg-purple-50 text-purple-700 border border-purple-200">
               <CheckCircle2 className="h-3 w-3 text-purple-600" />
@@ -420,7 +452,7 @@ export const PurchaseModule: React.FC<PurchaseModuleProps> = ({ initialOpenAdd =
             className={`inline-flex items-center gap-1 rounded-full px-2.5 py-0.5 text-[10px] font-semibold ${
               po.status === 'Received'
                 ? 'bg-emerald-50 text-emerald-700 border border-emerald-200'
-                : po.status === 'Approved'
+                : st === 'APPROVED' || po.status === 'Approved'
                 ? 'bg-blue-50 text-blue-700 border border-blue-200'
                 : 'bg-amber-50 text-amber-700 border border-amber-200'
             }`}
@@ -436,89 +468,94 @@ export const PurchaseModule: React.FC<PurchaseModuleProps> = ({ initialOpenAdd =
       key: 'actions',
       header: 'Actions',
       align: 'right',
-      render: (po) => (
-        <div className="flex items-center justify-end gap-1.5">
-          {po.status === 'AUTO_REORDER_PENDING' && canApprovePO && (
-            <button
-              type="button"
-              onClick={() => approveAutoReorderPO(po.id)}
-              className="inline-flex items-center gap-1 rounded-lg border border-amber-300 bg-amber-50 px-2 py-1 text-xs font-semibold text-amber-800 hover:bg-amber-100 transition cursor-pointer shadow-xs"
-              title="SuperAdmin Approve Auto Reorder PO"
-            >
-              <CheckCircle2 className="h-3.5 w-3.5 text-amber-600" />
-              <span>Approve PO</span>
-            </button>
-          )}
+      render: (po) => {
+        const st = (po.status || '').toUpperCase();
+        const isApprovedOrActive = st === 'APPROVED' || st === 'PARTIALLY_BILLED' || st === 'PENDING_APPROVAL' || po.status === 'Approved';
+        const outAmount = po.outstandingAmount !== undefined ? po.outstandingAmount : Math.max(0, po.totalAmount - (po.paidAmount || 0));
 
-          {(po.status === 'Approved' || po.status === 'PARTIALLY_BILLED') && (
-            <>
-              {((po.outstandingAmount ?? (po.totalAmount - (po.paidAmount || 0))) > 0) && canApprovePO && (
-                <button
-                  type="button"
-                  onClick={() => setSelectedPOForAdvance(po)}
-                  className="inline-flex items-center gap-1 rounded-lg border border-indigo-200 bg-indigo-50 px-2 py-1 text-xs font-semibold text-indigo-700 hover:bg-indigo-100 transition cursor-pointer shadow-xs"
-                  title="Record Vendor Advance Payment"
-                >
-                  <DollarSign className="h-3.5 w-3.5" />
-                  <span>Advance</span>
-                </button>
-              )}
-              {canAddBill && (
-                <button
-                  type="button"
-                  onClick={() => {
-                    window.history.pushState({}, '', `/bills/new?poId=${po.id}`);
-                    window.dispatchEvent(new PopStateEvent('popstate'));
-                  }}
-                  className="inline-flex items-center gap-1 rounded-lg border border-emerald-200 bg-emerald-50 px-2 py-1 text-xs font-semibold text-emerald-700 hover:bg-emerald-100 transition cursor-pointer shadow-xs"
-                  title="Convert Purchase Order to Vendor Bill"
-                >
-                  <FileCheck className="h-3.5 w-3.5" />
-                  <span>Convert to Bill</span>
-                </button>
-              )}
-            </>
-          )}
-
-          {canEditPO && (
-            (po.paidAmount || 0) > 0 ||
-            po.status === 'Billed' ||
-            po.status === 'PARTIALLY_BILLED' ||
-            po.status === 'FULLY_BILLED' ? (
-              <span
-                className="inline-flex items-center gap-1 rounded-lg border border-slate-200 bg-slate-50 px-2 py-1 text-xs font-semibold text-slate-400 cursor-not-allowed shadow-2xs"
-                title="PO Editing Locked: advance payment or vendor bill exists"
+        return (
+          <div className="flex items-center justify-end gap-1.5">
+            {st === 'AUTO_REORDER_PENDING' && canApprovePO && (
+              <button
+                type="button"
+                onClick={() => approveAutoReorderPO(po.id)}
+                className="inline-flex items-center gap-1 rounded-lg border border-amber-300 bg-amber-50 px-2 py-1 text-xs font-semibold text-amber-800 hover:bg-amber-100 transition cursor-pointer shadow-xs"
+                title="SuperAdmin Approve Auto Reorder PO"
               >
-                <Lock className="h-3.5 w-3.5" />
-                <span>Locked</span>
-              </span>
-            ) : (
+                <CheckCircle2 className="h-3.5 w-3.5 text-amber-600" />
+                <span>Approve PO</span>
+              </button>
+            )}
+
+            {/* Pay Advance Button */}
+            {isApprovedOrActive && outAmount > 0 && (
+              <button
+                type="button"
+                onClick={() => setSelectedPOForAdvance(po)}
+                className="inline-flex items-center gap-1 rounded-lg border border-emerald-300 bg-emerald-50 px-2.5 py-1 text-xs font-bold text-emerald-700 hover:bg-emerald-100 hover:border-emerald-400 transition cursor-pointer shadow-xs"
+                title={`Record Vendor Advance Payment for ${po.poNumber} (Due: ₹${outAmount.toLocaleString('en-IN')})`}
+              >
+                <DollarSign className="h-3.5 w-3.5 text-emerald-600" />
+                <span>Pay Advance</span>
+              </button>
+            )}
+
+            {/* Convert to Bill Button */}
+            {isApprovedOrActive && canAddBill && (
               <button
                 type="button"
                 onClick={() => {
-                  window.history.pushState({}, '', `/purchase-orders/${po.id}/edit`);
+                  window.history.pushState({}, '', `/bills/new?poId=${po.id}`);
                   window.dispatchEvent(new PopStateEvent('popstate'));
                 }}
-                className="inline-flex items-center gap-1 rounded-lg border border-slate-200 bg-white px-2 py-1 text-xs font-semibold text-slate-700 hover:bg-slate-100 hover:text-blue-600 transition cursor-pointer shadow-xs"
-                title="Edit Purchase Order"
+                className="inline-flex items-center gap-1 rounded-lg border border-indigo-200 bg-indigo-50 px-2 py-1 text-xs font-semibold text-indigo-700 hover:bg-indigo-100 transition cursor-pointer shadow-xs"
+                title="Convert Purchase Order to Vendor Bill"
               >
-                <Pencil className="h-3.5 w-3.5" />
-                <span>Edit</span>
+                <FileCheck className="h-3.5 w-3.5" />
+                <span>Convert to Bill</span>
               </button>
-            )
-          )}
+            )}
 
-          <button
-            type="button"
-            onClick={() => setSelectedPO(po)}
-            className="inline-flex items-center gap-1 rounded-lg border border-slate-200 bg-white px-2 py-1 text-xs font-semibold text-slate-700 hover:bg-slate-100 hover:text-blue-600 transition cursor-pointer shadow-xs"
-            title="View & Print PO"
-          >
-            <Eye className="h-3.5 w-3.5" />
-            <span>View</span>
-          </button>
-        </div>
-      ),
+            {canEditPO && (
+              (po.paidAmount || 0) > 0 ||
+              po.status === 'Billed' ||
+              st === 'PARTIALLY_BILLED' ||
+              st === 'FULLY_BILLED' ? (
+                <span
+                  className="inline-flex items-center gap-1 rounded-lg border border-slate-200 bg-slate-50 px-2 py-1 text-xs font-semibold text-slate-400 cursor-not-allowed shadow-2xs"
+                  title="PO Editing Locked: advance payment or vendor bill exists"
+                >
+                  <Lock className="h-3.5 w-3.5" />
+                  <span>Locked</span>
+                </span>
+              ) : (
+                <button
+                  type="button"
+                  onClick={() => {
+                    window.history.pushState({}, '', `/purchase-orders/${po.id}/edit`);
+                    window.dispatchEvent(new PopStateEvent('popstate'));
+                  }}
+                  className="inline-flex items-center gap-1 rounded-lg border border-slate-200 bg-white px-2 py-1 text-xs font-semibold text-slate-700 hover:bg-slate-100 hover:text-blue-600 transition cursor-pointer shadow-xs"
+                  title="Edit Purchase Order"
+                >
+                  <Pencil className="h-3.5 w-3.5" />
+                  <span>Edit</span>
+                </button>
+              )
+            )}
+
+            <button
+              type="button"
+              onClick={() => setSelectedPO(po)}
+              className="inline-flex items-center gap-1 rounded-lg border border-slate-200 bg-white px-2 py-1 text-xs font-semibold text-slate-700 hover:bg-slate-100 hover:text-blue-600 transition cursor-pointer shadow-xs"
+              title="View, Print & Download Purchase Order"
+            >
+              <Eye className="h-3.5 w-3.5" />
+              <span>View</span>
+            </button>
+          </div>
+        );
+      },
     },
   ];
 

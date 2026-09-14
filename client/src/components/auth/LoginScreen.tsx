@@ -51,7 +51,7 @@ export const LoginScreen: React.FC = () => {
       {/* Outer Floating Card Container */}
       <div className="w-full max-w-[1020px] rounded-[28px] border border-slate-200/80 dark:border-[#222225] bg-white dark:bg-[#0c0c0e] shadow-[0_20px_60px_-15px_rgba(0,0,0,0.07)] dark:shadow-[0_25px_70px_rgba(0,0,0,0.7)] p-3 sm:p-3.5 transition-all duration-300">
         <div className="grid grid-cols-1 lg:grid-cols-2 gap-4 items-stretch min-h-[580px] lg:min-h-[640px]">
-          
+
           {/* ==============================================================
               LEFT COLUMN: Minimalist Landscape Poster (Webpixels Style)
               ============================================================== */}
@@ -140,7 +140,7 @@ export const LoginScreen: React.FC = () => {
                   <Sparkles className="h-3 w-3 fill-slate-900" />
                 </div>
                 <span className="text-xs font-semibold tracking-tight text-white/95">
-                  clever
+                  LOVE
                 </span>
               </div>
             </div>
@@ -148,10 +148,12 @@ export const LoginScreen: React.FC = () => {
             {/* Bottom Display Typography */}
             <div className="relative z-10 mt-auto pt-16">
               <h2 className="text-2xl sm:text-3xl lg:text-[34px] font-bold text-white tracking-tight leading-[1.15]">
-                Build something<br />amazing today.
+                Manage your business.<br />
+                All in one place.
               </h2>
+
               <p className="text-xs sm:text-sm text-white/65 mt-3 max-w-sm font-normal leading-relaxed">
-                Maybe some text here will help me see it better.
+                Streamline sales, purchases, inventory, finance, and operations with one powerful ERP system.
               </p>
             </div>
           </div>
@@ -276,67 +278,6 @@ export const LoginScreen: React.FC = () => {
                 )}
               </button>
             </form>
-
-            {/* OR Divider */}
-            <div className="relative my-6 text-center">
-              <div className="absolute inset-0 flex items-center">
-                <div className="w-full border-t border-slate-200 dark:border-[#222225]" />
-              </div>
-              <div className="relative flex justify-center text-xs">
-                <span className="px-3 bg-white dark:bg-[#0c0c0e] text-[10px] font-bold uppercase tracking-wider text-slate-400 dark:text-slate-500">
-                  OR
-                </span>
-              </div>
-            </div>
-
-            {/* Social / SSO Auth Buttons (GitHub & Google) */}
-            <div className="grid grid-cols-2 gap-3">
-              {/* GitHub */}
-              <button
-                type="button"
-                onClick={() => {
-                  setIdentifier('admin@smarterp.com');
-                  setPassword('password123');
-                }}
-                className="flex items-center justify-center gap-2 px-3 py-2 rounded-xl border border-slate-200 dark:border-[#27272a] bg-white dark:bg-[#141416] hover:bg-slate-50 dark:hover:bg-[#1a1a1e] text-slate-700 dark:text-slate-200 text-xs font-semibold shadow-2xs transition cursor-pointer"
-                title="Quick Fill Demo Admin"
-              >
-                <svg className="h-4 w-4 shrink-0 fill-current" viewBox="0 0 24 24">
-                  <path d="M12 0C5.37 0 0 5.37 0 12c0 5.31 3.435 9.795 8.205 11.385.6.105.825-.255.825-.57 0-.285-.015-1.23-.015-2.235-3.015.555-3.795-.735-4.035-1.41-.135-.345-.72-1.41-1.23-1.695-.42-.225-1.02-.78-.015-.795.945-.015 1.62.87 1.845 1.23 1.08 1.815 2.805 1.305 3.495.99.105-.78.42-1.305.765-1.605-2.67-.3-5.46-1.335-5.46-5.925 0-1.305.465-2.385 1.23-3.225-.12-.3-.54-1.53.12-3.18 0 0 1.005-.315 3.3 1.23.96-.27 1.98-.405 3-.405s2.04.135 3 .405c2.295-1.56 3.3-1.23 3.3-1.23.66 1.65.24 2.88.12 3.18.765.84 1.23 1.905 1.23 3.225 0 4.605-2.805 5.625-5.475 5.925.435.375.81 1.095.81 2.22 0 1.605-.015 2.895-.015 3.3 0 .315.225.69.825.57A12.02 12.02 0 0024 12c0-6.63-5.37-12-12-12z"/>
-                </svg>
-                <span>GitHub</span>
-              </button>
-
-              {/* Google */}
-              <button
-                type="button"
-                onClick={() => {
-                  setIdentifier('jay.raam@smart.com');
-                  setPassword('password123');
-                }}
-                className="flex items-center justify-center gap-2 px-3 py-2 rounded-xl border border-slate-200 dark:border-[#27272a] bg-white dark:bg-[#141416] hover:bg-slate-50 dark:hover:bg-[#1a1a1e] text-slate-700 dark:text-slate-200 text-xs font-semibold shadow-2xs transition cursor-pointer"
-                title="Quick Fill SuperAdmin"
-              >
-                <svg className="h-4 w-4 shrink-0" viewBox="0 0 24 24">
-                  <path fill="#4285F4" d="M23.745 12.27c0-.7-.06-1.4-.19-2.07H12v4.51h6.6c-.29 1.52-1.14 2.82-2.4 3.68v3.05h3.88c2.27-2.09 3.665-5.17 3.665-9.17z"/>
-                  <path fill="#34A853" d="M12 24c3.24 0 5.95-1.08 7.93-2.91l-3.88-3.05c-1.08.72-2.45 1.16-4.05 1.16-3.12 0-5.77-2.1-6.72-4.93H1.25v3.15C3.26 21.36 7.33 24 12 24z"/>
-                  <path fill="#FBBC05" d="M5.28 14.27c-.25-.72-.38-1.49-.38-2.27s.13-1.55.38-2.27V6.58H1.25C.45 8.18 0 10.03 0 12s.45 3.82 1.25 5.42l4.03-3.15z"/>
-                  <path fill="#EA4335" d="M12 4.75c1.77 0 3.35.61 4.6 1.8l3.42-3.42C17.95 1.19 15.24 0 12 0 7.33 0 3.26 2.64 1.25 6.58l4.03 3.15c.95-2.83 3.6-4.98 6.72-4.98z"/>
-                </svg>
-                <span>Google</span>
-              </button>
-            </div>
-
-            {/* Sign-up Callout */}
-            <p className="text-center text-xs text-slate-500 dark:text-slate-400 mt-6">
-              Don't have an account?{' '}
-              <span
-                onClick={() => setErrorMessage('Self-registration is governed by organisation admin. Please request tenant onboarding.')}
-                className="font-semibold text-slate-900 dark:text-white hover:underline cursor-pointer transition"
-              >
-                Sign up
-              </span>
-            </p>
           </div>
 
         </div>

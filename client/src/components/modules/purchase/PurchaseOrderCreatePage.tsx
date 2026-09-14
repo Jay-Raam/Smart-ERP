@@ -14,12 +14,12 @@ import {
   Clock,
   AlertCircle,
   ShieldAlert,
+  ShieldCheck,
 } from 'lucide-react';
 import { useErpStore, DocumentItem, PurchaseOrder } from '../../../store/erpStore';
 import { calculateDocumentTaxes, isStateTamilNadu } from '../../../utils/taxCalculation';
 import { useFormValidation, isValidQuantity } from '../../../utils/validation';
-import { PurchaseOrderPdfDocument } from '../../pdf/PurchaseOrderPdfDocument';
-import { PdfPreviewModal } from '../../pdf/PdfPreviewModal';
+import { PurchasePrintModal } from '../PurchasePrintModal';
 import { showAppToast } from '../../../utils/handleApiError';
 
 interface PoFormData {
@@ -90,6 +90,20 @@ export const PurchaseOrderCreatePage: React.FC = () => {
   const [isPdfModalOpen, setIsPdfModalOpen] = useState(false);
   const [isHistoryOpen, setIsHistoryOpen] = useState(false);
 
+  // Editable PO Instructions, Quality Terms & Commercial Terms
+  const [instructions, setInstructions] = useState<string>(
+    existingPo?.instructions ||
+      '1. Deliver to Central Stores Receiving Bay, Ambattur between 09:00 AM - 05:00 PM.\n2. Delivery Challan, Packing List & Invoices must strictly cite this PO Number.\n3. Goods must be packaged safely with protective wrapping against transit corrosion.'
+  );
+  const [qualityTerms, setQualityTerms] = useState<string>(
+    existingPo?.qualityTerms ||
+      '1. All supplied materials must strictly match specification tolerances and engineering drawings.\n2. Manufacturer Test Certificate (MTC) and Certificate of Analysis (CoA) required at gate inward.\n3. Defective or non-compliant lots will be rejected with return freight on supplier account.'
+  );
+  const [termsAndConditions, setTermsAndConditions] = useState<string>(
+    existingPo?.termsAndConditions ||
+      '1. Payment release: 30 days net following successful GRN quality approval.\n2. Prices are firm, fixed and inclusive of transit insurance up to factory delivery point.\n3. Smart ERP reserves statutory right of audit and dispute escalation under Tamil Nadu jurisdiction.'
+  );
+
   // Filter approved products only
   const approvedProducts = useMemo(() => {
     return products.filter((p) => (p.approvalStatus || 'Approved') === 'Approved');
@@ -144,6 +158,15 @@ export const PurchaseOrderCreatePage: React.FC = () => {
       }
       if (existingPo.vendorAddress) {
         setCustomVendorAddress(existingPo.vendorAddress);
+      }
+      if (existingPo.instructions) {
+        setInstructions(existingPo.instructions);
+      }
+      if (existingPo.qualityTerms) {
+        setQualityTerms(existingPo.qualityTerms);
+      }
+      if (existingPo.termsAndConditions) {
+        setTermsAndConditions(existingPo.termsAndConditions);
       }
     } else if (lineItems.length === 0 && approvedProducts.length > 0) {
       const p = approvedProducts[0];
@@ -296,6 +319,9 @@ export const PurchaseOrderCreatePage: React.FC = () => {
       taxAmount: taxCalculation.totalTax,
       totalAmount: taxCalculation.grandTotal,
       totalInWords: taxCalculation.totalInWords,
+      instructions,
+      qualityTerms,
+      termsAndConditions,
     };
 
     if (isEditMode && existingPo) {
@@ -322,7 +348,7 @@ export const PurchaseOrderCreatePage: React.FC = () => {
   };
 
   return (
-    <div className="space-y-6 max-w-5xl mx-auto pb-16">
+    <div className="space-y-6 max-w-7xl mx-auto w-full pb-16">
       {/* Top Bar */}
       <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between border-b border-slate-200 pb-4">
         <div className="flex items-center gap-3">
@@ -413,16 +439,25 @@ export const PurchaseOrderCreatePage: React.FC = () => {
             <span>Vendor Selection & Delivery Timeline</span>
           </div>
 
-          <div className="grid grid-cols-1 md:grid-cols-4 gap-4 text-xs">
-            {/* Vendor Selector - Standard SELECT box */}
-            <div>
-              <label className="block font-semibold text-slate-700 mb-1">
-                Vendor / Supplier <span className="text-red-500">*</span>
-              </label>
+          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4 text-xs">
+            {/* Vendor Selector - Standard SELECT box (Locked in Edit Mode) */}
+            <div className="sm:col-span-2 lg:col-span-2">
+              <div className="flex items-center justify-between mb-1">
+                <label className="block font-semibold text-slate-700">
+                  Vendor / Supplier <span className="text-red-500">*</span>
+                </label>
+                {isEditMode && (
+                  <span className="inline-flex items-center gap-1 text-[10px] font-bold text-amber-700 bg-amber-50 px-1.5 py-0.5 rounded border border-amber-200">
+                    <Lock className="w-3 h-3 text-amber-600" />
+                    Locked in Edit Mode
+                  </span>
+                )}
+              </div>
               <select
                 value={selectedVendorId}
-                disabled={isEditLocked}
+                disabled={isEditLocked || isEditMode}
                 onChange={(e) => {
+                  if (isEditMode) return;
                   const val = e.target.value;
                   setSelectedVendorId(val);
                   setFieldValue('vendorId', val);
@@ -436,7 +471,11 @@ export const PurchaseOrderCreatePage: React.FC = () => {
                     setCustomVendorAddress(addr);
                   }
                 }}
-                className="w-full rounded-xl border border-slate-300 p-2.5 bg-white text-xs text-slate-800 font-medium focus:outline-hidden focus:ring-2 focus:ring-blue-500"
+                className={`w-full rounded-xl border p-2.5 text-xs font-medium transition ${
+                  isEditMode || isEditLocked
+                    ? 'bg-slate-100 border-slate-200 text-slate-600 cursor-not-allowed shadow-inner'
+                    : 'bg-white border-slate-300 text-slate-800 focus:outline-hidden focus:ring-2 focus:ring-blue-500'
+                }`}
               >
                 <option value="">-- Select Vendor / Supplier --</option>
                 {vendors.map((v) => (
@@ -445,10 +484,15 @@ export const PurchaseOrderCreatePage: React.FC = () => {
                   </option>
                 ))}
               </select>
+              {isEditMode && (
+                <p className="text-[10px] text-slate-400 mt-1">
+                  Vendor selection is locked during PO amendment.
+                </p>
+              )}
             </div>
 
             {/* PO Date (Locked Field, Saved to Backend) */}
-            <div>
+            <div className="sm:col-span-1 lg:col-span-1">
               <div className="flex items-center justify-between mb-1">
                 <label className="block font-semibold text-slate-700">
                   PO Date (Locked) <span className="text-red-500">*</span>
@@ -467,7 +511,7 @@ export const PurchaseOrderCreatePage: React.FC = () => {
             </div>
 
             {/* Expected Delivery Date */}
-            <div>
+            <div className="sm:col-span-1 lg:col-span-1">
               <label className="block font-semibold text-slate-700 mb-1">
                 Expected Delivery Date <span className="text-red-500">*</span>
               </label>
@@ -483,10 +527,11 @@ export const PurchaseOrderCreatePage: React.FC = () => {
             </div>
 
             {/* Locked Vendor GSTIN & State */}
-            <div>
-              <label className="block font-semibold text-slate-500 mb-1">Vendor GSTIN & State</label>
-              <div className="p-2.5 rounded-xl bg-slate-50 border border-slate-200 font-mono text-slate-700 text-xs">
-                {vendorGstin || 'Unregistered'} • {vendorState}
+            <div className="sm:col-span-2 lg:col-span-4">
+              <label className="block font-semibold text-slate-500 mb-1">Vendor GSTIN & Operating State</label>
+              <div className="p-2.5 rounded-xl bg-slate-50 border border-slate-200 font-mono text-slate-700 text-xs flex items-center justify-between">
+                <span>GSTIN: <strong className="text-blue-700">{vendorGstin || 'Unregistered'}</strong></span>
+                <span className="text-slate-600">State: <strong className="text-slate-900">{vendorState}</strong></span>
               </div>
             </div>
           </div>
@@ -557,82 +602,153 @@ export const PurchaseOrderCreatePage: React.FC = () => {
             )}
           </div>
 
-          <div className="space-y-2">
-            {lineItems.map((item, idx) => (
-              <div
-                key={idx}
-                className="grid grid-cols-12 gap-3 items-center rounded-xl border border-slate-200 p-3 bg-slate-50/50 text-xs"
-              >
-                {/* Product Select - Standard SELECT Box */}
-                <div className="col-span-4">
-                  <label className="block text-[10px] text-slate-500 font-medium mb-1">Product Master</label>
-                  <select
-                    disabled={isEditLocked}
-                    value={item.productId}
-                    onChange={(e) => handleProductSelect(idx, e.target.value)}
-                    className="w-full rounded-lg border border-slate-300 bg-white p-2 text-slate-800 font-medium focus:outline-hidden focus:ring-2 focus:ring-blue-500"
-                  >
-                    <option value="">-- Select Product Master --</option>
-                    {approvedProducts.map((p) => (
-                      <option key={p.id} value={p.id}>
-                        {p.name} ({p.sku})
-                      </option>
-                    ))}
-                  </select>
-                </div>
-
-                {/* Locked HSN Code */}
-                <div className="col-span-2">
-                  <label className="block text-[10px] text-slate-500 font-medium mb-1">HSN Code (Locked)</label>
-                  <div className="p-2 rounded-lg bg-slate-100 border border-slate-200 font-mono text-slate-600 text-center">
-                    {item.hsnCode}
-                  </div>
-                </div>
-
-                {/* Quantity */}
-                <div className="col-span-2">
-                  <label className="block text-[10px] text-slate-500 font-medium mb-1">Qty ({item.uom})</label>
-                  <input
-                    type="number"
-                    min="1"
-                    disabled={isEditLocked}
-                    value={item.quantity}
-                    onChange={(e) => handleQuantityChange(idx, e.target.value)}
-                    className="w-full rounded-lg border border-slate-300 bg-white p-2 font-mono text-right text-slate-800 focus:outline-hidden focus:ring-2 focus:ring-blue-500"
-                  />
-                </div>
-
-                {/* Rate */}
-                <div className="col-span-2">
-                  <label className="block text-[10px] text-slate-500 font-medium mb-1">Rate (₹)</label>
-                  <div className="p-2 rounded-lg bg-slate-100 border border-slate-200 font-mono text-right text-slate-700">
-                    ₹{item.unitPrice.toFixed(2)}
-                  </div>
-                </div>
-
-                {/* GST Rate */}
-                <div className="col-span-1">
-                  <label className="block text-[10px] text-slate-500 font-medium mb-1">GST %</label>
-                  <div className="p-2 rounded-lg bg-slate-100 border border-slate-200 font-mono text-center text-slate-700">
-                    {item.taxRate}%
-                  </div>
-                </div>
-
-                {/* Action */}
-                <div className="col-span-1 flex items-center justify-end pt-4">
-                  {!isEditLocked && lineItems.length > 1 && (
-                    <button
-                      type="button"
-                      onClick={() => removeLineItem(idx)}
-                      className="p-1.5 text-slate-400 hover:text-red-500 hover:bg-red-50 rounded-lg transition"
-                      title="Remove Item"
+          <div className="overflow-x-auto -mx-1 px-1 pb-2">
+            <div className="min-w-[760px] space-y-2">
+              {lineItems.map((item, idx) => (
+                <div
+                  key={idx}
+                  className="grid grid-cols-12 gap-3 items-center rounded-xl border border-slate-200 p-3 bg-slate-50/50 text-xs"
+                >
+                  {/* Product Select - Standard SELECT Box */}
+                  <div className="col-span-4">
+                    <label className="block text-[10px] text-slate-500 font-medium mb-1">Product Master</label>
+                    <select
+                      disabled={isEditLocked}
+                      value={item.productId}
+                      onChange={(e) => handleProductSelect(idx, e.target.value)}
+                      className="w-full rounded-lg border border-slate-300 bg-white p-2 text-slate-800 font-medium focus:outline-hidden focus:ring-2 focus:ring-blue-500"
                     >
-                      <Trash2 className="h-4 w-4" />
-                    </button>
-                  )}
+                      <option value="">-- Select Product Master --</option>
+                      {approvedProducts.map((p) => (
+                        <option key={p.id} value={p.id}>
+                          {p.name} ({p.sku})
+                        </option>
+                      ))}
+                    </select>
+                  </div>
+
+                  {/* Locked HSN Code */}
+                  <div className="col-span-2">
+                    <label className="block text-[10px] text-slate-500 font-medium mb-1">HSN Code (Locked)</label>
+                    <div className="p-2 rounded-lg bg-slate-100 border border-slate-200 font-mono text-slate-600 text-center">
+                      {item.hsnCode}
+                    </div>
+                  </div>
+
+                  {/* Quantity */}
+                  <div className="col-span-2">
+                    <label className="block text-[10px] text-slate-500 font-medium mb-1">Qty ({item.uom})</label>
+                    <input
+                      type="number"
+                      min="1"
+                      disabled={isEditLocked}
+                      value={item.quantity}
+                      onChange={(e) => handleQuantityChange(idx, e.target.value)}
+                      className="w-full rounded-lg border border-slate-300 bg-white p-2 font-mono text-right text-slate-800 focus:outline-hidden focus:ring-2 focus:ring-blue-500"
+                    />
+                  </div>
+
+                  {/* Rate */}
+                  <div className="col-span-2">
+                    <label className="block text-[10px] text-slate-500 font-medium mb-1">Rate (₹)</label>
+                    <div className="p-2 rounded-lg bg-slate-100 border border-slate-200 font-mono text-right text-slate-700">
+                      ₹{item.unitPrice.toFixed(2)}
+                    </div>
+                  </div>
+
+                  {/* GST Rate */}
+                  <div className="col-span-1">
+                    <label className="block text-[10px] text-slate-500 font-medium mb-1">GST %</label>
+                    <div className="p-2 rounded-lg bg-slate-100 border border-slate-200 font-mono text-center text-slate-700">
+                      {item.taxRate}%
+                    </div>
+                  </div>
+
+                  {/* Action */}
+                  <div className="col-span-1 flex items-center justify-end pt-4">
+                    {!isEditLocked && lineItems.length > 1 && (
+                      <button
+                        type="button"
+                        onClick={() => removeLineItem(idx)}
+                        className="p-1.5 text-slate-400 hover:text-red-500 hover:bg-red-50 rounded-lg transition cursor-pointer"
+                        title="Remove Item"
+                      >
+                        <Trash2 className="h-4 w-4" />
+                      </button>
+                    )}
+                  </div>
                 </div>
-              </div>
-            ))}
+              ))}
+            </div>
+          </div>
+        </div>
+
+        {/* PO Instructions, Quality Terms & Commercial Terms (Editable in Create & Edit time) */}
+        <div className="rounded-2xl border border-slate-200 bg-white p-5 shadow-xs space-y-4 text-xs">
+          <div className="text-xs font-bold uppercase tracking-wider text-slate-700 flex items-center justify-between pb-2 border-b border-slate-100">
+            <div className="flex items-center gap-1.5">
+              <ShieldCheck className="h-4 w-4 text-blue-600" />
+              <span>PO Instructions, Quality Terms & Commercial Conditions</span>
+            </div>
+            <span className="text-[10px] font-normal text-slate-400">
+              Printed on official PO document and vendor copy
+            </span>
+          </div>
+
+          <div className="grid grid-cols-1 lg:grid-cols-3 gap-4">
+            {/* Dispatch & Store Instructions */}
+            <div>
+              <label className="block font-semibold text-slate-700 mb-1">
+                Dispatch & Store Instructions
+              </label>
+              <textarea
+                rows={5}
+                disabled={isEditLocked}
+                value={instructions}
+                onChange={(e) => setInstructions(e.target.value)}
+                placeholder="Enter receiving bay hours, packaging standards, challan instructions..."
+                className="w-full rounded-xl border border-slate-300 p-2.5 text-xs text-slate-800 leading-relaxed focus:outline-hidden focus:ring-2 focus:ring-blue-500"
+              />
+              <p className="text-[10px] text-slate-400 mt-1">
+                Receiving bay guidelines, packaging & marking requirements.
+              </p>
+            </div>
+
+            {/* Quality & Inspection Standards */}
+            <div>
+              <label className="block font-semibold text-slate-700 mb-1">
+                Quality Terms & Inspection Standards
+              </label>
+              <textarea
+                rows={5}
+                disabled={isEditLocked}
+                value={qualityTerms}
+                onChange={(e) => setQualityTerms(e.target.value)}
+                placeholder="Enter MTC/CoA requirement, sampling standards, rejection criteria..."
+                className="w-full rounded-xl border border-slate-300 p-2.5 text-xs text-slate-800 leading-relaxed focus:outline-hidden focus:ring-2 focus:ring-blue-500"
+              />
+              <p className="text-[10px] text-slate-400 mt-1">
+                Incoming QC tolerances, test certificates, rejection policy.
+              </p>
+            </div>
+
+            {/* Commercial Terms & Conditions */}
+            <div>
+              <label className="block font-semibold text-slate-700 mb-1">
+                Commercial Terms & Conditions
+              </label>
+              <textarea
+                rows={5}
+                disabled={isEditLocked}
+                value={termsAndConditions}
+                onChange={(e) => setTermsAndConditions(e.target.value)}
+                placeholder="Enter credit period, price escalation lock, jurisdiction..."
+                className="w-full rounded-xl border border-slate-300 p-2.5 text-xs text-slate-800 leading-relaxed focus:outline-hidden focus:ring-2 focus:ring-blue-500"
+              />
+              <p className="text-[10px] text-slate-400 mt-1">
+                Credit terms, fixed rate covenants, legal jurisdiction.
+              </p>
+            </div>
           </div>
         </div>
 
@@ -723,17 +839,14 @@ export const PurchaseOrderCreatePage: React.FC = () => {
         </div>
       </form>
 
-      {/* PDF Modal */}
+      {/* Unified PO Print & Preview Modal */}
       {isPdfModalOpen && createdPo && (
-        <PdfPreviewModal
-          isOpen={isPdfModalOpen}
+        <PurchasePrintModal
+          purchaseOrder={createdPo}
           onClose={() => {
             setIsPdfModalOpen(false);
             navigateBack();
           }}
-          title={`Purchase Order - ${createdPo.poNumber}`}
-          fileName={`PO_${createdPo.poNumber}.pdf`}
-          document={<PurchaseOrderPdfDocument po={createdPo} />}
         />
       )}
     </div>
