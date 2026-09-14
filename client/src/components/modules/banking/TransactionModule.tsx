@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useMemo } from 'react';
 import {
   ArrowLeftRight,
   Search,
@@ -14,10 +14,14 @@ import {
   FileCheck,
   CheckCircle2,
   Download,
+  ChevronLeft,
+  ChevronRight,
+  XCircle,
 } from 'lucide-react';
 import { useErpStore, FinancialTransaction } from '../../../store/erpStore';
 import { showAppToast } from '../../../utils/handleApiError';
 import { ExportModal, ExportColumn } from '../../shared/ExportModal';
+import { Combobox } from '../../shared/Combobox';
 
 export const TransactionModule: React.FC = () => {
   const { bankAccounts, fetchTransactions } = useErpStore();
@@ -36,6 +40,10 @@ export const TransactionModule: React.FC = () => {
   const [typeFilter, setTypeFilter] = useState('ALL');
   const [bankFilter, setBankFilter] = useState('ALL');
   const [searchQuery, setSearchQuery] = useState('');
+
+  // Pagination
+  const [currentPage, setCurrentPage] = useState(1);
+  const [pageSize, setPageSize] = useState(10);
 
   // Aggregation
   const [summary, setSummary] = useState({
@@ -91,8 +99,98 @@ export const TransactionModule: React.FC = () => {
     }
   };
 
+  // Helper for formatting Date to YYYY-MM-DD in local time
+  const formatDateToYmd = (date: Date): string => {
+    const year = date.getFullYear();
+    const month = String(date.getMonth() + 1).padStart(2, '0');
+    const day = String(date.getDate()).padStart(2, '0');
+    return `${year}-${month}-${day}`;
+  };
+
+  const activePreset = useMemo(() => {
+    if (!startDate && !endDate) return 'all';
+    const now = new Date();
+    const todayStr = formatDateToYmd(now);
+    if (endDate === todayStr) {
+      const startOfMonth = formatDateToYmd(new Date(now.getFullYear(), now.getMonth(), 1));
+      if (startDate === startOfMonth) return 'thisMonth';
+
+      const last30 = new Date(now);
+      last30.setDate(now.getDate() - 30);
+      if (startDate === formatDateToYmd(last30)) return 'last30';
+
+      const month = now.getMonth();
+      const fyYear = month >= 3 ? now.getFullYear() : now.getFullYear() - 1;
+      const startFy = formatDateToYmd(new Date(fyYear, 3, 1));
+      if (startDate === startFy) return 'fy';
+    }
+    return 'custom';
+  }, [startDate, endDate]);
+
+  const setDatePreset = (preset: 'all' | 'thisMonth' | 'last30' | 'fy') => {
+    const now = new Date();
+    if (preset === 'all') {
+      setStartDate('');
+      setEndDate('');
+    } else if (preset === 'thisMonth') {
+      const start = new Date(now.getFullYear(), now.getMonth(), 1);
+      setStartDate(formatDateToYmd(start));
+      setEndDate(formatDateToYmd(now));
+    } else if (preset === 'last30') {
+      const start = new Date(now);
+      start.setDate(now.getDate() - 30);
+      setStartDate(formatDateToYmd(start));
+      setEndDate(formatDateToYmd(now));
+    } else if (preset === 'fy') {
+      const month = now.getMonth();
+      const fyYear = month >= 3 ? now.getFullYear() : now.getFullYear() - 1;
+      const start = new Date(fyYear, 3, 1);
+      setStartDate(formatDateToYmd(start));
+      setEndDate(formatDateToYmd(now));
+    }
+    setCurrentPage(1);
+  };
+
+  const hasActiveFilters = Boolean(
+    searchQuery.trim() ||
+    typeFilter !== 'ALL' ||
+    bankFilter !== 'ALL' ||
+    startDate ||
+    endDate
+  );
+
+  const resetAllFilters = () => {
+    setSearchQuery('');
+    setTypeFilter('ALL');
+    setBankFilter('ALL');
+    setStartDate('');
+    setEndDate('');
+    setCurrentPage(1);
+  };
+
+  const typeOptions = [
+    { value: 'ALL', label: 'All Transaction Types' },
+    { value: 'CUSTOMER_PAYMENT', label: 'Customer Payment', sublabel: 'Inflows from customers' },
+    { value: 'VENDOR_PAYMENT', label: 'Vendor Payment', sublabel: 'Disbursements to vendors' },
+    { value: 'VENDOR_ADVANCE', label: 'Vendor Advance', sublabel: 'Advance paid to vendors' },
+    { value: 'BANK_TRANSFER', label: 'Bank Transfer', sublabel: 'Internal bank to bank transfers' },
+    { value: 'REVERSAL', label: 'Ledger Reversal', sublabel: 'Reversed ledger entries' },
+    { value: 'ADJUSTMENT', label: 'Adjustment', sublabel: 'Manual journal entries' },
+    { value: 'EXPENSE', label: 'Expense', sublabel: 'Operational expenses' },
+  ];
+
+  const bankOptions = useMemo(() => [
+    { value: 'ALL', label: 'All Bank Accounts' },
+    ...bankAccounts.map((b) => ({
+      value: b.id,
+      label: b.bankName,
+      sublabel: `A/c: ..${b.accountNumber ? b.accountNumber.slice(-4) : ''} · Bal: ₹${(Number(b.openingBalance) || 0).toLocaleString('en-IN')}`,
+    })),
+  ], [bankAccounts]);
+
   useEffect(() => {
     loadData();
+    setCurrentPage(1);
   }, [startDate, endDate, typeFilter, bankFilter]);
 
   const handleReverseTx = async () => {
@@ -127,17 +225,25 @@ export const TransactionModule: React.FC = () => {
     }
   };
 
-  // Local Search
-  const filteredTxs = transactions.filter((tx) => {
-    if (!searchQuery.trim()) return true;
-    const q = searchQuery.toLowerCase();
-    return (
-      tx.transactionNumber.toLowerCase().includes(q) ||
-      (tx.partyName && tx.partyName.toLowerCase().includes(q)) ||
-      (tx.referenceNumber && tx.referenceNumber.toLowerCase().includes(q)) ||
-      (tx.notes && tx.notes.toLowerCase().includes(q))
-    );
-  });
+  // Local Search & Filtering
+  const filteredTxs = useMemo(() => {
+    return transactions.filter((tx) => {
+      if (!searchQuery.trim()) return true;
+      const q = searchQuery.toLowerCase();
+      return (
+        tx.transactionNumber.toLowerCase().includes(q) ||
+        (tx.partyName && tx.partyName.toLowerCase().includes(q)) ||
+        (tx.referenceNumber && tx.referenceNumber.toLowerCase().includes(q)) ||
+        (tx.notes && tx.notes.toLowerCase().includes(q))
+      );
+    });
+  }, [transactions, searchQuery]);
+
+  const totalPages = Math.ceil(filteredTxs.length / pageSize) || 1;
+  const paginatedTxs = useMemo(() => {
+    const start = (currentPage - 1) * pageSize;
+    return filteredTxs.slice(start, start + pageSize);
+  }, [filteredTxs, currentPage, pageSize]);
 
   const exportColumns: ExportColumn<FinancialTransaction>[] = [
     {
@@ -170,22 +276,61 @@ export const TransactionModule: React.FC = () => {
     const t = type || 'ADJUSTMENT';
     switch (t) {
       case 'CUSTOMER_PAYMENT':
-        return <span className="bg-emerald-50 text-emerald-700 border border-emerald-200 px-2 py-0.5 rounded text-[10px] font-bold">Customer Payment</span>;
+        return (
+          <span className="inline-flex items-center gap-1.5 bg-emerald-50 text-emerald-700 border border-emerald-200/80 px-2.5 py-0.5 rounded-md text-[11px] font-semibold whitespace-nowrap">
+            <span className="w-1.5 h-1.5 rounded-full bg-emerald-500"></span>
+            Customer Payment
+          </span>
+        );
       case 'VENDOR_PAYMENT':
-        return <span className="bg-amber-50 text-amber-700 border border-amber-200 px-2 py-0.5 rounded text-[10px] font-bold">Vendor Payment</span>;
+        return (
+          <span className="inline-flex items-center gap-1.5 bg-amber-50 text-amber-700 border border-amber-200/80 px-2.5 py-0.5 rounded-md text-[11px] font-semibold whitespace-nowrap">
+            <span className="w-1.5 h-1.5 rounded-full bg-amber-500"></span>
+            Vendor Payment
+          </span>
+        );
       case 'VENDOR_ADVANCE':
-        return <span className="bg-indigo-50 text-indigo-700 border border-indigo-200 px-2 py-0.5 rounded text-[10px] font-bold">Vendor Advance</span>;
+        return (
+          <span className="inline-flex items-center gap-1.5 bg-indigo-50 text-indigo-700 border border-indigo-200/80 px-2.5 py-0.5 rounded-md text-[11px] font-semibold whitespace-nowrap">
+            <span className="w-1.5 h-1.5 rounded-full bg-indigo-500"></span>
+            Vendor Advance
+          </span>
+        );
       case 'BANK_TRANSFER':
       case 'TRANSFER':
-        return <span className="bg-blue-50 text-blue-700 border border-blue-200 px-2 py-0.5 rounded text-[10px] font-bold">Bank Transfer</span>;
+        return (
+          <span className="inline-flex items-center gap-1.5 bg-blue-50 text-blue-700 border border-blue-200/80 px-2.5 py-0.5 rounded-md text-[11px] font-semibold whitespace-nowrap">
+            <span className="w-1.5 h-1.5 rounded-full bg-blue-500"></span>
+            Bank Transfer
+          </span>
+        );
       case 'REVERSAL':
-        return <span className="bg-purple-50 text-purple-700 border border-purple-200 px-2 py-0.5 rounded text-[10px] font-bold">Ledger Reversal</span>;
+        return (
+          <span className="inline-flex items-center gap-1.5 bg-purple-50 text-purple-700 border border-purple-200/80 px-2.5 py-0.5 rounded-md text-[11px] font-semibold whitespace-nowrap">
+            <span className="w-1.5 h-1.5 rounded-full bg-purple-500"></span>
+            Ledger Reversal
+          </span>
+        );
       case 'ADJUSTMENT':
-        return <span className="bg-slate-100 text-slate-700 border border-slate-300 px-2 py-0.5 rounded text-[10px] font-bold">Adjustment</span>;
+        return (
+          <span className="inline-flex items-center gap-1.5 bg-slate-100 text-slate-700 border border-slate-300 px-2.5 py-0.5 rounded-md text-[11px] font-semibold whitespace-nowrap">
+            <span className="w-1.5 h-1.5 rounded-full bg-slate-400"></span>
+            Adjustment
+          </span>
+        );
       case 'EXPENSE':
-        return <span className="bg-rose-50 text-rose-700 border border-rose-200 px-2 py-0.5 rounded text-[10px] font-bold">Expense</span>;
+        return (
+          <span className="inline-flex items-center gap-1.5 bg-rose-50 text-rose-700 border border-rose-200/80 px-2.5 py-0.5 rounded-md text-[11px] font-semibold whitespace-nowrap">
+            <span className="w-1.5 h-1.5 rounded-full bg-rose-500"></span>
+            Expense
+          </span>
+        );
       default:
-        return <span className="bg-blue-50 text-blue-700 border border-blue-200 px-2 py-0.5 rounded text-[10px] font-bold">{t.replace(/_/g, ' ')}</span>;
+        return (
+          <span className="inline-flex items-center gap-1.5 bg-blue-50 text-blue-700 border border-blue-200/80 px-2.5 py-0.5 rounded-md text-[11px] font-semibold whitespace-nowrap">
+            {t.replace(/_/g, ' ')}
+          </span>
+        );
     }
   };
 
@@ -273,156 +418,290 @@ export const TransactionModule: React.FC = () => {
       </div>
 
       {/* Filter Toolbar */}
-      <div className="bg-white p-4 rounded-xl border border-slate-200 shadow-xs space-y-3">
-        <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-5 gap-3 text-xs">
+      <div className="bg-white p-4 rounded-2xl border border-slate-200 shadow-xs space-y-3">
+        {/* Row 1: Search, Comboboxes & Reset */}
+        <div className="flex flex-col md:flex-row items-stretch md:items-center gap-3">
           {/* Search */}
-          <div className="relative md:col-span-2">
+          <div className="relative flex-1 min-w-[220px]">
             <Search className="absolute left-3 top-2.5 h-4 w-4 text-slate-400" />
             <input
               type="text"
               placeholder="Search Tx number, party, UTR reference..."
               value={searchQuery}
-              onChange={(e) => setSearchQuery(e.target.value)}
-              className="w-full pl-9 pr-3 py-1.5 rounded-lg border border-slate-300 focus:ring-2 focus:ring-blue-500"
+              onChange={(e) => {
+                setSearchQuery(e.target.value);
+                setCurrentPage(1);
+              }}
+              className="w-full pl-9 pr-8 py-2 rounded-xl border border-slate-200 bg-white text-xs text-slate-800 placeholder-slate-400 outline-none focus:border-blue-500 focus:ring-2 focus:ring-blue-500/20 transition shadow-xs"
             />
+            {searchQuery && (
+              <button
+                type="button"
+                onClick={() => {
+                  setSearchQuery('');
+                  setCurrentPage(1);
+                }}
+                className="absolute right-2.5 top-2.5 text-slate-400 hover:text-slate-600 transition cursor-pointer"
+                title="Clear search"
+              >
+                <XCircle className="h-4 w-4" />
+              </button>
+            )}
           </div>
 
-          {/* Type Filter */}
-          <div>
-            <select
+          {/* Type Combobox */}
+          <div className="w-full md:w-60">
+            <Combobox
+              options={typeOptions}
               value={typeFilter}
-              onChange={(e) => setTypeFilter(e.target.value)}
-              className="w-full px-3 py-1.5 rounded-lg border border-slate-300 focus:ring-2 focus:ring-blue-500"
-            >
-              <option value="ALL">All Transaction Types</option>
-              <option value="CUSTOMER_PAYMENT">Customer Payment</option>
-              <option value="VENDOR_PAYMENT">Vendor Payment</option>
-              <option value="VENDOR_ADVANCE">Vendor Advance</option>
-              <option value="BANK_TRANSFER">Bank Transfer</option>
-              <option value="REVERSAL">Ledger Reversal</option>
-              <option value="ADJUSTMENT">Adjustment</option>
-            </select>
+              onChange={(val) => {
+                setTypeFilter(val);
+                setCurrentPage(1);
+              }}
+              placeholder="All Transaction Types"
+              searchable={true}
+            />
           </div>
 
-          {/* Bank Filter */}
-          <div>
-            <select
+          {/* Bank Combobox */}
+          <div className="w-full md:w-64">
+            <Combobox
+              options={bankOptions}
               value={bankFilter}
-              onChange={(e) => setBankFilter(e.target.value)}
-              className="w-full px-3 py-1.5 rounded-lg border border-slate-300 focus:ring-2 focus:ring-blue-500"
-            >
-              <option value="ALL">All Bank Accounts</option>
-              {bankAccounts.map((b) => (
-                <option key={b.id} value={b.id}>
-                  {b.bankName} (..{b.accountNumber.slice(-4)})
-                </option>
-              ))}
-            </select>
+              onChange={(val) => {
+                setBankFilter(val);
+                setCurrentPage(1);
+              }}
+              placeholder="All Bank Accounts"
+              searchable={true}
+            />
           </div>
 
-          {/* Date Range */}
-          <div className="flex items-center gap-1.5">
-            <input
-              type="date"
-              value={startDate}
-              onChange={(e) => setStartDate(e.target.value)}
-              className="w-full px-2 py-1.5 rounded-lg border border-slate-300 text-[11px]"
-              title="From Date"
-            />
-            <span className="text-slate-400 text-xs">&ndash;</span>
-            <input
-              type="date"
-              value={endDate}
-              onChange={(e) => setEndDate(e.target.value)}
-              className="w-full px-2 py-1.5 rounded-lg border border-slate-300 text-[11px]"
-              title="To Date"
-            />
+          {/* Reset Filters button */}
+          {hasActiveFilters && (
+            <button
+              type="button"
+              onClick={resetAllFilters}
+              className="inline-flex items-center justify-center gap-1.5 px-3 py-2 text-xs font-semibold text-rose-600 bg-rose-50 hover:bg-rose-100 border border-rose-200/70 rounded-xl transition cursor-pointer shrink-0"
+              title="Reset all filters"
+            >
+              <RotateCcw className="h-3.5 w-3.5" />
+              <span>Reset Filters</span>
+            </button>
+          )}
+        </div>
+
+        {/* Row 2: Date presets & Date Range */}
+        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 pt-2.5 border-t border-slate-100">
+          {/* Quick Date Presets */}
+          <div className="flex flex-wrap items-center gap-1.5">
+            <span className="text-[11px] font-bold text-slate-400 uppercase tracking-wider mr-1">
+              Date Filter:
+            </span>
+            <button
+              type="button"
+              onClick={() => setDatePreset('all')}
+              className={`px-3 py-1 text-xs rounded-lg font-medium transition cursor-pointer ${
+                activePreset === 'all'
+                  ? 'bg-blue-600 text-white shadow-xs font-semibold'
+                  : 'bg-slate-100/90 text-slate-600 hover:bg-slate-200'
+              }`}
+            >
+              All Time
+            </button>
+            <button
+              type="button"
+              onClick={() => setDatePreset('thisMonth')}
+              className={`px-3 py-1 text-xs rounded-lg font-medium transition cursor-pointer ${
+                activePreset === 'thisMonth'
+                  ? 'bg-blue-600 text-white shadow-xs font-semibold'
+                  : 'bg-slate-100/90 text-slate-600 hover:bg-slate-200'
+              }`}
+            >
+              This Month
+            </button>
+            <button
+              type="button"
+              onClick={() => setDatePreset('last30')}
+              className={`px-3 py-1 text-xs rounded-lg font-medium transition cursor-pointer ${
+                activePreset === 'last30'
+                  ? 'bg-blue-600 text-white shadow-xs font-semibold'
+                  : 'bg-slate-100/90 text-slate-600 hover:bg-slate-200'
+              }`}
+            >
+              Last 30 Days
+            </button>
+            <button
+              type="button"
+              onClick={() => setDatePreset('fy')}
+              className={`px-3 py-1 text-xs rounded-lg font-medium transition cursor-pointer ${
+                activePreset === 'fy'
+                  ? 'bg-blue-600 text-white shadow-xs font-semibold'
+                  : 'bg-slate-100/90 text-slate-600 hover:bg-slate-200'
+              }`}
+            >
+              Current FY
+            </button>
+          </div>
+
+          {/* Explicit Date Inputs */}
+          <div className="flex items-center gap-2 bg-slate-50/90 border border-slate-200 rounded-xl px-3 py-1.5 text-xs">
+            <Calendar className="h-3.5 w-3.5 text-slate-400 shrink-0" />
+            <div className="flex items-center gap-1.5">
+              <span className="text-[10px] font-bold text-slate-400 uppercase tracking-wider">From</span>
+              <input
+                type="date"
+                value={startDate}
+                onChange={(e) => {
+                  setStartDate(e.target.value);
+                  setCurrentPage(1);
+                }}
+                className="bg-transparent border-0 text-xs text-slate-700 focus:ring-0 focus:outline-none p-0 cursor-pointer font-medium"
+                title="From Date"
+              />
+            </div>
+            <span className="text-slate-300 font-bold px-0.5">&ndash;</span>
+            <div className="flex items-center gap-1.5">
+              <span className="text-[10px] font-bold text-slate-400 uppercase tracking-wider">To</span>
+              <input
+                type="date"
+                value={endDate}
+                onChange={(e) => {
+                  setEndDate(e.target.value);
+                  setCurrentPage(1);
+                }}
+                className="bg-transparent border-0 text-xs text-slate-700 focus:ring-0 focus:outline-none p-0 cursor-pointer font-medium"
+                title="To Date"
+              />
+            </div>
+            {(startDate || endDate) && (
+              <button
+                type="button"
+                onClick={() => {
+                  setStartDate('');
+                  setEndDate('');
+                  setCurrentPage(1);
+                }}
+                className="ml-1 text-slate-400 hover:text-slate-600 cursor-pointer"
+                title="Clear date range"
+              >
+                <X className="h-3.5 w-3.5" />
+              </button>
+            )}
           </div>
         </div>
       </div>
 
       {/* Ledger Table */}
-      <div className="bg-white rounded-xl border border-slate-200 shadow-xs overflow-hidden">
+      <div className="bg-white rounded-2xl border border-slate-200 shadow-xs overflow-hidden">
         <div className="overflow-x-auto">
           <table className="w-full text-left text-xs">
-            <thead className="bg-slate-50 border-b border-slate-200 text-slate-600 font-semibold uppercase text-[10px]">
+            <thead className="bg-slate-50/90 border-b border-slate-200 text-slate-600 font-semibold uppercase text-[10px] tracking-wider">
               <tr>
-                <th className="py-3 px-4">Date</th>
-                <th className="py-3 px-4">Tx Number</th>
-                <th className="py-3 px-4">Type</th>
-                <th className="py-3 px-4">Bank Account</th>
-                <th className="py-3 px-4">Party & UTR</th>
-                <th className="py-3 px-4 text-right">Debit (Outflow)</th>
-                <th className="py-3 px-4 text-right">Credit (Inflow)</th>
-                <th className="py-3 px-4 text-right">Running Balance</th>
-                <th className="py-3 px-4 text-center">Status</th>
+                <th className="py-3 px-4 whitespace-nowrap">Date</th>
+                <th className="py-3 px-4 whitespace-nowrap">Tx Number</th>
+                <th className="py-3 px-4 whitespace-nowrap">Type</th>
+                <th className="py-3 px-4 whitespace-nowrap">Bank Account</th>
+                <th className="py-3 px-4 whitespace-nowrap">Party & UTR</th>
+                <th className="py-3 px-4 text-right whitespace-nowrap">Debit (Outflow)</th>
+                <th className="py-3 px-4 text-right whitespace-nowrap">Credit (Inflow)</th>
+                <th className="py-3 px-4 text-right whitespace-nowrap">Running Balance</th>
+                <th className="py-3 px-4 text-center whitespace-nowrap">Status</th>
               </tr>
             </thead>
             <tbody className="divide-y divide-slate-100 text-slate-700">
               {isLoading ? (
                 <tr>
-                  <td colSpan={9} className="py-8 text-center text-slate-400">
-                    Loading ledger data...
+                  <td colSpan={9} className="py-12 text-center text-slate-400">
+                    <div className="flex flex-col items-center justify-center gap-2">
+                      <RotateCcw className="h-6 w-6 animate-spin text-blue-500" />
+                      <span>Loading ledger data...</span>
+                    </div>
                   </td>
                 </tr>
-              ) : filteredTxs.length === 0 ? (
+              ) : paginatedTxs.length === 0 ? (
                 <tr>
-                  <td colSpan={9} className="py-8 text-center text-slate-400">
-                    No ledger transactions found matching filters.
+                  <td colSpan={9} className="py-12 text-center text-slate-400">
+                    <div className="flex flex-col items-center justify-center gap-2">
+                      <Receipt className="h-8 w-8 text-slate-300" />
+                      <span className="font-semibold text-slate-600">No ledger transactions found</span>
+                      <span className="text-xs text-slate-400">
+                        {hasActiveFilters
+                          ? 'Try adjusting or resetting your filters to see transactions.'
+                          : 'No transactions recorded yet.'}
+                      </span>
+                      {hasActiveFilters && (
+                        <button
+                          type="button"
+                          onClick={resetAllFilters}
+                          className="mt-1 text-xs text-blue-600 hover:text-blue-700 font-semibold cursor-pointer underline"
+                        >
+                          Reset all filters
+                        </button>
+                      )}
+                    </div>
                   </td>
                 </tr>
               ) : (
-                filteredTxs.map((tx) => (
+                paginatedTxs.map((tx) => (
                   <tr
                     key={tx.id}
                     onClick={() => setSelectedTx(tx)}
-                    className="hover:bg-slate-50/80 cursor-pointer transition"
+                    className="hover:bg-blue-50/40 cursor-pointer transition group"
                   >
-                    <td className="py-3 px-4 whitespace-nowrap text-slate-600">
+                    <td className="py-3.5 px-4 whitespace-nowrap text-slate-600 font-medium">
                       {tx.transactionDate ? new Date(tx.transactionDate).toLocaleDateString('en-IN') : '—'}
                     </td>
-                    <td className="py-3 px-4 font-mono font-bold text-blue-700">{tx.transactionNumber}</td>
-                    <td className="py-3 px-4">{getTypeBadge(tx.transactionType || tx.type)}</td>
-                    <td className="py-3 px-4">
-                      <div className="font-medium text-slate-900">{tx.bankName || 'Enterprise Bank'}</div>
+                    <td className="py-3.5 px-4 whitespace-nowrap">
+                      <span className="font-mono font-bold text-xs text-blue-700 bg-blue-50/80 border border-blue-200/80 px-2 py-0.5 rounded-md inline-block group-hover:bg-blue-100/80 transition">
+                        {tx.transactionNumber}
+                      </span>
+                    </td>
+                    <td className="py-3.5 px-4 whitespace-nowrap">{getTypeBadge(tx.transactionType || tx.type)}</td>
+                    <td className="py-3.5 px-4 whitespace-nowrap">
+                      <div className="font-semibold text-slate-900">{tx.bankName || 'Enterprise Bank'}</div>
                       <div className="text-[10px] text-slate-400 font-mono">
                         {tx.accountNumber ? `A/c: ..${tx.accountNumber.slice(-4)}` : ''}
                       </div>
                     </td>
-                    <td className="py-3 px-4">
-                      <div className="font-semibold text-slate-900">{tx.partyName || 'Direct / Internal'}</div>
+                    <td className="py-3.5 px-4 min-w-[200px]">
+                      <div className="font-semibold text-slate-900 truncate max-w-[240px]">{tx.partyName || 'Direct / Internal'}</div>
                       {tx.referenceNumber && (
-                        <div className="text-[10px] text-slate-500 font-mono">Ref: {tx.referenceNumber}</div>
+                        <div className="text-[10px] text-slate-500 font-mono truncate max-w-[240px]">Ref: {tx.referenceNumber}</div>
                       )}
                     </td>
-                    <td className="py-3 px-4 text-right font-mono">
+                    <td className="py-3.5 px-4 text-right font-mono whitespace-nowrap">
                       {tx.debit > 0 ? (
-                        <span className="font-bold text-rose-600">
-                          -₹{tx.debit.toLocaleString('en-IN', { minimumFractionDigits: 2 })}
+                        <span className="font-bold text-rose-600 bg-rose-50/60 px-2 py-0.5 rounded border border-rose-100 inline-block">
+                          -₹{Number(tx.debit).toLocaleString('en-IN', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
                         </span>
                       ) : (
                         <span className="text-slate-300">—</span>
                       )}
                     </td>
-                    <td className="py-3 px-4 text-right font-mono">
+                    <td className="py-3.5 px-4 text-right font-mono whitespace-nowrap">
                       {tx.credit > 0 ? (
-                        <span className="font-bold text-emerald-600">
-                          +₹{tx.credit.toLocaleString('en-IN', { minimumFractionDigits: 2 })}
+                        <span className="font-bold text-emerald-600 bg-emerald-50/60 px-2 py-0.5 rounded border border-emerald-100 inline-block">
+                          +₹{Number(tx.credit).toLocaleString('en-IN', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
                         </span>
                       ) : (
                         <span className="text-slate-300">—</span>
                       )}
                     </td>
-                    <td className="py-3 px-4 text-right font-mono font-bold text-slate-900">
-                      ₹{(Number(tx.runningBalance) || Number(tx.credit) || Number(tx.debit) || 0).toLocaleString('en-IN', { minimumFractionDigits: 2 })}
+                    <td className="py-3.5 px-4 text-right font-mono whitespace-nowrap">
+                      <span className="font-bold text-slate-900 bg-slate-50 px-2.5 py-1 rounded-md border border-slate-200/80 inline-block">
+                        ₹{(Number(tx.runningBalance) || Number(tx.credit) || Number(tx.debit) || 0).toLocaleString('en-IN', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+                      </span>
                     </td>
-                    <td className="py-3 px-4 text-center">
+                    <td className="py-3.5 px-4 text-center whitespace-nowrap">
                       {tx.status === 'POSTED' ? (
-                        <span className="inline-block bg-blue-50 text-blue-700 border border-blue-200 px-2 py-0.5 rounded text-[10px] font-bold">
+                        <span className="inline-flex items-center gap-1 bg-emerald-50 text-emerald-700 border border-emerald-200 px-2 py-0.5 rounded-full text-[10px] font-bold">
+                          <span className="w-1.5 h-1.5 rounded-full bg-emerald-500"></span>
                           POSTED
                         </span>
                       ) : (
-                        <span className="inline-block bg-slate-100 text-slate-500 border border-slate-200 px-2 py-0.5 rounded text-[10px] font-bold line-through">
+                        <span className="inline-flex items-center gap-1 bg-slate-100 text-slate-500 border border-slate-200 px-2 py-0.5 rounded-full text-[10px] font-bold line-through">
+                          <span className="w-1.5 h-1.5 rounded-full bg-slate-400"></span>
                           REVERSED
                         </span>
                       )}
@@ -432,6 +711,65 @@ export const TransactionModule: React.FC = () => {
               )}
             </tbody>
           </table>
+        </div>
+
+        {/* Pagination Footer */}
+        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 px-4 py-3 border-t border-slate-200 bg-slate-50 text-xs text-slate-600 relative z-10 overflow-visible">
+          <div className="flex items-center gap-2">
+            <span>
+              Showing{' '}
+              <span className="font-semibold text-slate-900">
+                {filteredTxs.length === 0 ? 0 : (currentPage - 1) * pageSize + 1}
+              </span>{' '}
+              to{' '}
+              <span className="font-semibold text-slate-900">
+                {Math.min(currentPage * pageSize, filteredTxs.length)}
+              </span>{' '}
+              of <span className="font-semibold text-slate-900">{filteredTxs.length}</span> records
+            </span>
+
+            <div className="w-28 ml-2">
+              <Combobox
+                value={String(pageSize)}
+                onChange={(val) => {
+                  setPageSize(Number(val));
+                  setCurrentPage(1);
+                }}
+                options={[
+                  { value: '10', label: '10 / page' },
+                  { value: '25', label: '25 / page' },
+                  { value: '50', label: '50 / page' },
+                  { value: '100', label: '100 / page' },
+                ]}
+                searchable={false}
+                placement="top"
+              />
+            </div>
+          </div>
+
+          <div className="flex items-center gap-1.5">
+            <button
+              type="button"
+              onClick={() => setCurrentPage((p) => Math.max(p - 1, 1))}
+              disabled={currentPage === 1}
+              className="rounded-lg border border-slate-200 bg-white p-1.5 text-slate-600 hover:bg-slate-100 disabled:opacity-40 transition cursor-pointer"
+              title="Previous Page"
+            >
+              <ChevronLeft className="h-4 w-4" />
+            </button>
+            <span className="px-2 font-medium">
+              Page {currentPage} of {totalPages}
+            </span>
+            <button
+              type="button"
+              onClick={() => setCurrentPage((p) => Math.min(p + 1, totalPages))}
+              disabled={currentPage === totalPages}
+              className="rounded-lg border border-slate-200 bg-white p-1.5 text-slate-600 hover:bg-slate-100 disabled:opacity-40 transition cursor-pointer"
+              title="Next Page"
+            >
+              <ChevronRight className="h-4 w-4" />
+            </button>
+          </div>
         </div>
       </div>
 

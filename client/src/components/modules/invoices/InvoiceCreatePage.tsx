@@ -728,6 +728,15 @@ export const InvoiceCreatePage: React.FC<InvoiceCreatePageProps> = ({ isEdit, in
                   />
                 </div>
 
+                {/* GST Rate */}
+                <div className="col-span-1">
+                  <label className="block text-[10px] text-slate-500 font-medium mb-1">GST %</label>
+                  <div className="p-2.5 rounded-xl bg-slate-100 border border-slate-200 font-mono text-center text-slate-700">
+                    {item.taxRate}%
+                  </div>
+                </div>
+
+
                 {/* Rate */}
                 <div className="col-span-2">
                   <label className="block text-[10px] text-slate-500 font-medium mb-1">Rate (₹)</label>
@@ -742,13 +751,6 @@ export const InvoiceCreatePage: React.FC<InvoiceCreatePageProps> = ({ isEdit, in
                   />
                 </div>
 
-                {/* GST Rate */}
-                <div className="col-span-1">
-                  <label className="block text-[10px] text-slate-500 font-medium mb-1">GST %</label>
-                  <div className="p-2.5 rounded-xl bg-slate-100 border border-slate-200 font-mono text-center text-slate-700">
-                    {item.taxRate}%
-                  </div>
-                </div>
 
                 {/* Action */}
                 <div className="col-span-1 flex items-center justify-end pt-4">
