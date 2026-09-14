@@ -286,13 +286,13 @@ A few architectural improvements and features I plan to work on next:
 
 ---
 
-## 🛠️ Developer Workflow & Git Standards
+## 🛠️ Developer Workflow & Engineering Standards
 
-This repository strictly enforces professional engineering workflow guidelines governed by [AGENTS.md](AGENTS.md) and [.agents/skills/professional-git-workflow](.agents/skills/professional-git-workflow/SKILL.md):
+This repository adheres to standard industry engineering guidelines:
 
 - **Dedicated Branches**: All development occurs on isolated branches (`feature/*`, `fix/*`, `refactor/*`, `chore/*`).
 - **Imperative Commit Messages**: Authentic, human-written messages (`Add ...`, `Fix ...`, `Update ...`, `Refactor ...`).
-- **Milestone History**: Changes are broken down into logical engineering milestones (Implementation $\rightarrow$ Validation $\rightarrow$ Edge Cases $\rightarrow$ API Refactor $\rightarrow$ Testing).
+- **Milestone History**: Changes are structured into natural development milestones.
 - **Pre-Push Review**: Automatic validation ensuring `npm run build` passes, zero secrets or `.env` files are committed, and tests pass before remote pushes.
 
 ---
