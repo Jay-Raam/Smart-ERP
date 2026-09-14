@@ -279,7 +279,7 @@ export function App() {
           className="flex-1 min-h-0 overflow-y-auto p-4 md:p-6 transition-colors duration-200"
           style={{ backgroundColor: 'var(--bg-app)' }}
         >
-          <div className="max-w-7xl w-full mx-auto pb-12">
+          <div className="w-full pb-12">
             <React.Suspense fallback={<ModuleLoadingSkeleton />}>
               {/* Dedicated Full Pages */}
               {currentPath === '/invoices/new' && <InvoiceCreatePage />}

@@ -267,7 +267,7 @@ export function DataTable<T extends Record<string, any>>({
         {isLoading || isRefreshing ? (
           <TableSkeleton rows={pageSize > 6 ? 6 : pageSize} columns={columns.length} />
         ) : (
-          <table className="w-full text-left border-collapse">
+          <table className="w-full min-w-full text-left border-collapse">
             <thead>
               <tr className="border-b border-slate-200 bg-slate-100/70 text-[11px] font-bold text-slate-600 uppercase tracking-wider">
                 {columns.map((col) => {
@@ -276,7 +276,7 @@ export function DataTable<T extends Record<string, any>>({
                     <th
                       key={col.key}
                       onClick={() => col.sortable !== false && handleSort(col.key)}
-                      className={`px-4 py-3.5 ${
+                      className={`px-4 py-3.5 whitespace-nowrap select-none ${
                         col.sortable !== false
                           ? 'cursor-pointer hover:bg-slate-200/60 transition'
                           : ''
@@ -289,7 +289,7 @@ export function DataTable<T extends Record<string, any>>({
                       } ${col.className || ''}`}
                     >
                       <div
-                        className={`inline-flex items-center gap-1.5 ${
+                        className={`inline-flex items-center gap-1.5 whitespace-nowrap ${
                           col.align === 'right'
                             ? 'justify-end'
                             : col.align === 'center'
@@ -297,10 +297,10 @@ export function DataTable<T extends Record<string, any>>({
                             : 'justify-start'
                         }`}
                       >
-                        <span>{col.header}</span>
+                        <span className="whitespace-nowrap">{col.header}</span>
                         {col.sortable !== false && (
                           <ArrowUpDown
-                            className={`h-3 w-3 ${
+                            className={`h-3 w-3 shrink-0 ${
                               isSorted ? 'text-blue-600 font-bold' : 'text-slate-400'
                             }`}
                           />
@@ -359,7 +359,7 @@ export function DataTable<T extends Record<string, any>>({
                     {columns.map((col) => (
                       <td
                         key={col.key}
-                        className={`px-4 py-3.5 ${
+                        className={`px-4 py-3.5 whitespace-nowrap text-slate-700 ${
                           col.align === 'right'
                             ? 'text-right'
                             : col.align === 'center'

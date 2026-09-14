@@ -194,40 +194,40 @@ export const InvoiceModule: React.FC<InvoiceModuleProps> = ({ initialOpenAdd = f
     {
       key: 'invoiceNumber',
       header: 'Invoice No',
-      render: (inv) => <span className="font-mono font-bold text-slate-900">{inv.invoiceNumber}</span>,
+      render: (inv) => <span className="font-mono font-bold text-slate-900 whitespace-nowrap">{inv.invoiceNumber}</span>,
     },
     {
       key: 'customerName',
       header: 'Customer',
-      render: (inv) => <span className="font-medium text-slate-900">{inv.customerName}</span>,
+      render: (inv) => <span className="font-medium text-slate-900 whitespace-nowrap">{inv.customerName}</span>,
     },
     {
       key: 'invoiceDate',
       header: 'Invoice Date',
-      render: (inv) => <span className="text-slate-500">{inv.invoiceDate}</span>,
+      render: (inv) => <span className="text-slate-500 whitespace-nowrap">{inv.invoiceDate}</span>,
     },
     {
       key: 'dueDate',
       header: 'Due Date',
-      render: (inv) => <span className="text-slate-500">{inv.dueDate}</span>,
+      render: (inv) => <span className="text-slate-500 whitespace-nowrap">{inv.dueDate}</span>,
     },
     {
       key: 'subtotal',
       header: 'Subtotal',
-      render: (inv) => <span className="font-mono">₹{inv.subtotal.toLocaleString('en-IN')}</span>,
+      render: (inv) => <span className="font-mono whitespace-nowrap">₹{inv.subtotal.toLocaleString('en-IN')}</span>,
       align: 'right',
     },
     {
       key: 'taxAmount',
       header: 'GST (18%)',
-      render: (inv) => <span className="font-mono text-slate-500">₹{inv.taxAmount.toLocaleString('en-IN')}</span>,
+      render: (inv) => <span className="font-mono text-slate-500 whitespace-nowrap">₹{inv.taxAmount.toLocaleString('en-IN')}</span>,
       align: 'right',
     },
     {
       key: 'totalAmount',
       header: 'Total Amount',
       render: (inv) => (
-        <span className="font-mono font-bold text-slate-900">
+        <span className="font-mono font-bold text-slate-900 whitespace-nowrap">
           ₹{inv.totalAmount.toLocaleString('en-IN')}
         </span>
       ),
@@ -239,7 +239,7 @@ export const InvoiceModule: React.FC<InvoiceModuleProps> = ({ initialOpenAdd = f
       align: 'center',
       render: (inv) => (
         <span
-          className={`inline-flex items-center gap-1 rounded-full px-2.5 py-0.5 text-[10px] font-semibold ${
+          className={`inline-flex items-center gap-1 rounded-full px-2.5 py-0.5 text-[10px] font-semibold whitespace-nowrap ${
             inv.status === 'Paid'
               ? 'bg-emerald-50 text-emerald-700 border border-emerald-200'
               : inv.status === 'Pending'
@@ -247,16 +247,17 @@ export const InvoiceModule: React.FC<InvoiceModuleProps> = ({ initialOpenAdd = f
               : 'bg-rose-50 text-rose-700 border border-rose-200'
           }`}
         >
-          {inv.status === 'Paid' && <CheckCircle2 className="h-3 w-3" />}
-          {inv.status === 'Pending' && <Clock className="h-3 w-3" />}
-          {inv.status === 'Overdue' && <AlertCircle className="h-3 w-3" />}
-          {inv.status}
+          {inv.status === 'Paid' && <CheckCircle2 className="h-3 w-3 shrink-0" />}
+          {inv.status === 'Pending' && <Clock className="h-3 w-3 shrink-0" />}
+          {inv.status === 'Overdue' && <AlertCircle className="h-3 w-3 shrink-0" />}
+          <span>{inv.status}</span>
         </span>
       ),
     },
     {
       key: 'actions',
       header: 'Actions',
+      align: 'right',
       sortable: false,
       render: (inv) => {
         const out = inv.status === 'Paid'
@@ -267,7 +268,7 @@ export const InvoiceModule: React.FC<InvoiceModuleProps> = ({ initialOpenAdd = f
         const isUnpaid = inv.status !== 'Paid' && (inv.paidAmount || 0) === 0;
 
         return (
-          <div className="flex items-center justify-end gap-1.5">
+          <div className="flex items-center justify-end gap-1.5 whitespace-nowrap">
             {/* Edit Direct Tax Invoice (Locked if paid) */}
             {canEdit && (
               isUnpaid ? (
@@ -277,7 +278,7 @@ export const InvoiceModule: React.FC<InvoiceModuleProps> = ({ initialOpenAdd = f
                     window.history.pushState({}, '', `/invoices/${inv.id}/edit`);
                     window.dispatchEvent(new PopStateEvent('popstate'));
                   }}
-                  className="inline-flex items-center gap-1 rounded-lg border border-slate-200 bg-white px-2 py-1 text-xs font-semibold text-slate-700 hover:bg-slate-100 hover:text-blue-600 transition cursor-pointer"
+                  className="inline-flex items-center gap-1 rounded-lg border border-slate-200 bg-white px-2 py-1 text-xs font-semibold text-slate-700 hover:bg-slate-100 hover:text-blue-600 transition cursor-pointer shrink-0"
                   title="Edit Direct Tax Invoice"
                 >
                   <Edit className="h-3.5 w-3.5 text-slate-500" />
@@ -287,7 +288,7 @@ export const InvoiceModule: React.FC<InvoiceModuleProps> = ({ initialOpenAdd = f
                 <button
                   type="button"
                   disabled
-                  className="inline-flex items-center gap-1 rounded-lg border border-slate-100 bg-slate-50 px-2 py-1 text-xs font-medium text-slate-400 cursor-not-allowed opacity-60"
+                  className="inline-flex items-center gap-1 rounded-lg border border-slate-100 bg-slate-50 px-2 py-1 text-xs font-medium text-slate-400 cursor-not-allowed opacity-60 shrink-0"
                   title="Editing locked: Invoice has recorded payments"
                 >
                   <Lock className="h-3 w-3 text-slate-400" />
@@ -301,7 +302,7 @@ export const InvoiceModule: React.FC<InvoiceModuleProps> = ({ initialOpenAdd = f
               <button
                 type="button"
                 onClick={() => setSelectedInvoiceForHistory(inv)}
-                className="inline-flex items-center gap-1 rounded-lg border border-slate-200 bg-white px-2 py-1 text-xs font-semibold text-slate-700 hover:bg-slate-100 hover:text-indigo-600 transition cursor-pointer"
+                className="inline-flex items-center gap-1 rounded-lg border border-slate-200 bg-white px-2 py-1 text-xs font-semibold text-slate-700 hover:bg-slate-100 hover:text-indigo-600 transition cursor-pointer shrink-0"
                 title="View Invoice Audit History"
               >
                 <History className="h-3.5 w-3.5 text-indigo-500" />
@@ -316,7 +317,7 @@ export const InvoiceModule: React.FC<InvoiceModuleProps> = ({ initialOpenAdd = f
                 onClick={async () => {
                   await generateEInvoice(inv.id);
                 }}
-                className="inline-flex items-center gap-1 rounded-lg border border-purple-200 bg-purple-50 px-2 py-1 text-xs font-semibold text-purple-700 hover:bg-purple-100 hover:text-purple-900 transition cursor-pointer"
+                className="inline-flex items-center gap-1 rounded-lg border border-purple-200 bg-purple-50 px-2 py-1 text-xs font-semibold text-purple-700 hover:bg-purple-100 hover:text-purple-900 transition cursor-pointer shrink-0"
                 title="Generate Official Statutory IRN & Signed QR Code"
               >
                 <QrCode className="h-3.5 w-3.5 text-purple-600" />
@@ -325,7 +326,7 @@ export const InvoiceModule: React.FC<InvoiceModuleProps> = ({ initialOpenAdd = f
             )}
             {inv.irn && (
               <span
-                className="inline-flex items-center gap-1 rounded-lg border border-purple-200 bg-purple-50/70 px-1.5 py-1 text-[11px] font-semibold text-purple-700"
+                className="inline-flex items-center gap-1 rounded-lg border border-purple-200 bg-purple-50/70 px-1.5 py-1 text-[11px] font-semibold text-purple-700 shrink-0"
                 title={`IRN: ${inv.irn}`}
               >
                 <CheckCircle2 className="h-3 w-3 text-purple-600" />
@@ -337,7 +338,7 @@ export const InvoiceModule: React.FC<InvoiceModuleProps> = ({ initialOpenAdd = f
               <button
                 type="button"
                 onClick={() => setSelectedInvoiceForPayment(inv)}
-                className="inline-flex items-center gap-1 rounded-lg border border-emerald-200 bg-emerald-50 px-2 py-1 text-xs font-semibold text-emerald-700 hover:bg-emerald-100 transition cursor-pointer"
+                className="inline-flex items-center gap-1 rounded-lg border border-emerald-200 bg-emerald-50 px-2 py-1 text-xs font-semibold text-emerald-700 hover:bg-emerald-100 transition cursor-pointer shrink-0"
                 title="Record Customer Payment"
               >
                 <DollarSign className="h-3.5 w-3.5" />
@@ -347,7 +348,7 @@ export const InvoiceModule: React.FC<InvoiceModuleProps> = ({ initialOpenAdd = f
             <button
               type="button"
               onClick={() => setViewInvoice(inv)}
-              className="inline-flex items-center gap-1 rounded-lg border border-slate-200 bg-white px-2.5 py-1 text-xs font-semibold text-slate-700 hover:bg-slate-100 hover:text-blue-600 transition cursor-pointer"
+              className="inline-flex items-center gap-1 rounded-lg border border-slate-200 bg-white px-2.5 py-1 text-xs font-semibold text-slate-700 hover:bg-slate-100 hover:text-blue-600 transition cursor-pointer shrink-0"
             >
               <Eye className="h-3.5 w-3.5" />
               <span>View</span>

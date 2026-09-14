@@ -356,39 +356,39 @@ export const InvoicePdfDocument: React.FC<InvoicePdfDocumentProps> = ({
           <View style={styles.totalsContainer}>
             <View style={styles.totalRow}>
               <Text style={{ color: '#475569' }}>Items Subtotal:</Text>
-              <Text style={{ fontFamily: 'Helvetica-Bold' }}>₹{taxResult.subtotal.toFixed(2)}</Text>
+              <Text style={{ fontFamily: 'Helvetica-Bold' }}>{taxResult.subtotal.toFixed(2)}</Text>
             </View>
             {taxResult.shippingCharge > 0 && (
               <View style={styles.totalRow}>
                 <Text style={{ color: '#475569' }}>Shipping / Freight:</Text>
-                <Text>₹{taxResult.shippingCharge.toFixed(2)}</Text>
+                <Text>{taxResult.shippingCharge.toFixed(2)}</Text>
               </View>
             )}
             <View style={styles.totalRow}>
               <Text style={{ color: '#475569' }}>Taxable Amount:</Text>
-              <Text>₹{taxResult.taxableAmount.toFixed(2)}</Text>
+              <Text>{taxResult.taxableAmount.toFixed(2)}</Text>
             </View>
             {isTN ? (
               <>
                 <View style={styles.totalRow}>
                   <Text style={{ color: '#475569' }}>CGST:</Text>
-                  <Text>₹{taxResult.cgstAmount.toFixed(2)}</Text>
+                  <Text>{taxResult.cgstAmount.toFixed(2)}</Text>
                 </View>
                 <View style={styles.totalRow}>
                   <Text style={{ color: '#475569' }}>SGST:</Text>
-                  <Text>₹{taxResult.sgstAmount.toFixed(2)}</Text>
+                  <Text>{taxResult.sgstAmount.toFixed(2)}</Text>
                 </View>
               </>
             ) : (
               <View style={styles.totalRow}>
                 <Text style={{ color: '#475569' }}>IGST (18%):</Text>
-                <Text>₹{taxResult.igstAmount.toFixed(2)}</Text>
+                <Text>{taxResult.igstAmount.toFixed(2)}</Text>
               </View>
             )}
             <View style={styles.grandTotalRow}>
               <Text style={{ fontSize: 10, fontFamily: 'Helvetica-Bold', color: '#2563eb' }}>Grand Total:</Text>
               <Text style={{ fontSize: 10, fontFamily: 'Helvetica-Bold', color: '#2563eb' }}>
-                ₹{taxResult.grandTotal.toFixed(2)}
+                {taxResult.grandTotal.toFixed(2)}
               </Text>
             </View>
           </View>
