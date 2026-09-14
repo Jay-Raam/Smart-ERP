@@ -14,9 +14,11 @@ import {
 } from 'lucide-react';
 import { useErpStore, BankAccount } from '../../../store/erpStore';
 import { showAppToast } from '../../../utils/handleApiError';
+import { usePermissions } from '../../../hooks/usePermissions';
 
 export const BankModule: React.FC = () => {
   const { bankAccounts, addBankAccount, setPrimaryBankAccount, customers, vendors } = useErpStore();
+  const { canAdd, canApprove } = usePermissions('bank');
 
   const [searchQuery, setSearchQuery] = useState('');
   const [holderTypeFilter, setHolderTypeFilter] = useState<string>('ALL');
@@ -192,14 +194,16 @@ export const BankModule: React.FC = () => {
           </div>
         </div>
 
-        <button
-          type="button"
-          onClick={() => setIsAddModalOpen(true)}
-          className="inline-flex items-center gap-2 rounded-lg bg-blue-600 px-4 py-2 text-xs font-semibold text-white shadow-sm hover:bg-blue-700 transition cursor-pointer"
-        >
-          <Plus className="h-4 w-4" />
-          <span>Add Bank Account</span>
-        </button>
+        {canAdd && (
+          <button
+            type="button"
+            onClick={() => setIsAddModalOpen(true)}
+            className="inline-flex items-center gap-2 rounded-lg bg-blue-600 px-4 py-2 text-xs font-semibold text-white shadow-sm hover:bg-blue-700 transition cursor-pointer"
+          >
+            <Plus className="h-4 w-4" />
+            <span>Add Bank Account</span>
+          </button>
+        )}
       </div>
 
       {/* Metrics Row */}
@@ -339,7 +343,7 @@ export const BankModule: React.FC = () => {
                       )}
                     </td>
                     <td className="py-3 px-4 text-right">
-                      {acc.accountHolderType === 'ORGANISATION' && !acc.isPrimary && (
+                      {acc.accountHolderType === 'ORGANISATION' && !acc.isPrimary && canApprove && (
                         <button
                           type="button"
                           onClick={() => {

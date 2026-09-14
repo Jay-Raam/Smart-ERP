@@ -18,6 +18,7 @@ import {
 import { useErpStore } from '../../../store/erpStore';
 import { useAuthStore } from '../../../store/authStore';
 import { showAppToast } from '../../../utils/handleApiError';
+import { usePermissions } from '../../../hooks/usePermissions';
 
 export interface UserModulePermission {
   view: boolean;
@@ -74,6 +75,7 @@ const PERMISSION_COLUMNS: { key: keyof UserModulePermission; label: string }[] =
 export const UsersModule: React.FC = () => {
   const { branches } = useErpStore();
   const { user: currentUser } = useAuthStore();
+  const { canAdd, canEdit, canApprove, canHistory } = usePermissions('users');
 
   const [users, setUsers] = useState<UserItem[]>([]);
   const [isLoading, setIsLoading] = useState(false);
@@ -405,28 +407,30 @@ export const UsersModule: React.FC = () => {
           </div>
         </div>
 
-        <button
-          type="button"
-          onClick={() => {
-            setFormData({
-              name: '',
-              email: '',
-              mobile: '',
-              password: '',
-              confirmPassword: '',
-              role: 'Staff',
-              userType: 'STAFF',
-              branchId: branches[0]?.id || '',
-              branchName: branches[0]?.name || '',
-            });
-            setFormErrors({});
-            setIsAddModalOpen(true);
-          }}
-          className="inline-flex items-center gap-2 px-4 py-2 text-xs font-semibold rounded-xl bg-blue-600 hover:bg-blue-700 text-white shadow-xs transition cursor-pointer"
-        >
-          <UserPlus className="h-4 w-4" />
-          <span>New User Account</span>
-        </button>
+        {canAdd && (
+          <button
+            type="button"
+            onClick={() => {
+              setFormData({
+                name: '',
+                email: '',
+                mobile: '',
+                password: '',
+                confirmPassword: '',
+                role: 'Staff',
+                userType: 'STAFF',
+                branchId: branches[0]?.id || '',
+                branchName: branches[0]?.name || '',
+              });
+              setFormErrors({});
+              setIsAddModalOpen(true);
+            }}
+            className="inline-flex items-center gap-2 px-4 py-2 text-xs font-semibold rounded-xl bg-blue-600 hover:bg-blue-700 text-white shadow-xs transition cursor-pointer"
+          >
+            <UserPlus className="h-4 w-4" />
+            <span>New User Account</span>
+          </button>
+        )}
       </div>
 
       {/* KPI Cards */}
@@ -592,9 +596,11 @@ export const UsersModule: React.FC = () => {
                       <button
                         type="button"
                         onClick={() => handleToggleStatus(u)}
-                        disabled={u.email === 'admin@smarterp.com' || currentUser?.userId === u.id}
+                        disabled={u.email === 'admin@smarterp.com' || currentUser?.userId === u.id || !canApprove}
                         title={
-                          u.email === 'admin@smarterp.com'
+                          !canApprove
+                            ? 'Requires Approve permission to change user status'
+                            : u.email === 'admin@smarterp.com'
                             ? 'Primary SuperAdmin cannot be deactivated'
                             : currentUser?.userId === u.id
                             ? 'Cannot deactivate your own session'
@@ -616,23 +622,27 @@ export const UsersModule: React.FC = () => {
                     </td>
                     <td className="py-3 px-4 text-right">
                       <div className="flex items-center justify-end gap-1.5">
-                        <button
-                          type="button"
-                          onClick={() => handleOpenPermissions(u)}
-                          className="inline-flex items-center gap-1 px-2 py-1 rounded-lg border border-indigo-200 bg-indigo-50 hover:bg-indigo-100 text-indigo-700 font-semibold transition cursor-pointer"
-                          title="Configure Granular RBAC Permissions"
-                        >
-                          <Key className="h-3 w-3" />
-                          <span>Permissions</span>
-                        </button>
-                        <button
-                          type="button"
-                          onClick={() => handleOpenHistory(u)}
-                          className="inline-flex items-center gap-1 px-2 py-1 rounded-lg border border-slate-200 bg-slate-50 hover:bg-slate-100 text-slate-600 font-medium transition cursor-pointer"
-                          title="Audit History"
-                        >
-                          <History className="h-3 w-3" />
-                        </button>
+                        {canEdit && (
+                          <button
+                            type="button"
+                            onClick={() => handleOpenPermissions(u)}
+                            className="inline-flex items-center gap-1 px-2 py-1 rounded-lg border border-indigo-200 bg-indigo-50 hover:bg-indigo-100 text-indigo-700 font-semibold transition cursor-pointer"
+                            title="Configure Granular RBAC Permissions"
+                          >
+                            <Key className="h-3 w-3" />
+                            <span>Permissions</span>
+                          </button>
+                        )}
+                        {canHistory && (
+                          <button
+                            type="button"
+                            onClick={() => handleOpenHistory(u)}
+                            className="inline-flex items-center gap-1 px-2 py-1 rounded-lg border border-slate-200 bg-slate-50 hover:bg-slate-100 text-slate-600 font-medium transition cursor-pointer"
+                            title="Audit History"
+                          >
+                            <History className="h-3 w-3" />
+                          </button>
+                        )}
                       </div>
                     </td>
                   </tr>

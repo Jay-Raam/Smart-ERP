@@ -29,6 +29,8 @@ import { InvoicePrintModal } from '../InvoicePrintModal';
 import { FALLBACK_INDIA_STATES } from '../../../utils/indiaStates';
 import { showAppToast } from '../../../utils/handleApiError';
 import { InvoiceHistoryModal } from '../invoices/InvoiceHistoryModal';
+import { usePermissions } from '../../../hooks/usePermissions';
+import { PermissionGate } from '../../shared/PermissionGate';
 
 interface CustomerDetailPageProps {
   customerId?: string;
@@ -39,6 +41,9 @@ export const CustomerDetailPage: React.FC<CustomerDetailPageProps> = ({
   customerId: propCustomerId,
   onBack,
 }) => {
+  const custPerms = usePermissions('customers');
+  const invPerms = usePermissions('invoices');
+
   const {
     customers,
     invoices,
@@ -325,36 +330,45 @@ export const CustomerDetailPage: React.FC<CustomerDetailPageProps> = ({
             </button>
 
             {/* History */}
-            <button
-              type="button"
-              onClick={() => setHistoryInvoice(inv)}
-              className="p-1.5 rounded-lg border border-slate-200 hover:bg-slate-100 text-slate-600 transition cursor-pointer"
-              title="View Invoice History"
-            >
-              <History className="h-3.5 w-3.5" />
-            </button>
+            {invPerms.canHistory && (
+              <button
+                type="button"
+                onClick={() => setHistoryInvoice(inv)}
+                className="p-1.5 rounded-lg border border-slate-200 hover:bg-slate-100 text-slate-600 transition cursor-pointer"
+                title="View Invoice History"
+              >
+                <History className="h-3.5 w-3.5" />
+              </button>
+            )}
 
-            {/* Edit (Locked if Paid) */}
+            {/* Edit (Locked if Paid or lacks permission) */}
             <button
               type="button"
-              disabled={isPaid}
+              disabled={isPaid || !invPerms.canEdit}
               onClick={() => navigateToEditInvoice(inv.id)}
               className={`p-1.5 rounded-lg border transition ${
-                isPaid
+                isPaid || !invPerms.canEdit
                   ? 'border-slate-200 text-slate-300 cursor-not-allowed bg-slate-50'
                   : 'border-slate-200 hover:bg-blue-50 hover:text-blue-600 text-slate-600 cursor-pointer'
               }`}
-              title={isPaid ? 'Paid invoices cannot be edited' : 'Edit Tax Invoice'}
+              title={
+                isPaid
+                  ? 'Paid invoices cannot be edited'
+                  : !invPerms.canEdit
+                  ? 'Permission required: Edit Tax Invoice'
+                  : 'Edit Tax Invoice'
+              }
             >
               <Pencil className="h-3.5 w-3.5" />
             </button>
 
             {/* Record Payment */}
-            {!isPaid && (
+            {!isPaid && invPerms.canApprove && (
               <button
                 type="button"
                 onClick={() => setSelectedInvoiceForPayment(inv)}
                 className="px-2.5 py-1 rounded-lg bg-blue-600 hover:bg-blue-700 text-white font-medium text-[11px] transition shadow-xs cursor-pointer flex items-center gap-1"
+                title="Record Customer Payment"
               >
                 <CreditCard className="h-3 w-3" />
                 <span>Pay</span>
@@ -440,22 +454,29 @@ export const CustomerDetailPage: React.FC<CustomerDetailPageProps> = ({
 
         {/* Header Actions */}
         <div className="flex items-center gap-2">
-          <button
-            type="button"
-            onClick={() => setIsEditCustomerModalOpen(true)}
-            className="flex items-center gap-1.5 rounded-xl border border-slate-300 bg-white px-3.5 py-2 text-xs font-semibold text-slate-700 hover:bg-slate-50 transition shadow-xs cursor-pointer"
-          >
-            <Pencil className="h-3.5 w-3.5 text-slate-500" />
-            <span>Edit Profile</span>
-          </button>
-          <button
-            type="button"
-            onClick={navigateToCreateInvoice}
-            className="flex items-center gap-1.5 rounded-xl bg-blue-600 px-4 py-2 text-xs font-semibold text-white hover:bg-blue-700 transition shadow-xs cursor-pointer"
-          >
-            <Receipt className="h-4 w-4" />
-            <span>Generate Tax Invoice</span>
-          </button>
+          <PermissionGate hasPermission={custPerms.canEdit} actionLabel="edit customer profile" moduleName="Customers" fallbackMode="disable">
+            <button
+              type="button"
+              disabled={!custPerms.canEdit}
+              onClick={() => setIsEditCustomerModalOpen(true)}
+              className="flex items-center gap-1.5 rounded-xl border border-slate-300 bg-white px-3.5 py-2 text-xs font-semibold text-slate-700 hover:bg-slate-50 transition shadow-xs cursor-pointer disabled:opacity-50"
+            >
+              <Pencil className="h-3.5 w-3.5 text-slate-500" />
+              <span>Edit Profile</span>
+            </button>
+          </PermissionGate>
+
+          <PermissionGate hasPermission={invPerms.canAdd} actionLabel="create tax invoices" moduleName="Invoices" fallbackMode="disable">
+            <button
+              type="button"
+              disabled={!invPerms.canAdd}
+              onClick={navigateToCreateInvoice}
+              className="flex items-center gap-1.5 rounded-xl bg-blue-600 px-4 py-2 text-xs font-semibold text-white hover:bg-blue-700 transition shadow-xs cursor-pointer disabled:opacity-50"
+            >
+              <Receipt className="h-4 w-4" />
+              <span>Generate Tax Invoice</span>
+            </button>
+          </PermissionGate>
         </div>
       </div>
 
@@ -521,7 +542,7 @@ export const CustomerDetailPage: React.FC<CustomerDetailPageProps> = ({
                   </span>
                 </div>
                 <div className="flex items-center gap-1">
-                  {activeBilling && (
+                  {activeBilling && custPerms.canEdit && (
                     <button
                       type="button"
                       onClick={() => handleOpenEditAddress(activeBilling)}
@@ -531,14 +552,16 @@ export const CustomerDetailPage: React.FC<CustomerDetailPageProps> = ({
                       <Pencil className="h-3.5 w-3.5" />
                     </button>
                   )}
-                  <button
-                    type="button"
-                    onClick={() => handleOpenAddAddress('BILLING')}
-                    className="flex items-center gap-1 text-xs font-semibold text-blue-600 hover:text-blue-700 px-2 py-1 rounded-lg hover:bg-blue-50 transition cursor-pointer"
-                  >
-                    <Plus className="h-3.5 w-3.5" />
-                    <span>New Billing Address</span>
-                  </button>
+                  {custPerms.canAdd && (
+                    <button
+                      type="button"
+                      onClick={() => handleOpenAddAddress('BILLING')}
+                      className="flex items-center gap-1 text-xs font-semibold text-blue-600 hover:text-blue-700 px-2 py-1 rounded-lg hover:bg-blue-50 transition cursor-pointer"
+                    >
+                      <Plus className="h-3.5 w-3.5" />
+                      <span>New Billing Address</span>
+                    </button>
+                  )}
                 </div>
               </div>
 
@@ -584,7 +607,7 @@ export const CustomerDetailPage: React.FC<CustomerDetailPageProps> = ({
                   </span>
                 </div>
                 <div className="flex items-center gap-1">
-                  {activeShipping && (
+                  {activeShipping && custPerms.canEdit && (
                     <button
                       type="button"
                       onClick={() => handleOpenEditAddress(activeShipping)}
@@ -594,14 +617,16 @@ export const CustomerDetailPage: React.FC<CustomerDetailPageProps> = ({
                       <Pencil className="h-3.5 w-3.5" />
                     </button>
                   )}
-                  <button
-                    type="button"
-                    onClick={() => handleOpenAddAddress('SHIPPING')}
-                    className="flex items-center gap-1 text-xs font-semibold text-purple-600 hover:text-purple-700 px-2 py-1 rounded-lg hover:bg-purple-50 transition cursor-pointer"
-                  >
-                    <Plus className="h-3.5 w-3.5" />
-                    <span>New Shipping Address</span>
-                  </button>
+                  {custPerms.canAdd && (
+                    <button
+                      type="button"
+                      onClick={() => handleOpenAddAddress('SHIPPING')}
+                      className="flex items-center gap-1 text-xs font-semibold text-purple-600 hover:text-purple-700 px-2 py-1 rounded-lg hover:bg-purple-50 transition cursor-pointer"
+                    >
+                      <Plus className="h-3.5 w-3.5" />
+                      <span>New Shipping Address</span>
+                    </button>
+                  )}
                 </div>
               </div>
 
@@ -636,73 +661,77 @@ export const CustomerDetailPage: React.FC<CustomerDetailPageProps> = ({
         </div>
 
         {/* Address History Accordion / List */}
-        <div className="rounded-2xl border border-slate-200 bg-white p-5 shadow-xs">
-          <div className="flex items-center justify-between mb-3 border-b border-slate-100 pb-2">
-            <div className="flex items-center gap-2 text-xs font-bold uppercase tracking-wider text-slate-600">
-              <History className="h-4 w-4 text-slate-400" />
-              <span>Address History & Historical Locations ({addressHistory.length})</span>
+        {custPerms.canHistory && (
+          <div className="rounded-2xl border border-slate-200 bg-white p-5 shadow-xs">
+            <div className="flex items-center justify-between mb-3 border-b border-slate-100 pb-2">
+              <div className="flex items-center gap-2 text-xs font-bold uppercase tracking-wider text-slate-600">
+                <History className="h-4 w-4 text-slate-400" />
+                <span>Address History & Historical Locations ({addressHistory.length})</span>
+              </div>
+              <span className="text-[11px] text-slate-400">
+                Past addresses are preserved for tax compliance and can be reactivated anytime
+              </span>
             </div>
-            <span className="text-[11px] text-slate-400">
-              Past addresses are preserved for tax compliance and can be reactivated anytime
-            </span>
-          </div>
 
-          {addressHistory.length === 0 ? (
-            <p className="text-xs text-slate-400 italic py-2">
-              No historical addresses yet. When you add a new address, the previous address is automatically archived here.
-            </p>
-          ) : (
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-3 pt-1">
-              {addressHistory.map((hist, idx) => {
-                const hId = hist.id || hist._id || String(idx);
-                return (
-                  <div
-                    key={hId}
-                    className="p-3 rounded-xl border border-slate-200 bg-slate-50/70 text-xs flex flex-col justify-between space-y-2 hover:bg-slate-50 transition"
-                  >
-                    <div>
-                      <div className="flex items-center justify-between mb-1.5">
-                        <span
-                          className={`px-2 py-0.5 rounded text-[10px] font-bold ${
-                            hist.type === 'BILLING'
-                              ? 'bg-blue-100/70 text-blue-800'
-                              : 'bg-purple-100/70 text-purple-800'
-                          }`}
-                        >
-                          {hist.type === 'BILLING' ? 'Past Billing Address' : 'Past Shipping Hub'}
-                        </span>
-                        <span className="text-[10px] text-slate-400">Inactive</span>
+            {addressHistory.length === 0 ? (
+              <p className="text-xs text-slate-400 italic py-2">
+                No historical addresses yet. When you add a new address, the previous address is automatically archived here.
+              </p>
+            ) : (
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-3 pt-1">
+                {addressHistory.map((hist, idx) => {
+                  const hId = hist.id || hist._id || String(idx);
+                  return (
+                    <div
+                      key={hId}
+                      className="p-3 rounded-xl border border-slate-200 bg-slate-50/70 text-xs flex flex-col justify-between space-y-2 hover:bg-slate-50 transition"
+                    >
+                      <div>
+                        <div className="flex items-center justify-between mb-1.5">
+                          <span
+                            className={`px-2 py-0.5 rounded text-[10px] font-bold ${
+                              hist.type === 'BILLING'
+                                ? 'bg-blue-100/70 text-blue-800'
+                                : 'bg-purple-100/70 text-purple-800'
+                            }`}
+                          >
+                            {hist.type === 'BILLING' ? 'Past Billing Address' : 'Past Shipping Hub'}
+                          </span>
+                          <span className="text-[10px] text-slate-400">Inactive</span>
+                        </div>
+                        {hist.attention && (
+                          <p className="font-semibold text-slate-800 text-[11px]">Attn: {hist.attention}</p>
+                        )}
+                        <p className="text-slate-700">
+                          {hist.addressLine1}
+                          {hist.addressLine2 ? `, ${hist.addressLine2}` : ''}
+                        </p>
+                        <p className="text-slate-500">
+                          {hist.city}, {hist.state} — {hist.pincode}
+                        </p>
                       </div>
-                      {hist.attention && (
-                        <p className="font-semibold text-slate-800 text-[11px]">Attn: {hist.attention}</p>
-                      )}
-                      <p className="text-slate-700">
-                        {hist.addressLine1}
-                        {hist.addressLine2 ? `, ${hist.addressLine2}` : ''}
-                      </p>
-                      <p className="text-slate-500">
-                        {hist.city}, {hist.state} — {hist.pincode}
-                      </p>
-                    </div>
 
-                    <div className="flex items-center justify-between pt-2 border-t border-slate-200/60">
-                      <span className="text-[10px] text-slate-400">
-                        {hist.createdAt ? new Date(hist.createdAt).toLocaleDateString() : 'Archived'}
-                      </span>
-                      <button
-                        type="button"
-                        onClick={() => handleActivateAddress(hId)}
-                        className="px-2.5 py-1 rounded-lg bg-white border border-slate-300 hover:border-blue-500 hover:text-blue-600 text-[11px] font-semibold text-slate-700 shadow-2xs transition cursor-pointer"
-                      >
-                        Set as Active
-                      </button>
+                      <div className="flex items-center justify-between pt-2 border-t border-slate-200/60">
+                        <span className="text-[10px] text-slate-400">
+                          {hist.createdAt ? new Date(hist.createdAt).toLocaleDateString() : 'Archived'}
+                        </span>
+                        {custPerms.canEdit && (
+                          <button
+                            type="button"
+                            onClick={() => handleActivateAddress(hId)}
+                            className="px-2.5 py-1 rounded-lg bg-white border border-slate-300 hover:border-blue-500 hover:text-blue-600 text-[11px] font-semibold text-slate-700 shadow-2xs transition cursor-pointer"
+                          >
+                            Set as Active
+                          </button>
+                        )}
+                      </div>
                     </div>
-                  </div>
-                );
-              })}
-            </div>
-          )}
-        </div>
+                  );
+                })}
+              </div>
+            )}
+          </div>
+        )}
       </div>
 
       {/* Invoices Against This Customer Table */}

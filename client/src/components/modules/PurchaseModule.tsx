@@ -27,6 +27,7 @@ import { INDIA_STATES_LIST } from '../../utils/indiaStates';
 import { useFormValidation, isValidGSTIN, EMAIL_REGEX, PHONE_REGEX } from '../../utils/validation';
 import { ExportModal, ExportColumn } from '../shared/ExportModal';
 import { RecordPaymentModal } from '../shared/RecordPaymentModal';
+import { usePermissions } from '../../hooks/usePermissions';
 
 interface VendorFormData {
   name: string;
@@ -57,6 +58,9 @@ export const PurchaseModule: React.FC<PurchaseModuleProps> = ({ initialOpenAdd =
     addVendor,
     approveAutoReorderPO,
   } = useErpStore();
+
+  const { canAdd: canAddPO, canApprove: canApprovePO } = usePermissions('purchase');
+  const { canAdd: canAddBill } = usePermissions('bills');
 
   const [activeTab, setActiveTab] = useState<'orders' | 'vendors'>('orders');
   const [isAddPOModalOpen, setIsAddPOModalOpen] = useState(initialOpenAdd);
@@ -409,7 +413,7 @@ export const PurchaseModule: React.FC<PurchaseModuleProps> = ({ initialOpenAdd =
       align: 'right',
       render: (po) => (
         <div className="flex items-center justify-end gap-1.5">
-          {po.status === 'AUTO_REORDER_PENDING' && (
+          {po.status === 'AUTO_REORDER_PENDING' && canApprovePO && (
             <button
               type="button"
               onClick={() => approveAutoReorderPO(po.id)}
@@ -423,7 +427,7 @@ export const PurchaseModule: React.FC<PurchaseModuleProps> = ({ initialOpenAdd =
 
           {(po.status === 'Approved' || po.status === 'PARTIALLY_BILLED') && (
             <>
-              {((po.outstandingAmount ?? (po.totalAmount - (po.paidAmount || 0))) > 0) && (
+              {((po.outstandingAmount ?? (po.totalAmount - (po.paidAmount || 0))) > 0) && canApprovePO && (
                 <button
                   type="button"
                   onClick={() => setSelectedPOForAdvance(po)}
@@ -434,18 +438,20 @@ export const PurchaseModule: React.FC<PurchaseModuleProps> = ({ initialOpenAdd =
                   <span>Advance</span>
                 </button>
               )}
-              <button
-                type="button"
-                onClick={() => {
-                  window.history.pushState({}, '', `/bills/new?poId=${po.id}`);
-                  window.dispatchEvent(new PopStateEvent('popstate'));
-                }}
-                className="inline-flex items-center gap-1 rounded-lg border border-emerald-200 bg-emerald-50 px-2 py-1 text-xs font-semibold text-emerald-700 hover:bg-emerald-100 transition cursor-pointer shadow-xs"
-                title="Convert Purchase Order to Vendor Bill"
-              >
-                <FileCheck className="h-3.5 w-3.5" />
-                <span>Convert to Bill</span>
-              </button>
+              {canAddBill && (
+                <button
+                  type="button"
+                  onClick={() => {
+                    window.history.pushState({}, '', `/bills/new?poId=${po.id}`);
+                    window.dispatchEvent(new PopStateEvent('popstate'));
+                  }}
+                  className="inline-flex items-center gap-1 rounded-lg border border-emerald-200 bg-emerald-50 px-2 py-1 text-xs font-semibold text-emerald-700 hover:bg-emerald-100 transition cursor-pointer shadow-xs"
+                  title="Convert Purchase Order to Vendor Bill"
+                >
+                  <FileCheck className="h-3.5 w-3.5" />
+                  <span>Convert to Bill</span>
+                </button>
+              )}
             </>
           )}
 
@@ -540,22 +546,24 @@ export const PurchaseModule: React.FC<PurchaseModuleProps> = ({ initialOpenAdd =
             <span>Export {activeTab === 'vendors' ? 'Vendors' : 'Purchase Orders'}</span>
           </button>
 
-          {activeTab === 'vendors' ? (
-            <button
-              onClick={() => setIsAddVendorModalOpen(true)}
-              className="flex items-center gap-1.5 rounded-xl bg-blue-600 px-3.5 py-2 text-xs font-semibold text-white hover:bg-blue-700 transition shadow-xs cursor-pointer"
-            >
-              <Plus className="h-4 w-4" />
-              <span>Register Vendor</span>
-            </button>
-          ) : (
-            <button
-              onClick={() => setIsAddPOModalOpen(true)}
-              className="flex items-center gap-1.5 rounded-xl bg-blue-600 px-3.5 py-2 text-xs font-semibold text-white hover:bg-blue-700 transition shadow-xs cursor-pointer"
-            >
-              <Plus className="h-4 w-4" />
-              <span>New Purchase Order</span>
-            </button>
+          {canAddPO && (
+            activeTab === 'vendors' ? (
+              <button
+                onClick={() => setIsAddVendorModalOpen(true)}
+                className="flex items-center gap-1.5 rounded-xl bg-blue-600 px-3.5 py-2 text-xs font-semibold text-white hover:bg-blue-700 transition shadow-xs cursor-pointer"
+              >
+                <Plus className="h-4 w-4" />
+                <span>Register Vendor</span>
+              </button>
+            ) : (
+              <button
+                onClick={() => setIsAddPOModalOpen(true)}
+                className="flex items-center gap-1.5 rounded-xl bg-blue-600 px-3.5 py-2 text-xs font-semibold text-white hover:bg-blue-700 transition shadow-xs cursor-pointer"
+              >
+                <Plus className="h-4 w-4" />
+                <span>New Purchase Order</span>
+              </button>
+            )
           )}
         </div>
       </div>

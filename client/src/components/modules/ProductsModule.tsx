@@ -14,10 +14,10 @@ import {
   Download,
 } from 'lucide-react';
 import { useErpStore, Product } from '../../store/erpStore';
-import { useAuthStore } from '../../store/authStore';
 import { DataTable, ColumnDef } from '../shared/DataTable';
 import { Combobox } from '../shared/Combobox';
 import { ExportModal, ExportColumn } from '../shared/ExportModal';
+import { usePermissions } from '../../hooks/usePermissions';
 
 interface ProductsModuleProps {
   initialOpenAdd?: boolean;
@@ -25,8 +25,7 @@ interface ProductsModuleProps {
 
 export const ProductsModule: React.FC<ProductsModuleProps> = ({ initialOpenAdd = false }) => {
   const { products, addProduct, approveProduct, rejectProduct, updateProductStatus } = useErpStore();
-  const { user } = useAuthStore();
-  const isSuperAdmin = user?.role === 'SuperAdmin';
+  const { canAdd, canEdit, canApprove } = usePermissions('products');
 
   const [searchQuery, setSearchQuery] = useState('');
   const [categoryFilter, setCategoryFilter] = useState('All');
@@ -239,37 +238,55 @@ export const ProductsModule: React.FC<ProductsModuleProps> = ({ initialOpenAdd =
       align: 'center',
       render: (p) => {
         const isActive = (p.status || 'ACTIVE') === 'ACTIVE';
+        if (canEdit || canApprove) {
+          return (
+            <button
+              type="button"
+              onClick={async () => {
+                const newStatus = isActive ? 'INACTIVE' : 'ACTIVE';
+                await updateProductStatus(p.id, newStatus);
+              }}
+              className={`inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-xs font-semibold transition cursor-pointer border ${
+                isActive
+                  ? 'bg-emerald-50 text-emerald-700 border-emerald-300 hover:bg-emerald-100'
+                  : 'bg-slate-100 text-slate-500 border-slate-300 hover:bg-slate-200'
+              }`}
+              title={`Click to switch to ${isActive ? 'INACTIVE' : 'ACTIVE'}`}
+            >
+              <span
+                className={`h-2 w-2 rounded-full ${
+                  isActive ? 'bg-emerald-500 animate-pulse' : 'bg-slate-400'
+                }`}
+              />
+              <span>{isActive ? 'ACTIVE' : 'INACTIVE'}</span>
+            </button>
+          );
+        }
         return (
-          <button
-            type="button"
-            onClick={async () => {
-              const newStatus = isActive ? 'INACTIVE' : 'ACTIVE';
-              await updateProductStatus(p.id, newStatus);
-            }}
-            className={`inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-xs font-semibold transition cursor-pointer border ${
+          <span
+            className={`inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-xs font-semibold border ${
               isActive
-                ? 'bg-emerald-50 text-emerald-700 border-emerald-300 hover:bg-emerald-100'
-                : 'bg-slate-100 text-slate-500 border-slate-300 hover:bg-slate-200'
+                ? 'bg-emerald-50 text-emerald-700 border-emerald-300'
+                : 'bg-slate-100 text-slate-500 border-slate-300'
             }`}
-            title={`Click to switch to ${isActive ? 'INACTIVE' : 'ACTIVE'}`}
           >
             <span
               className={`h-2 w-2 rounded-full ${
-                isActive ? 'bg-emerald-500 animate-pulse' : 'bg-slate-400'
+                isActive ? 'bg-emerald-500' : 'bg-slate-400'
               }`}
             />
             <span>{isActive ? 'ACTIVE' : 'INACTIVE'}</span>
-          </button>
+          </span>
         );
       },
     },
     {
       key: 'actions',
-      header: 'SuperAdmin Actions',
+      header: 'Approval & Actions',
       align: 'right',
       render: (p) => {
         const status = p.approvalStatus || 'Approved';
-        if (!isSuperAdmin) {
+        if (!canApprove) {
           return <span className="text-xs text-slate-400">Restricted</span>;
         }
 
@@ -338,13 +355,15 @@ export const ProductsModule: React.FC<ProductsModuleProps> = ({ initialOpenAdd =
             <Download className="h-4 w-4 text-slate-500" />
             <span>Export</span>
           </button>
-          <button
-            onClick={() => setIsAddModalOpen(true)}
-            className="flex items-center gap-1.5 rounded-xl bg-blue-600 px-3.5 py-2 text-xs font-semibold text-white hover:bg-blue-700 transition shadow-xs cursor-pointer"
-          >
-            <Plus className="h-4 w-4" />
-            <span>New Product Item</span>
-          </button>
+          {canAdd && (
+            <button
+              onClick={() => setIsAddModalOpen(true)}
+              className="flex items-center gap-1.5 rounded-xl bg-blue-600 px-3.5 py-2 text-xs font-semibold text-white hover:bg-blue-700 transition shadow-xs cursor-pointer"
+            >
+              <Plus className="h-4 w-4" />
+              <span>New Product Item</span>
+            </button>
+          )}
         </div>
       </div>
 

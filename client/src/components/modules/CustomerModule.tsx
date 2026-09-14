@@ -20,6 +20,8 @@ import { Combobox } from '../shared/Combobox';
 import { useIndiaStates } from '../../utils/indiaStates';
 import { CustomerDetailsDrawer } from './customers/CustomerDetailsDrawer';
 import { ExportModal, ExportColumn } from '../shared/ExportModal';
+import { usePermissions } from '../../hooks/usePermissions';
+import { PermissionGate } from '../shared/PermissionGate';
 import {
   useFormValidation,
   isValidGSTIN,
@@ -53,6 +55,7 @@ export const CustomerModule: React.FC<CustomerModuleProps> = ({
   onNavigateToInvoiceCreate,
 }) => {
   const { customers, addCustomer } = useErpStore();
+  const { canAdd, canEdit, canDelete } = usePermissions('customers');
   const { states: stateOptions, isLoading: isStatesLoading } = useIndiaStates();
   const [isAddModalOpen, setIsAddModalOpen] = useState(initialOpenAdd);
   const [selectedCustomer, setSelectedCustomer] = useState<Customer | null>(null);
@@ -283,14 +286,17 @@ export const CustomerModule: React.FC<CustomerModuleProps> = ({
             <Download className="h-4 w-4 text-slate-500" />
             <span>Export</span>
           </button>
-          <button
-            type="button"
-            onClick={() => setIsAddModalOpen(true)}
-            className="flex items-center gap-1.5 rounded-xl bg-blue-600 px-3.5 py-2 text-xs font-semibold text-white hover:bg-blue-700 transition shadow-xs cursor-pointer"
-          >
-            <Plus className="h-4 w-4" />
-            <span>New Customer</span>
-          </button>
+          <PermissionGate hasPermission={canAdd} actionLabel="add customer" moduleName="Customers" fallbackMode="disable">
+            <button
+              type="button"
+              disabled={!canAdd}
+              onClick={() => setIsAddModalOpen(true)}
+              className="flex items-center gap-1.5 rounded-xl bg-blue-600 px-3.5 py-2 text-xs font-semibold text-white hover:bg-blue-700 transition shadow-xs cursor-pointer disabled:opacity-50"
+            >
+              <Plus className="h-4 w-4" />
+              <span>New Customer</span>
+            </button>
+          </PermissionGate>
         </div>
       </div>
 

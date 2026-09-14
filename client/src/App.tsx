@@ -143,11 +143,12 @@ export function App() {
     if (isAuthenticated && isSessionValidated && user) {
       const isSuperAdmin = Boolean(
         user.role?.toLowerCase().replace(/\s+/g, '') === 'superadmin' ||
+        user.userType === 'SUPER_ADMIN' ||
         (user as any).isSuperAdmin
       );
-      if (!isSuperAdmin && user.permissions) {
-        const perms = user.permissions as Record<string, any>;
-        const hasPermission = perms[activeModule]?.view === true;
+      if (!isSuperAdmin) {
+        const perms = (user.userPermissions || (user as any).permissions || {}) as Record<string, any>;
+        const hasPermission = Boolean(perms[activeModule]?.view === true);
         if (!hasPermission) {
           const permitted = Object.keys(perms).find(
             (mod) => perms[mod]?.view === true

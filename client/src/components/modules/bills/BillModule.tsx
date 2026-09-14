@@ -18,9 +18,11 @@ import { PdfPreviewModal } from '../../pdf/PdfPreviewModal';
 import { ExportModal, ExportColumn } from '../../shared/ExportModal';
 import { BillDetailPage } from './BillDetailPage';
 import { RecordPaymentModal } from '../../shared/RecordPaymentModal';
+import { usePermissions } from '../../../hooks/usePermissions';
 
 export const BillModule: React.FC = () => {
   const { bills, updateBill } = useErpStore();
+  const { canAdd, canApprove } = usePermissions('bills');
   const [selectedBillForPdf, setSelectedBillForPdf] = useState<Bill | null>(null);
   const [selectedBillForPayment, setSelectedBillForPayment] = useState<Bill | null>(null);
   const [viewingBillId, setViewingBillId] = useState<string | null>(() => {
@@ -216,7 +218,7 @@ export const BillModule: React.FC = () => {
               <FileText className="h-3.5 w-3.5 text-slate-500" />
               <span>Details</span>
             </button>
-            {out > 0 && (
+            {out > 0 && canApprove && (
               <button
                 type="button"
                 onClick={() => setSelectedBillForPayment(b)}
@@ -281,16 +283,18 @@ export const BillModule: React.FC = () => {
             <Download className="h-4 w-4 text-slate-500" />
             <span>Export</span>
           </button>
-          <button
-            onClick={() => {
-              window.history.pushState({}, '', '/bills/new');
-              window.dispatchEvent(new PopStateEvent('popstate'));
-            }}
-            className="flex items-center gap-1.5 rounded-xl bg-blue-600 px-4 py-2 text-xs font-semibold text-white hover:bg-blue-700 transition shadow-xs cursor-pointer"
-          >
-            <Plus className="h-4 w-4" />
-            <span>New Bill</span>
-          </button>
+          {canAdd && (
+            <button
+              onClick={() => {
+                window.history.pushState({}, '', '/bills/new');
+                window.dispatchEvent(new PopStateEvent('popstate'));
+              }}
+              className="flex items-center gap-1.5 rounded-xl bg-blue-600 px-4 py-2 text-xs font-semibold text-white hover:bg-blue-700 transition shadow-xs cursor-pointer"
+            >
+              <Plus className="h-4 w-4" />
+              <span>New Bill</span>
+            </button>
+          )}
         </div>
       </div>
 

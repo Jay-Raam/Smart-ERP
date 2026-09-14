@@ -161,7 +161,7 @@ export const Sidebar: React.FC<SidebarProps> = ({
       (user as any)?.isSuperAdmin
   );
 
-  navigationSections.push({
+    navigationSections.push({
     title: 'Account',
     items: [
       {
@@ -176,24 +176,20 @@ export const Sidebar: React.FC<SidebarProps> = ({
         icon: ArrowLeftRight,
         badge: null,
       },
-      ...(isSuperAdmin
-        ? [
-            {
-              id: 'reports' as ModuleType,
-              label: 'Reports',
-              icon: BarChart3,
-              badge: 'Super Admin',
-              badgeColor: 'bg-purple-50 text-purple-700 border border-purple-200',
-            },
-            {
-              id: 'users' as ModuleType,
-              label: 'Users & Roles',
-              icon: ShieldCheck,
-              badge: 'Super Admin',
-              badgeColor: 'bg-indigo-50 text-indigo-700 border border-indigo-200',
-            },
-          ]
-        : []),
+      {
+        id: 'reports' as ModuleType,
+        label: 'Reports',
+        icon: BarChart3,
+        badge: isSuperAdmin ? 'Super Admin' : null,
+        badgeColor: 'bg-purple-50 text-purple-700 border border-purple-200',
+      },
+      {
+        id: 'users' as ModuleType,
+        label: 'Users & Roles',
+        icon: ShieldCheck,
+        badge: isSuperAdmin ? 'Super Admin' : null,
+        badgeColor: 'bg-indigo-50 text-indigo-700 border border-indigo-200',
+      },
     ],
   });
 
@@ -202,7 +198,7 @@ export const Sidebar: React.FC<SidebarProps> = ({
       ...section,
       items: section.items.filter((item) => {
         if (isSuperAdmin) return true;
-        const userPerms = (user as any)?.permissions;
+        const userPerms = (user as any)?.userPermissions || (user as any)?.permissions;
         if (!userPerms) return false;
         const modPerm = userPerms[item.id];
         return Boolean(modPerm?.view === true);

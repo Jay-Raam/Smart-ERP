@@ -25,6 +25,7 @@ import { calculateDocumentTaxes, isStateTamilNadu } from '../../utils/taxCalcula
 import { ExportModal, ExportColumn } from '../shared/ExportModal';
 import { RecordPaymentModal } from '../shared/RecordPaymentModal';
 import { InvoiceHistoryModal } from './invoices/InvoiceHistoryModal';
+import { usePermissions } from '../../hooks/usePermissions';
 
 interface InvoiceModuleProps {
   initialOpenAdd?: boolean;
@@ -32,6 +33,7 @@ interface InvoiceModuleProps {
 
 export const InvoiceModule: React.FC<InvoiceModuleProps> = ({ initialOpenAdd = false }) => {
   const { invoices, customers, products, organisation, addInvoice } = useErpStore();
+  const { canAdd, canEdit, canHistory, canApprove } = usePermissions('invoices');
   const [isAddModalOpen, setIsAddModalOpen] = useState(false);
   const [viewInvoice, setViewInvoice] = useState<Invoice | null>(null);
   const [selectedInvoiceForPayment, setSelectedInvoiceForPayment] = useState<Invoice | null>(null);
@@ -266,43 +268,47 @@ export const InvoiceModule: React.FC<InvoiceModuleProps> = ({ initialOpenAdd = f
         return (
           <div className="flex items-center justify-end gap-1.5">
             {/* Edit Direct Tax Invoice (Locked if paid) */}
-            {isUnpaid ? (
-              <button
-                type="button"
-                onClick={() => {
-                  window.history.pushState({}, '', `/invoices/${inv.id}/edit`);
-                  window.dispatchEvent(new PopStateEvent('popstate'));
-                }}
-                className="inline-flex items-center gap-1 rounded-lg border border-slate-200 bg-white px-2 py-1 text-xs font-semibold text-slate-700 hover:bg-slate-100 hover:text-blue-600 transition cursor-pointer"
-                title="Edit Direct Tax Invoice"
-              >
-                <Edit className="h-3.5 w-3.5 text-slate-500" />
-                <span>Edit</span>
-              </button>
-            ) : (
-              <button
-                type="button"
-                disabled
-                className="inline-flex items-center gap-1 rounded-lg border border-slate-100 bg-slate-50 px-2 py-1 text-xs font-medium text-slate-400 cursor-not-allowed opacity-60"
-                title="Editing locked: Invoice has recorded payments"
-              >
-                <Lock className="h-3 w-3 text-slate-400" />
-                <span>Edit</span>
-              </button>
+            {canEdit && (
+              isUnpaid ? (
+                <button
+                  type="button"
+                  onClick={() => {
+                    window.history.pushState({}, '', `/invoices/${inv.id}/edit`);
+                    window.dispatchEvent(new PopStateEvent('popstate'));
+                  }}
+                  className="inline-flex items-center gap-1 rounded-lg border border-slate-200 bg-white px-2 py-1 text-xs font-semibold text-slate-700 hover:bg-slate-100 hover:text-blue-600 transition cursor-pointer"
+                  title="Edit Direct Tax Invoice"
+                >
+                  <Edit className="h-3.5 w-3.5 text-slate-500" />
+                  <span>Edit</span>
+                </button>
+              ) : (
+                <button
+                  type="button"
+                  disabled
+                  className="inline-flex items-center gap-1 rounded-lg border border-slate-100 bg-slate-50 px-2 py-1 text-xs font-medium text-slate-400 cursor-not-allowed opacity-60"
+                  title="Editing locked: Invoice has recorded payments"
+                >
+                  <Lock className="h-3 w-3 text-slate-400" />
+                  <span>Edit</span>
+                </button>
+              )
             )}
 
             {/* Audit History Timeline */}
-            <button
-              type="button"
-              onClick={() => setSelectedInvoiceForHistory(inv)}
-              className="inline-flex items-center gap-1 rounded-lg border border-slate-200 bg-white px-2 py-1 text-xs font-semibold text-slate-700 hover:bg-slate-100 hover:text-indigo-600 transition cursor-pointer"
-              title="View Invoice Audit History"
-            >
-              <History className="h-3.5 w-3.5 text-indigo-500" />
-              <span>History</span>
-            </button>
+            {canHistory && (
+              <button
+                type="button"
+                onClick={() => setSelectedInvoiceForHistory(inv)}
+                className="inline-flex items-center gap-1 rounded-lg border border-slate-200 bg-white px-2 py-1 text-xs font-semibold text-slate-700 hover:bg-slate-100 hover:text-indigo-600 transition cursor-pointer"
+                title="View Invoice Audit History"
+              >
+                <History className="h-3.5 w-3.5 text-indigo-500" />
+                <span>History</span>
+              </button>
+            )}
 
-            {out > 0 && (
+            {out > 0 && canApprove && (
               <button
                 type="button"
                 onClick={() => setSelectedInvoiceForPayment(inv)}
@@ -346,17 +352,19 @@ export const InvoiceModule: React.FC<InvoiceModuleProps> = ({ initialOpenAdd = f
             <Download className="h-4 w-4 text-slate-500" />
             <span>Export</span>
           </button>
-          <button
-            type="button"
-            onClick={() => {
-              window.history.pushState({}, '', '/invoices/new');
-              window.dispatchEvent(new PopStateEvent('popstate'));
-            }}
-            className="flex items-center gap-1.5 rounded-xl bg-blue-600 px-4 py-2 text-xs font-semibold text-white hover:bg-blue-700 transition shadow-xs cursor-pointer"
-          >
-            <Plus className="h-4 w-4" />
-            <span>Generate Invoice</span>
-          </button>
+          {canAdd && (
+            <button
+              type="button"
+              onClick={() => {
+                window.history.pushState({}, '', '/invoices/new');
+                window.dispatchEvent(new PopStateEvent('popstate'));
+              }}
+              className="flex items-center gap-1.5 rounded-xl bg-blue-600 px-4 py-2 text-xs font-semibold text-white hover:bg-blue-700 transition shadow-xs cursor-pointer"
+            >
+              <Plus className="h-4 w-4" />
+              <span>Generate Invoice</span>
+            </button>
+          )}
         </div>
       </div>
 

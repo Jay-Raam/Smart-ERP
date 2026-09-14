@@ -22,9 +22,11 @@ import { useErpStore, FinancialTransaction } from '../../../store/erpStore';
 import { showAppToast } from '../../../utils/handleApiError';
 import { ExportModal, ExportColumn } from '../../shared/ExportModal';
 import { Combobox } from '../../shared/Combobox';
+import { usePermissions } from '../../../hooks/usePermissions';
 
 export const TransactionModule: React.FC = () => {
   const { bankAccounts, fetchTransactions } = useErpStore();
+  const { canApprove } = usePermissions('transactions');
 
   const [transactions, setTransactions] = useState<FinancialTransaction[]>([]);
   const [isLoading, setIsLoading] = useState(false);
@@ -896,7 +898,7 @@ export const TransactionModule: React.FC = () => {
 
             {/* Bottom Actions: Reversal */}
             <div className="pt-4 border-t border-slate-200 space-y-2">
-              {selectedTx.status === 'POSTED' && selectedTx.type !== 'REVERSAL' && (
+              {selectedTx.status === 'POSTED' && selectedTx.type !== 'REVERSAL' && canApprove && (
                 <button
                   type="button"
                   onClick={() => setIsReverseModalOpen(true)}

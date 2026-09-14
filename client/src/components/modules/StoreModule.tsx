@@ -11,9 +11,11 @@ import {
 } from 'lucide-react';
 import { useErpStore, StoreItem } from '../../store/erpStore';
 import { DataTable, ColumnDef } from '../shared/DataTable';
+import { usePermissions } from '../../hooks/usePermissions';
 
 export const StoreModule: React.FC = () => {
   const { storeItems, updateStoreStock } = useErpStore();
+  const { canEdit, canApprove } = usePermissions('store');
   const [searchQuery, setSearchQuery] = useState('');
   const [warehouseFilter, setWarehouseFilter] = useState('All');
   const [stockAdjustItem, setStockAdjustItem] = useState<StoreItem | null>(null);
@@ -111,13 +113,15 @@ export const StoreModule: React.FC = () => {
       key: 'actions',
       header: 'Actions',
       align: 'right',
-      render: (item) => (
+      render: (item) => (canEdit || canApprove) ? (
         <button
           onClick={() => setStockAdjustItem(item)}
-          className="rounded-lg border border-slate-200 px-2.5 py-1 text-xs font-semibold text-slate-700 hover:bg-slate-100 hover:text-blue-600 transition"
+          className="rounded-lg border border-slate-200 px-2.5 py-1 text-xs font-semibold text-slate-700 hover:bg-slate-100 hover:text-blue-600 transition cursor-pointer"
         >
           Adjust Stock
         </button>
+      ) : (
+        <span className="text-xs text-slate-400 font-medium">—</span>
       ),
     },
   ];

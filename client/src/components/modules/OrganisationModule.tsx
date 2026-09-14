@@ -17,6 +17,7 @@ import {
   Loader2,
 } from 'lucide-react';
 import { useErpStore, OrganisationInfo } from '../../store/erpStore';
+import { usePermissions } from '../../hooks/usePermissions';
 
 interface OrganisationModuleProps {
   onNavigateToBranches?: (orgId: string) => void;
@@ -32,6 +33,8 @@ export const OrganisationModule: React.FC<OrganisationModuleProps> = ({ onNaviga
     updateOrganisation,
     deleteOrganisation,
   } = useErpStore();
+
+  const { canAdd, canEdit, canDelete } = usePermissions('organisations');
 
   const [isAddModalOpen, setIsAddModalOpen] = useState(false);
   const [editingOrg, setEditingOrg] = useState<OrganisationInfo | null>(null);
@@ -161,14 +164,16 @@ export const OrganisationModule: React.FC<OrganisationModuleProps> = ({ onNaviga
           </div>
         </div>
 
-        <button
-          type="button"
-          onClick={handleOpenAdd}
-          className="flex items-center gap-2 rounded-xl bg-blue-600 px-4 py-2.5 text-xs font-bold text-white hover:bg-blue-700 active:scale-[0.99] transition shadow-xs cursor-pointer self-start sm:self-auto"
-        >
-          <Plus className="h-4 w-4" />
-          <span>Add New Organisation</span>
-        </button>
+        {canAdd && (
+          <button
+            type="button"
+            onClick={handleOpenAdd}
+            className="flex items-center gap-2 rounded-xl bg-blue-600 px-4 py-2.5 text-xs font-bold text-white hover:bg-blue-700 active:scale-[0.99] transition shadow-xs cursor-pointer self-start sm:self-auto"
+          >
+            <Plus className="h-4 w-4" />
+            <span>Add New Organisation</span>
+          </button>
+        )}
       </div>
 
       {/* Organisation Cards Grid */}
@@ -213,15 +218,17 @@ export const OrganisationModule: React.FC<OrganisationModuleProps> = ({ onNaviga
                   </div>
 
                   <div className="flex items-center gap-1 shrink-0">
-                    <button
-                      type="button"
-                      onClick={() => handleOpenEdit(orgItem)}
-                      className="p-1.5 rounded-lg text-slate-400 hover:text-slate-700 dark:hover:text-slate-200 hover:bg-slate-100 dark:hover:bg-[#202025] transition cursor-pointer"
-                      title="Edit Organisation"
-                    >
-                      <Edit2 className="h-3.5 w-3.5" />
-                    </button>
-                    {orgList.length > 1 && (
+                    {canEdit && (
+                      <button
+                        type="button"
+                        onClick={() => handleOpenEdit(orgItem)}
+                        className="p-1.5 rounded-lg text-slate-400 hover:text-slate-700 dark:hover:text-slate-200 hover:bg-slate-100 dark:hover:bg-[#202025] transition cursor-pointer"
+                        title="Edit Organisation"
+                      >
+                        <Edit2 className="h-3.5 w-3.5" />
+                      </button>
+                    )}
+                    {orgList.length > 1 && canDelete && (
                       <button
                         type="button"
                         onClick={() => handleDelete(orgId, orgItem.name)}

@@ -12,6 +12,7 @@ import {
 import { useErpStore, FinancialYear } from '../../store/erpStore';
 import { DataTable, ColumnDef } from '../shared/DataTable';
 import { Combobox } from '../shared/Combobox';
+import { usePermissions } from '../../hooks/usePermissions';
 
 export const FinancialYearModule: React.FC = () => {
   const {
@@ -25,6 +26,8 @@ export const FinancialYearModule: React.FC = () => {
     branches,
     activeBranchId,
   } = useErpStore();
+
+  const { canAdd, canApprove } = usePermissions('financial-years');
 
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [yearName, setYearName] = useState('');
@@ -142,7 +145,7 @@ export const FinancialYearModule: React.FC = () => {
       align: 'right',
       render: (fy) => (
         <div className="flex items-center justify-end gap-2">
-          {!fy.isCurrent && (
+          {!fy.isCurrent && canApprove && (
             <button
               type="button"
               onClick={() => handleSetCurrent(fy)}
@@ -160,17 +163,19 @@ export const FinancialYearModule: React.FC = () => {
               Switch To
             </button>
           )}
-          <button
-            type="button"
-            onClick={() => handleToggleStatus(fy)}
-            className={`rounded-lg px-2.5 py-1 text-xs font-medium transition cursor-pointer ${
-              fy.status === 'Active'
-                ? 'text-rose-600 hover:bg-rose-50'
-                : 'text-emerald-600 hover:bg-emerald-50'
-            }`}
-          >
-            {fy.status === 'Active' ? 'Close Period' : 'Reopen'}
-          </button>
+          {canApprove && (
+            <button
+              type="button"
+              onClick={() => handleToggleStatus(fy)}
+              className={`rounded-lg px-2.5 py-1 text-xs font-medium transition cursor-pointer ${
+                fy.status === 'Active'
+                  ? 'text-rose-600 hover:bg-rose-50'
+                  : 'text-emerald-600 hover:bg-emerald-50'
+              }`}
+            >
+              {fy.status === 'Active' ? 'Close Period' : 'Reopen'}
+            </button>
+          )}
         </div>
       ),
     },
@@ -197,14 +202,16 @@ export const FinancialYearModule: React.FC = () => {
           </p>
         </div>
 
-        <button
-          type="button"
-          onClick={() => setIsModalOpen(true)}
-          className="flex items-center justify-center gap-1.5 rounded-xl bg-blue-600 px-4 py-2 text-xs font-semibold text-white hover:bg-blue-700 transition shadow-sm cursor-pointer"
-        >
-          <Plus className="h-4 w-4" />
-          <span>New Financial Year</span>
-        </button>
+        {canAdd && (
+          <button
+            type="button"
+            onClick={() => setIsModalOpen(true)}
+            className="flex items-center justify-center gap-1.5 rounded-xl bg-blue-600 px-4 py-2 text-xs font-semibold text-white hover:bg-blue-700 transition shadow-sm cursor-pointer"
+          >
+            <Plus className="h-4 w-4" />
+            <span>New Financial Year</span>
+          </button>
+        )}
       </div>
 
       {/* KPI Cards */}

@@ -15,6 +15,7 @@ import { useErpStore, DeliveryChallan } from '../../store/erpStore';
 import { DataTable, ColumnDef } from '../shared/DataTable';
 import { Combobox } from '../shared/Combobox';
 import { ExportModal, ExportColumn } from '../shared/ExportModal';
+import { usePermissions } from '../../hooks/usePermissions';
 
 interface DeliveryModuleProps {
   initialOpenAdd?: boolean;
@@ -22,6 +23,7 @@ interface DeliveryModuleProps {
 
 export const DeliveryModule: React.FC<DeliveryModuleProps> = ({ initialOpenAdd = false }) => {
   const { deliveryChallans, invoices, addDeliveryChallan } = useErpStore();
+  const { canAdd } = usePermissions('delivery');
   const [searchQuery, setSearchQuery] = useState('');
   const [statusFilter, setStatusFilter] = useState('All');
   const [isAddModalOpen, setIsAddModalOpen] = useState(initialOpenAdd);
@@ -179,13 +181,15 @@ export const DeliveryModule: React.FC<DeliveryModuleProps> = ({ initialOpenAdd =
             <Download className="h-4 w-4 text-slate-500" />
             <span>Export</span>
           </button>
-          <button
-            onClick={() => setIsAddModalOpen(true)}
-            className="flex items-center gap-1.5 rounded-xl bg-blue-600 px-3.5 py-2 text-xs font-semibold text-white hover:bg-blue-700 transition shadow-xs cursor-pointer"
-          >
-            <Plus className="h-4 w-4" />
-            <span>New Delivery Challan</span>
-          </button>
+          {canAdd && (
+            <button
+              onClick={() => setIsAddModalOpen(true)}
+              className="flex items-center gap-1.5 rounded-xl bg-blue-600 px-3.5 py-2 text-xs font-semibold text-white hover:bg-blue-700 transition shadow-xs cursor-pointer"
+            >
+              <Plus className="h-4 w-4" />
+              <span>New Delivery Challan</span>
+            </button>
+          )}
         </div>
       </div>
 

@@ -22,6 +22,7 @@ import { RecordPaymentModal } from '../../shared/RecordPaymentModal';
 import { showAppToast } from '../../../utils/handleApiError';
 import { BillPdfDocument } from '../../pdf/BillPdfDocument';
 import { PdfPreviewModal } from '../../pdf/PdfPreviewModal';
+import { usePermissions } from '../../../hooks/usePermissions';
 
 interface BillDetailPageProps {
   billId: string;
@@ -30,6 +31,8 @@ interface BillDetailPageProps {
 
 export const BillDetailPage: React.FC<BillDetailPageProps> = ({ billId, onBack }) => {
   const { bills, moveBillToStore, fetchBootstrap } = useErpStore();
+  const { canApprove } = usePermissions('bills');
+  const { canAdd: canAddToStore } = usePermissions('store');
   const bill = bills.find((b) => b.id === billId || (b as any)._id === billId);
 
   const [isPaymentModalOpen, setIsPaymentModalOpen] = useState(false);
@@ -250,7 +253,7 @@ export const BillDetailPage: React.FC<BillDetailPageProps> = ({ billId, onBack }
             <span>View PDF</span>
           </button>
 
-          {canMoveToStore && (
+          {canMoveToStore && (canApprove || canAddToStore) && (
             <button
               type="button"
               onClick={() => setIsMoveToStoreOpen(true)}
@@ -261,7 +264,7 @@ export const BillDetailPage: React.FC<BillDetailPageProps> = ({ billId, onBack }
             </button>
           )}
 
-          {outstanding > 0 && (
+          {outstanding > 0 && canApprove && (
             <button
               type="button"
               onClick={() => setIsPaymentModalOpen(true)}

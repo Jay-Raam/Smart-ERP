@@ -24,6 +24,7 @@ import { isValidQuantity } from '../../../utils/validation';
 import { Combobox } from '../../shared/Combobox';
 import { TaxInvoicePdfDocument } from './TaxInvoicePdfDocument';
 import { PdfPreviewModal } from '../../pdf/PdfPreviewModal';
+import { usePermissions } from '../../../hooks/usePermissions';
 
 export interface InvoiceCreatePageProps {
   isEdit?: boolean;
@@ -63,6 +64,9 @@ export const InvoiceCreatePage: React.FC<InvoiceCreatePageProps> = ({ isEdit, in
   const urlMatch = typeof window !== 'undefined' ? window.location.pathname.match(/\/invoices\/([^/]+)\/edit/) : null;
   const editId = invoiceId || (urlMatch ? urlMatch[1] : null);
   const isEditMode = Boolean(isEdit || editId);
+
+  const { canAdd, canEdit } = usePermissions('invoices');
+  const isPermitted = isEditMode ? canEdit : canAdd;
 
   // Parse query parameter for preselected customer (?customerId=...)
   const queryCustomerId = useMemo(() => {
@@ -390,6 +394,11 @@ export const InvoiceCreatePage: React.FC<InvoiceCreatePageProps> = ({ isEdit, in
     e.preventDefault();
     if (!activeCustomer) return;
 
+    if (!isPermitted) {
+      alert(`Permission denied: You do not have permission to ${isEditMode ? 'edit' : 'create'} invoices.`);
+      return;
+    }
+
     if (isPaidOrHasPayment) {
       alert('Cannot modify an invoice with recorded payments.');
       return;
@@ -542,6 +551,22 @@ export const InvoiceCreatePage: React.FC<InvoiceCreatePageProps> = ({ isEdit, in
           </div>
         </div>
       </div>
+
+      {/* Permission Restriction Banner */}
+      {!isPermitted && (
+        <div className="rounded-2xl border border-rose-300 bg-rose-50 p-4 shadow-xs flex items-start gap-3">
+          <AlertTriangle className="h-5 w-5 text-rose-600 shrink-0 mt-0.5" />
+          <div>
+            <h3 className="text-sm font-bold text-rose-900 flex items-center gap-1.5">
+              <Lock className="h-4 w-4 text-rose-700" />
+              <span>Permission Required: {isEditMode ? 'Edit Invoices' : 'Create Invoices'}</span>
+            </h3>
+            <p className="text-xs text-rose-800 mt-1 leading-relaxed">
+              Your account lacks the <span className="font-semibold">{isEditMode ? 'edit' : 'add'}</span> permission for the Invoices module. You can review the invoice details, but modifications and issuance are restricted.
+            </p>
+          </div>
+        </div>
+      )}
 
       {/* Payment Lock Warning Banner if invoice has recorded payment */}
       {isPaidOrHasPayment && (
@@ -996,7 +1021,8 @@ export const InvoiceCreatePage: React.FC<InvoiceCreatePageProps> = ({ isEdit, in
             </button>
             <button
               type="submit"
-              disabled={isSubmitting || isPaidOrHasPayment}
+              disabled={isSubmitting || isPaidOrHasPayment || !isPermitted}
+              title={!isPermitted ? `Permission required to ${isEditMode ? 'edit' : 'create'} invoices` : undefined}
               className="flex items-center gap-1.5 px-6 py-2.5 rounded-xl bg-blue-600 text-xs font-semibold text-white hover:bg-blue-700 transition shadow-xs cursor-pointer disabled:bg-slate-300 disabled:cursor-not-allowed"
             >
               {isEditMode ? (
