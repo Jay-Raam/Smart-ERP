@@ -70,7 +70,7 @@ export const Navbar: React.FC<NavbarProps> = ({
         borderBottomWidth: '1px',
       }}
     >
-      {/* Left Section: Mobile Menu + Clean Context Switcher Button */}
+      {/* Left Section: Mobile Menu Toggle */}
       <div className="flex items-center gap-2 min-w-0">
         {onToggleSidebar && (
           <button
@@ -82,22 +82,6 @@ export const Navbar: React.FC<NavbarProps> = ({
             <Menu className="h-5 w-5" />
           </button>
         )}
-
-        {/* Unified Tenant & Branch Context Pill Button */}
-        <button
-          type="button"
-          onClick={onOpenContextSwitcher}
-          className="group flex items-center gap-2 rounded-xl border border-slate-200 dark:border-slate-800 bg-slate-50/70 dark:bg-slate-800/60 hover:bg-slate-100 dark:hover:bg-slate-800 hover:border-slate-300 dark:hover:border-slate-700 px-2.5 py-1.5 text-xs transition shadow-xs cursor-pointer min-w-0"
-          title="Open Workspace & Fiscal Context Switcher"
-        >
-          <div className="flex h-6 w-6 shrink-0 items-center justify-center rounded-lg bg-blue-600 text-white shadow-xs group-hover:scale-105 transition">
-            <Building2 className="h-3.5 w-3.5" />
-          </div>
-
-          <div className="flex items-center text-slate-400 group-hover:text-blue-600 dark:group-hover:text-blue-400 transition pl-0.5 shrink-0">
-            <ArrowLeftRight className="h-3.5 w-3.5" />
-          </div>
-        </button>
       </div>
 
       {/* Center Section: Global Search */}
@@ -208,6 +192,24 @@ export const Navbar: React.FC<NavbarProps> = ({
             </>
           )}
         </div>
+
+        {/* Organisation & Branch Context Switcher (Clean Icon Button on Right) */}
+        <button
+          type="button"
+          onClick={onOpenContextSwitcher}
+          className="relative flex items-center justify-center rounded-xl border p-1.5 sm:p-2 transition shadow-xs cursor-pointer shrink-0 hover:scale-105 active:scale-95"
+          style={{
+            backgroundColor: 'var(--bg-surface-subtle)',
+            borderColor: 'var(--border-subtle)',
+            color: 'var(--color-primary)',
+          }}
+          title={`Switch Organisation / Branch (Active: ${activeBranch?.name || 'HQ'})`}
+        >
+          <div className="flex items-center gap-1">
+            <Building2 className="h-4 w-4 shrink-0" />
+            <ArrowLeftRight className="h-3 w-3 shrink-0 opacity-70" />
+          </div>
+        </button>
 
         {/* Theme Customizer Trigger Button */}
         {onOpenThemeCustomizer && (

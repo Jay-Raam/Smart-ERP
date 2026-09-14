@@ -234,48 +234,59 @@ export const Sidebar: React.FC<SidebarProps> = ({
       >
         {/* SidebarHeader */}
         <div
-          className="flex h-16 items-center justify-between px-3.5"
+          className="flex h-16 items-center px-3"
           style={{ borderColor: 'var(--border-subtle)', borderBottomWidth: '1px' }}
         >
-          {!isCollapsed ? (
-            <div className="flex items-center gap-2.5 min-w-0">
-              <div
-                className="flex h-9 w-9 shrink-0 items-center justify-center rounded-xl font-bold text-white shadow-sm"
-                style={{ backgroundColor: 'var(--color-primary)' }}
-              >
-                S
-              </div>
-              <div className="min-w-0">
-                <div className="text-xs font-bold tracking-tight text-slate-900 dark:text-slate-100 flex items-center gap-1.5 truncate">
-                  Smart Enterprise
-                  <span className="rounded bg-blue-50 dark:bg-blue-950/60 px-1.5 py-0.2 text-[9px] font-bold text-blue-700 dark:text-blue-400 border border-blue-200 dark:border-blue-900">
-                    ERP
-                  </span>
-                </div>
-                <div className="text-[11px] font-medium text-slate-500 dark:text-slate-400 truncate">
-                  {activeBranch?.name}
-                </div>
-              </div>
-            </div>
-          ) : (
-            <div className="mx-auto flex h-9 w-9 shrink-0 items-center justify-center rounded-xl bg-blue-600 font-bold text-white shadow-sm ring-2 ring-blue-500/20">
+          {isCollapsed ? (
+            <button
+              type="button"
+              onClick={() => setIsCollapsed(false)}
+              className="mx-auto flex h-9 w-9 shrink-0 items-center justify-center rounded-xl font-bold text-white shadow-sm transition hover:scale-105 cursor-pointer"
+              style={{ backgroundColor: 'var(--color-primary)' }}
+              title="Click to Expand Sidebar"
+            >
               S
+            </button>
+          ) : (
+            <div className="flex items-center justify-between w-full">
+              <div className="flex items-center gap-2.5 min-w-0">
+                <div
+                  className="flex h-9 w-9 shrink-0 items-center justify-center rounded-xl font-bold text-white shadow-sm"
+                  style={{ backgroundColor: 'var(--color-primary)' }}
+                >
+                  S
+                </div>
+                <div className="min-w-0">
+                  <div className="text-xs font-bold tracking-tight text-slate-900 dark:text-slate-100 flex items-center gap-1.5 truncate">
+                    Smart Enterprise
+                    <span
+                      className="rounded px-1.5 py-0.2 text-[9px] font-bold border"
+                      style={{
+                        backgroundColor: 'var(--color-primary-light)',
+                        color: 'var(--color-primary)',
+                        borderColor: 'var(--color-primary-subtle)',
+                      }}
+                    >
+                      ERP
+                    </span>
+                  </div>
+                  <div className="text-[11px] font-medium text-slate-500 dark:text-slate-400 truncate">
+                    {activeBranch?.name}
+                  </div>
+                </div>
+              </div>
+
+              {/* Collapse Button */}
+              <button
+                type="button"
+                onClick={() => setIsCollapsed(true)}
+                className="rounded-lg p-1.5 text-slate-400 hover:bg-slate-100 dark:hover:bg-slate-800 hover:text-slate-700 dark:hover:text-slate-200 transition cursor-pointer shrink-0"
+                title="Collapse Sidebar"
+              >
+                <PanelLeftClose className="h-4 w-4" />
+              </button>
             </div>
           )}
-
-          {/* Collapse/Expand Toggle */}
-          <button
-            type="button"
-            onClick={() => setIsCollapsed(!isCollapsed)}
-            className="rounded-lg p-1.5 text-slate-400 hover:bg-slate-100 dark:hover:bg-slate-800 hover:text-slate-700 dark:hover:text-slate-200 transition cursor-pointer shrink-0"
-            title={isCollapsed ? 'Expand Sidebar' : 'Collapse Sidebar'}
-          >
-            {isCollapsed ? (
-              <PanelLeft className="h-4 w-4" />
-            ) : (
-              <PanelLeftClose className="h-4 w-4" />
-            )}
-          </button>
         </div>
 
         {/* SidebarContent */}
@@ -300,11 +311,15 @@ export const Sidebar: React.FC<SidebarProps> = ({
                       key={item.id}
                       type="button"
                       onClick={() => setActiveModule(item.id)}
-                      className={`group relative flex w-full items-center gap-2.5 rounded-lg px-2.5 py-2 text-xs font-medium transition cursor-pointer ${
+                      className={`group relative flex items-center gap-2.5 rounded-xl text-xs font-medium transition cursor-pointer ${
+                        isCollapsed
+                          ? 'w-10 h-10 mx-auto justify-center p-0'
+                          : 'w-full px-2.5 py-2'
+                      } ${
                         isActive
                           ? 'font-semibold shadow-xs'
                           : 'hover:bg-slate-100/60 dark:hover:bg-slate-800/50'
-                      } ${isCollapsed ? 'justify-center px-2' : ''}`}
+                      }`}
                       style={{
                         backgroundColor: isActive ? 'var(--bg-sidebar-active)' : 'transparent',
                         color: isActive ? 'var(--color-primary)' : 'var(--text-muted)',
@@ -334,14 +349,6 @@ export const Sidebar: React.FC<SidebarProps> = ({
                           )}
                         </>
                       )}
-
-                      {/* Active Left Indicator Strip for Collapsed View */}
-                      {isCollapsed && isActive && (
-                        <span
-                          className="absolute left-0 top-1.5 bottom-1.5 w-1 rounded-r"
-                          style={{ backgroundColor: 'var(--color-primary)' }}
-                        />
-                      )}
                     </button>
                   );
                 })}
@@ -350,7 +357,7 @@ export const Sidebar: React.FC<SidebarProps> = ({
           ))}
         </div>
 
-        {/* SidebarFooter (User Identity + Multi-Tenant Sync Card) */}
+        {/* SidebarFooter (User Identity Card) */}
         <div
           className="p-2.5"
           style={{
@@ -360,16 +367,25 @@ export const Sidebar: React.FC<SidebarProps> = ({
           }}
         >
           {!isCollapsed ? (
-            <div className="rounded-xl border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-800/80 p-2.5 shadow-xs space-y-2">
+            <div
+              className="rounded-xl border p-2.5 shadow-xs"
+              style={{
+                backgroundColor: 'var(--bg-surface)',
+                borderColor: 'var(--border-subtle)',
+              }}
+            >
               <div className="flex items-center gap-2.5">
-                <div className="flex h-8 w-8 shrink-0 items-center justify-center rounded-lg bg-blue-600 text-xs font-bold text-white shadow-xs">
+                <div
+                  className="flex h-8 w-8 shrink-0 items-center justify-center rounded-lg text-xs font-bold text-white shadow-xs"
+                  style={{ backgroundColor: 'var(--color-primary)' }}
+                >
                   {getInitials(user?.userName || 'User')}
                 </div>
                 <div className="min-w-0 flex-1">
-                  <div className="text-xs font-bold text-slate-900 dark:text-slate-100 truncate">
+                  <div className="text-xs font-bold truncate" style={{ color: 'var(--text-main)' }}>
                     {user?.userName || 'User'}
                   </div>
-                  <div className="text-[10px] font-medium text-slate-400 capitalize truncate">
+                  <div className="text-[10px] font-medium capitalize truncate" style={{ color: 'var(--text-muted)' }}>
                     {user?.role || 'Staff'}
                   </div>
                 </div>
@@ -378,17 +394,13 @@ export const Sidebar: React.FC<SidebarProps> = ({
                   <span className="relative inline-flex rounded-full h-2 w-2 bg-emerald-500"></span>
                 </span>
               </div>
-
-              <div className="pt-1.5 border-t border-slate-100 dark:border-slate-700/60 flex items-center justify-between text-[10px] text-slate-500 dark:text-slate-400 font-mono">
-                <span className="text-slate-400 dark:text-slate-500">Schema</span>
-                <span className="font-semibold text-slate-700 dark:text-slate-300">tenant_acme</span>
-              </div>
             </div>
           ) : (
             <div className="flex flex-col items-center justify-center py-1">
               <div
-                className="flex h-8 w-8 items-center justify-center rounded-lg bg-blue-600 text-xs font-bold text-white shadow-xs cursor-pointer"
-                title={`${user?.userName || 'User'} (${user?.role || 'SuperAdmin'})`}
+                className="flex h-8 w-8 items-center justify-center rounded-lg text-xs font-bold text-white shadow-xs cursor-pointer hover:scale-105 transition"
+                style={{ backgroundColor: 'var(--color-primary)' }}
+                title={`${user?.userName || 'User'} (${user?.role || 'Staff'})`}
               >
                 {getInitials(user?.userName || 'JR')}
               </div>
