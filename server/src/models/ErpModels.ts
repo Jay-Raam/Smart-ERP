@@ -1207,6 +1207,34 @@ const ScrapRecordSchema = new Schema<IScrapRecord>(
 ScrapRecordSchema.index({ organisationId: 1, actionDate: -1 });
 ScrapRecordSchema.index({ productId: 1, actionDate: -1 });
 
+// 20. Login Attempt & Rate Limiting Lockout
+export interface ILoginLockout extends Document {
+  key: string;
+  type: 'IDENTIFIER' | 'IP';
+  identifier?: string;
+  ipAddress?: string;
+  failedAttempts: number;
+  lockedUntil?: Date | null;
+  lastAttemptAt: Date;
+  createdAt: Date;
+  updatedAt: Date;
+}
+
+const LoginLockoutSchema = new Schema<ILoginLockout>(
+  {
+    key: { type: String, required: true, unique: true },
+    type: { type: String, enum: ['IDENTIFIER', 'IP'], required: true },
+    identifier: { type: String, default: '' },
+    ipAddress: { type: String, default: '' },
+    failedAttempts: { type: Number, default: 0 },
+    lockedUntil: { type: Date, default: null },
+    lastAttemptAt: { type: Date, default: Date.now },
+  },
+  { timestamps: true, bufferCommands: false }
+);
+
+LoginLockoutSchema.index({ lockedUntil: 1 });
+
 // Export Models
 export const Organisation = mongoose.model<IOrganisation>('Organisation', OrganisationSchema);
 export const Branch = mongoose.model<IBranch>('Branch', BranchSchema);
@@ -1227,6 +1255,4 @@ export const StockMovement = mongoose.model<IStockMovement>('StockMovement', Sto
 export const ItemCategory = mongoose.model<IItemCategory>('ItemCategory', ItemCategorySchema);
 export const GstRateMaster = mongoose.model<IGstRateMaster>('GstRateMaster', GstRateMasterSchema);
 export const ScrapRecord = mongoose.model<IScrapRecord>('ScrapRecord', ScrapRecordSchema);
-
-
-
+export const LoginLockout = mongoose.model<ILoginLockout>('LoginLockout', LoginLockoutSchema);

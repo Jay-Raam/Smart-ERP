@@ -38,7 +38,7 @@ export const LoginScreen: React.FC = () => {
     const result = await loginWithCredentials(cleanInput, password);
 
     if (!result.success) {
-      setErrorMessage(result.error || 'Invalid credentials. Please verify your email and password.');
+      setErrorMessage(result.error || 'These credentials could not be verified.');
       setIsLoading(false);
     } else {
       await fetchBootstrap();

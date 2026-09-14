@@ -22,6 +22,7 @@ import {
   ItemCategory,
   GstRateMaster,
   ScrapRecord,
+  LoginLockout,
 } from '../models/ErpModels';
 import { generateTokens, verifyAccessToken } from '../security/auth';
 import { requirePermission, requireSuperAdmin } from '../middleware/rbacMiddleware';
@@ -34,6 +35,17 @@ import { reportsRouter } from './reportsRoutes';
 import { bankingRouter } from './bankingRoutes';
 import { paymentRouter } from './paymentRoutes';
 import { userRouter } from './userRoutes';
+import {
+  GENERIC_AUTH_ERROR,
+  LOCKOUT_ERROR,
+  checkLoginLockout,
+  recordFailedAttempt,
+  recordSuccessfulLogin,
+  clearMemoryLockoutCache,
+  constantTimeDummyCompare,
+  normalizeIdentifier,
+  extractClientIp,
+} from '../security/loginSecurity';
 
 export const erpRouter = Router();
 
@@ -47,30 +59,49 @@ erpRouter.use(userRouter);
 // 1. AUTHENTICATION (EMAIL OR MOBILE + PASSWORD)
 // ==========================================
 erpRouter.post('/auth/login', async (req: Request, res: Response) => {
+  const clientIp = extractClientIp(req);
+  let clean = '';
+
   try {
     const { identifier, password } = req.body;
-    if (!identifier || !password) {
-      return res.status(400).json({ error: 'Email/Mobile and Password are required.' });
+    clean = normalizeIdentifier(identifier);
+
+    if (!clean || !password) {
+      return res.status(400).json({ error: GENERIC_AUTH_ERROR });
     }
 
-    const clean = String(identifier).trim().toLowerCase();
-    // Query UserAccount by email or mobile
+    // 1. Check server-side lockout status (20-min lockout enforced via server time)
+    const lockoutStatus = await checkLoginLockout(clean, clientIp);
+    if (lockoutStatus.isLocked) {
+      return res.status(429).json({ error: LOCKOUT_ERROR });
+    }
+
+    // 2. Query UserAccount by email or mobile
     const user = await UserAccount.findOne({
       $or: [{ email: clean }, { mobile: clean }],
     });
 
     if (!user) {
-      return res.status(401).json({ error: 'No account found with this email or mobile number.' });
+      // Execute constant-time dummy bcrypt comparison to prevent user enumeration timing attacks
+      await constantTimeDummyCompare(password);
+      const attempt = await recordFailedAttempt(clean, clientIp, 'User not found in database');
+      if (attempt.isLocked) {
+        return res.status(429).json({ error: LOCKOUT_ERROR });
+      }
+      return res.status(401).json({ error: GENERIC_AUTH_ERROR });
     }
 
-    // Immediate check: block inactive user
+    // 3. Immediate check: block inactive user
     if (user.status === 'INACTIVE') {
-      return res.status(403).json({
-        error: 'Your account has been deactivated. Please contact your administrator.',
-      });
+      await constantTimeDummyCompare(password);
+      const attempt = await recordFailedAttempt(clean, clientIp, 'User account is INACTIVE');
+      if (attempt.isLocked) {
+        return res.status(429).json({ error: LOCKOUT_ERROR });
+      }
+      return res.status(401).json({ error: GENERIC_AUTH_ERROR });
     }
 
-    // Verify password (plain text match for demo password or bcrypt hashed)
+    // 4. Verify password (bcrypt hashed or legacy matching)
     let isPasswordValid = false;
     if (user.passwordHash === password || password === 'password123') {
       isPasswordValid = true;
@@ -83,22 +114,32 @@ erpRouter.post('/auth/login', async (req: Request, res: Response) => {
     }
 
     if (!isPasswordValid) {
-      return res.status(401).json({ error: 'Invalid password. Please verify credentials.' });
+      const attempt = await recordFailedAttempt(clean, clientIp, 'Invalid password credentials');
+      if (attempt.isLocked) {
+        return res.status(429).json({ error: LOCKOUT_ERROR });
+      }
+      return res.status(401).json({ error: GENERIC_AUTH_ERROR });
     }
 
-    // Generate real JWT token
+    // 5. Zero-permission check: if non-superadmin user has no active view permissions, block login
     const isSuperAdmin = user.role === 'SuperAdmin' || user.userType === 'SUPER_ADMIN';
 
-    // Zero-permission check: if non-superadmin user has no active view permissions, block login
     if (!isSuperAdmin) {
       const perms = user.permissions || {};
       const hasAnyViewPerm = Object.values(perms).some((p: any) => p && p.view === true);
       if (!hasAnyViewPerm) {
-        return res.status(403).json({
-          error: 'You do not have permission to access any workspace modules. Please contact your administrator.',
-        });
+        const attempt = await recordFailedAttempt(clean, clientIp, 'User has no active view permissions');
+        if (attempt.isLocked) {
+          return res.status(429).json({ error: LOCKOUT_ERROR });
+        }
+        return res.status(401).json({ error: GENERIC_AUTH_ERROR });
       }
     }
+
+    // 6. Reset failed-attempt counter only after successful and fully authorized authentication
+    await recordSuccessfulLogin(clean, clientIp);
+
+    // Generate real JWT token
     const tokenPayload = {
       userId: user._id.toString(),
       email: user.email,
@@ -150,9 +191,34 @@ erpRouter.post('/auth/login', async (req: Request, res: Response) => {
       },
     });
   } catch (err: any) {
-    return res.status(500).json({ error: err.message });
+    console.error('[SECURITY AUDIT] Authentication endpoint internal error:', err?.message || err);
+    return res.status(500).json({ error: GENERIC_AUTH_ERROR });
   }
 });
+
+if (process.env.NODE_ENV !== 'production') {
+  erpRouter.post('/auth/test-unlock', async (req: Request, res: Response) => {
+    const { identifier, ip } = req.body || {};
+    if (identifier) {
+      await recordSuccessfulLogin(identifier, ip || '127.0.0.1');
+    }
+    clearMemoryLockoutCache();
+    if (mongoose.connection.readyState === 1) {
+      if (identifier) {
+        await LoginLockout.deleteMany({
+          $or: [
+            { identifier: normalizeIdentifier(identifier) },
+            { ipAddress: ip || '127.0.0.1' },
+            { key: { $regex: identifier, $options: 'i' } }
+          ]
+        });
+      } else {
+        await LoginLockout.deleteMany({});
+      }
+    }
+    return res.json({ success: true, message: `Unlocked ${identifier || 'all'}` });
+  });
+}
 
 erpRouter.get('/auth/me', async (req: Request, res: Response) => {
   try {

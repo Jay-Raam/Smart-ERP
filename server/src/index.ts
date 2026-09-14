@@ -18,6 +18,16 @@ import { connectMongo, pool } from './config/database';
 import { recordAudit } from './models/AuditLog';
 import { erpRouter } from './routes/erpRoutes';
 import { getPolyglotHealthTelemetry, initPostgresSchema } from './services/postgresService';
+import {
+  GENERIC_AUTH_ERROR,
+  LOCKOUT_ERROR,
+  checkLoginLockout,
+  recordFailedAttempt,
+  recordSuccessfulLogin,
+  constantTimeDummyCompare,
+  normalizeIdentifier,
+  extractClientIp,
+} from './security/loginSecurity';
 
 const app = express();
 const PORT = process.env.PORT || 4000;
@@ -56,14 +66,41 @@ app.use(createSlidingWindowRateLimiter({ windowSeconds: 60, maxRequests: 120 }))
 app.use(authMiddleware);
 
 // Dual-Token REST Authentication Endpoints
-app.post('/api/auth/login', (req: Request, res: Response) => {
-  const { email, password, tenantSlug } = req.body;
-  const tenant = req.tenant;
+app.post('/api/auth/login', async (req: Request, res: Response) => {
+  const clientIp = extractClientIp(req);
+  const { email, identifier, password, tenantSlug } = req.body;
+  const clean = normalizeIdentifier(email || identifier);
 
-  // Demo credentials check
+  if (!clean || !password) {
+    return res.status(400).json({ error: GENERIC_AUTH_ERROR });
+  }
+
+  // Check lockout
+  const lockout = await checkLoginLockout(clean, clientIp);
+  if (lockout.isLocked) {
+    return res.status(429).json({ error: LOCKOUT_ERROR });
+  }
+
+  // Verify demo credentials safely
+  const isDemoValid =
+    (clean === 'alex.mercer@saascore.io' || clean === 'admin@smarterp.com' || clean === 'jay.raam@smart.com') &&
+    password === 'password123';
+
+  if (!isDemoValid) {
+    await constantTimeDummyCompare(password);
+    const attempt = await recordFailedAttempt(clean, clientIp, 'Invalid credentials on demo auth endpoint');
+    if (attempt.isLocked) {
+      return res.status(429).json({ error: LOCKOUT_ERROR });
+    }
+    return res.status(401).json({ error: GENERIC_AUTH_ERROR });
+  }
+
+  await recordSuccessfulLogin(clean, clientIp);
+
+  const tenant = req.tenant;
   const userPayload = {
     userId: '00000000-0000-0000-0000-000000000001',
-    email: email || 'alex.mercer@saascore.io',
+    email: clean,
     tenantId: tenant?.id || '11111111-1111-1111-1111-111111111111',
     role: 'owner',
     permissions: ['*'],

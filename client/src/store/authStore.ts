@@ -184,7 +184,7 @@ export const useAuthStore = create<AuthState>((set, get) => ({
       if (!res.ok || !data.success) {
         return {
           success: false,
-          error: data.error || 'Invalid credentials. Please verify your email/mobile and password.',
+          error: data.error || 'These credentials could not be verified.',
         };
       }
 
