@@ -10,6 +10,8 @@ export interface IOrganisation extends Document {
   phone: string;
   website: string;
   address: string;
+  isDeleted?: boolean;
+  deletedAt?: Date | null;
 }
 
 const OrganisationSchema = new Schema<IOrganisation>(
@@ -22,6 +24,8 @@ const OrganisationSchema = new Schema<IOrganisation>(
     phone: { type: String, required: true },
     website: { type: String, required: true },
     address: { type: String, required: true },
+    isDeleted: { type: Boolean, default: false },
+    deletedAt: { type: Date, default: null },
   },
   { timestamps: true }
 );
@@ -36,6 +40,8 @@ export interface IBranch extends Document {
   phone: string;
   isHeadOffice: boolean;
   organisationId: string;
+  isDeleted?: boolean;
+  deletedAt?: Date | null;
 }
 
 const BranchSchema = new Schema<IBranch>(
@@ -48,6 +54,8 @@ const BranchSchema = new Schema<IBranch>(
     phone: { type: String, required: true },
     isHeadOffice: { type: Boolean, default: false },
     organisationId: { type: String, default: '' },
+    isDeleted: { type: Boolean, default: false },
+    deletedAt: { type: Date, default: null },
   },
   { timestamps: true }
 );
@@ -131,6 +139,8 @@ export interface ICustomer extends Document {
   addresses?: ICustomerAddress[];
   organisationId: string;
   branchId: string;
+  isDeleted?: boolean;
+  deletedAt?: Date | null;
 }
 
 const CustomerSchema = new Schema<ICustomer>(
@@ -153,13 +163,17 @@ const CustomerSchema = new Schema<ICustomer>(
     addresses: [CustomerAddressSchema],
     organisationId: { type: String, default: '' },
     branchId: { type: String, default: '' },
+    isDeleted: { type: Boolean, default: false },
+    deletedAt: { type: Date, default: null },
   },
   { timestamps: true }
 );
 
 CustomerSchema.index({ organisationId: 1, branchId: 1, createdAt: -1 });
+CustomerSchema.index({ organisationId: 1, isDeleted: 1, name: 1 });
 CustomerSchema.index({ organisationId: 1, name: 1 });
 CustomerSchema.index({ gstin: 1 });
+CustomerSchema.index({ isDeleted: 1 });
 
 // 5. Product
 export interface IProduct extends Document {
@@ -179,6 +193,8 @@ export interface IProduct extends Document {
   approvedAt?: Date;
   organisationId: string;
   branchId: string;
+  isDeleted?: boolean;
+  deletedAt?: Date | null;
 }
 
 const ProductSchema = new Schema<IProduct>(
@@ -207,14 +223,18 @@ const ProductSchema = new Schema<IProduct>(
     approvedAt: { type: Date },
     organisationId: { type: String, default: '' },
     branchId: { type: String, default: '' },
+    isDeleted: { type: Boolean, default: false },
+    deletedAt: { type: Date, default: null },
   },
   { timestamps: true }
 );
 
 ProductSchema.index({ organisationId: 1, branchId: 1, approvalStatus: 1, createdAt: -1 });
+ProductSchema.index({ organisationId: 1, isDeleted: 1, sku: 1 });
 ProductSchema.index({ organisationId: 1, status: 1 });
 ProductSchema.index({ category: 1, approvalStatus: 1 });
 ProductSchema.index({ hsnCode: 1 });
+ProductSchema.index({ isDeleted: 1 });
 
 // 6. Document Line Item (Used for Invoices, Purchase Orders, Bills, and Delivery Challans)
 export interface IDocumentItem {
@@ -324,6 +344,13 @@ export interface IInvoice extends Document {
     ifscCode?: string;
     branchName?: string;
   };
+  irn?: string;
+  ackNo?: string;
+  ackDate?: string;
+  signedQrCode?: string;
+  ewayBillNumber?: string;
+  ewayBillDate?: string;
+  einvoiceStatus?: 'PENDING' | 'GENERATED' | 'FAILED' | 'CANCELLED';
   history?: IInvoiceHistoryItem[];
 }
 
@@ -371,18 +398,31 @@ const InvoiceSchema = new Schema<IInvoice>(
       ifscCode: { type: String, default: '' },
       branchName: { type: String, default: '' },
     },
+    irn: { type: String, default: null },
+    ackNo: { type: String, default: null },
+    ackDate: { type: String, default: null },
+    signedQrCode: { type: String, default: null },
+    ewayBillNumber: { type: String, default: null },
+    ewayBillDate: { type: String, default: null },
+    einvoiceStatus: {
+      type: String,
+      enum: ['PENDING', 'GENERATED', 'FAILED', 'CANCELLED'],
+      default: 'PENDING',
+    },
     history: [InvoiceHistorySchema],
   },
   { timestamps: true }
 );
 
 InvoiceSchema.index({ organisationId: 1, branchId: 1, invoiceDate: -1 });
+InvoiceSchema.index({ organisationId: 1, invoiceDate: -1 });
 InvoiceSchema.index({ customerId: 1, invoiceDate: -1 });
 InvoiceSchema.index({ status: 1, invoiceDate: -1 });
 InvoiceSchema.index({ paymentStatus: 1, invoiceDate: -1 });
 InvoiceSchema.index({ 'items.hsnCode': 1, invoiceDate: -1 });
 InvoiceSchema.index({ 'items.productId': 1 });
 InvoiceSchema.index({ customerState: 1, invoiceDate: -1 });
+InvoiceSchema.index({ irn: 1 }, { sparse: true });
 
 // 8. Vendor
 export interface IVendor extends Document {
@@ -403,6 +443,8 @@ export interface IVendor extends Document {
   outstandingBalance?: number;
   organisationId: string;
   branchId?: string;
+  isDeleted?: boolean;
+  deletedAt?: Date | null;
 }
 
 const VendorSchema = new Schema<IVendor>(
@@ -424,13 +466,17 @@ const VendorSchema = new Schema<IVendor>(
     outstandingBalance: { type: Number, default: 0 },
     organisationId: { type: String, default: '' },
     branchId: { type: String, default: '' },
+    isDeleted: { type: Boolean, default: false },
+    deletedAt: { type: Date, default: null },
   },
   { timestamps: true }
 );
 
 VendorSchema.index({ organisationId: 1, branchId: 1, createdAt: -1 });
+VendorSchema.index({ organisationId: 1, isDeleted: 1, name: 1 });
 VendorSchema.index({ organisationId: 1, name: 1 });
 VendorSchema.index({ gstin: 1 });
+VendorSchema.index({ isDeleted: 1 });
 
 // 9. Purchase Order
 export interface IPurchaseOrder extends Document {
@@ -625,6 +671,8 @@ export interface IStoreItem extends Document {
   status: string;
   branchId: string;
   organisationId: string;
+  isDeleted?: boolean;
+  deletedAt?: Date | null;
 }
 
 const StoreItemSchema = new Schema<IStoreItem>(
@@ -641,13 +689,17 @@ const StoreItemSchema = new Schema<IStoreItem>(
     status: { type: String, default: 'In Stock' },
     branchId: { type: String, default: '' },
     organisationId: { type: String, default: '' },
+    isDeleted: { type: Boolean, default: false },
+    deletedAt: { type: Date, default: null },
   },
   { timestamps: true }
 );
 
 StoreItemSchema.index({ organisationId: 1, branchId: 1 });
+StoreItemSchema.index({ organisationId: 1, isDeleted: 1, sku: 1 });
 StoreItemSchema.index({ productId: 1 });
 StoreItemSchema.index({ status: 1 });
+StoreItemSchema.index({ isDeleted: 1 });
 
 // 12. Delivery Challan (Generated against Tax Invoice)
 export interface IDeliveryChallan extends Document {
@@ -964,7 +1016,9 @@ FinancialTransactionSchema.virtual('type').get(function () {
 FinancialTransactionSchema.index({ organisationId: 1, transactionDate: -1 });
 FinancialTransactionSchema.index({ accountId: 1, transactionDate: -1 });
 FinancialTransactionSchema.index({ documentId: 1 });
+FinancialTransactionSchema.index({ documentType: 1, documentId: 1 });
 FinancialTransactionSchema.index({ partyId: 1, transactionDate: -1 });
+FinancialTransactionSchema.index({ transactionType: 1, transactionDate: -1 });
 FinancialTransactionSchema.index({ status: 1 });
 
 // 16. Stock Movement

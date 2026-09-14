@@ -23,6 +23,9 @@ import {
   GstRateMaster,
 } from '../models/ErpModels';
 import { generateTokens, verifyAccessToken } from '../security/auth';
+import { requirePermission, requireSuperAdmin } from '../middleware/rbacMiddleware';
+import { GstIntegrationService } from '../services/gstIntegrationService';
+import { BackupService } from '../services/backupService';
 import { calculateDocumentTaxes } from '../utils/taxCalculation';
 import { validateGSTIN, validateQuantity, validateCreditLimit } from '../utils/validation';
 import { logAuditAction } from '../utils/auditLogger';
@@ -273,7 +276,8 @@ erpRouter.get('/bootstrap', async (req: Request, res: Response) => {
     const finalOrgId = orgDoc ? orgDoc._id.toString() : '';
 
     // 2. Resolve branches
-    const branchFilter = finalOrgId ? { organisationId: finalOrgId } : {};
+    const branchFilter: any = { isDeleted: { $ne: true } };
+    if (finalOrgId) branchFilter.organisationId = finalOrgId;
     const branches = await Branch.find(branchFilter).sort({ createdAt: 1 });
 
     // 3. Resolve active branch safely
@@ -295,15 +299,21 @@ erpRouter.get('/bootstrap', async (req: Request, res: Response) => {
     if (activeBranch) txFilter.branchId = activeBranch;
     if (activeFy) txFilter.financialYear = activeFy;
 
-    const storeFilter: any = {};
+    const storeFilter: any = { isDeleted: { $ne: true } };
     if (finalOrgId) storeFilter.organisationId = finalOrgId;
     if (activeBranch) storeFilter.branchId = activeBranch;
 
-    const custFilter: any = {};
+    const custFilter: any = { isDeleted: { $ne: true } };
     if (finalOrgId) custFilter.organisationId = finalOrgId;
     if (activeBranch) {
       custFilter.$or = [{ branchId: activeBranch }, { branchId: '' }, { branchId: { $exists: false } }];
     }
+
+    const prodFilter: any = { isDeleted: { $ne: true } };
+    if (finalOrgId) prodFilter.organisationId = finalOrgId;
+
+    const vendFilter: any = { isDeleted: { $ne: true } };
+    if (finalOrgId) vendFilter.organisationId = finalOrgId;
 
     const [
       customers,
@@ -317,18 +327,18 @@ erpRouter.get('/bootstrap', async (req: Request, res: Response) => {
       bankAccounts,
     ] = await Promise.all([
       Customer.find(custFilter).sort({ createdAt: -1 }),
-      Product.find(finalOrgId ? { organisationId: finalOrgId } : {}).sort({ createdAt: -1 }),
+      Product.find(prodFilter).sort({ createdAt: -1 }),
       Bill.find(txFilter).sort({ createdAt: -1 }),
       Invoice.find(txFilter).sort({ createdAt: -1 }),
       PurchaseOrder.find(txFilter).sort({ createdAt: -1 }),
-      Vendor.find(finalOrgId ? { organisationId: finalOrgId } : {}).sort({ createdAt: -1 }),
+      Vendor.find(vendFilter).sort({ createdAt: -1 }),
       StoreItem.find(storeFilter).sort({ createdAt: -1 }),
       DeliveryChallan.find(txFilter).sort({ createdAt: -1 }),
       BankAccount.find(finalOrgId ? { organisationId: finalOrgId } : {}).sort({ isPrimary: -1, createdAt: -1 }),
     ]);
 
     // Fetch all active enterprise organisations
-    const allOrganisations = await Organisation.find().sort({ createdAt: 1 });
+    const allOrganisations = await Organisation.find({ isDeleted: { $ne: true } }).sort({ createdAt: 1 });
     const branchCounts = await Branch.aggregate([
       { $group: { _id: '$organisationId', count: { $sum: 1 } } },
     ]);
@@ -846,7 +856,7 @@ erpRouter.get('/tax-rates', async (req: Request, res: Response) => {
 // ==========================================
 // 4. BILLS (VENDOR INVOICES WITH PO CONVERSION & DIRECT BILLS)
 // ==========================================
-erpRouter.get('/bills', async (req: Request, res: Response) => {
+erpRouter.get('/bills', requirePermission('bills', 'view'), async (req: Request, res: Response) => {
   try {
     const { branchId, organisationId, financialYear, page, per_page, search, sort_column, sort_order, filter_by } = req.query;
 
@@ -898,7 +908,7 @@ erpRouter.get('/bills', async (req: Request, res: Response) => {
   }
 });
 
-erpRouter.get('/bills/:id', async (req: Request, res: Response) => {
+erpRouter.get('/bills/:id', requirePermission('bills', 'view'), async (req: Request, res: Response) => {
   try {
     const bill = await Bill.findById(req.params.id);
     if (!bill) return res.status(404).json({ error: 'Bill not found' });
@@ -908,7 +918,7 @@ erpRouter.get('/bills/:id', async (req: Request, res: Response) => {
   }
 });
 
-erpRouter.post('/bills', async (req: Request, res: Response) => {
+erpRouter.post('/bills', requirePermission('bills', 'add'), async (req: Request, res: Response) => {
   try {
     const { items, vendorState, vendorGstin, shippingCharge, poId } = req.body;
 
@@ -1374,7 +1384,7 @@ erpRouter.post('/bills/:id/move-to-store', async (req: Request, res: Response) =
 // ==========================================
 // 5. INVOICES (WITH URL PARAMS & SCOPING)
 // ==========================================
-erpRouter.get('/invoices', async (req: Request, res: Response) => {
+erpRouter.get('/invoices', requirePermission('invoices', 'view'), async (req: Request, res: Response) => {
   try {
     const { branchId, organisationId, financialYear, page, per_page, search, sort_column, sort_order, filter_by } = req.query;
 
@@ -1425,7 +1435,7 @@ erpRouter.get('/invoices', async (req: Request, res: Response) => {
   }
 });
 
-erpRouter.post('/invoices', async (req: Request, res: Response) => {
+erpRouter.post('/invoices', requirePermission('invoices', 'add'), async (req: Request, res: Response) => {
   try {
     const { items, customerState, customerGstin, shippingCharge } = req.body;
 
@@ -1522,7 +1532,7 @@ erpRouter.post('/invoices', async (req: Request, res: Response) => {
   }
 });
 
-erpRouter.get('/invoices/:id', async (req: Request, res: Response) => {
+erpRouter.get('/invoices/:id', requirePermission('invoices', 'view'), async (req: Request, res: Response) => {
   try {
     const invoice = await Invoice.findById(req.params.id);
     if (!invoice) return res.status(404).json({ error: 'Invoice not found' });
@@ -1533,7 +1543,7 @@ erpRouter.get('/invoices/:id', async (req: Request, res: Response) => {
 });
 
 // Full Invoice Update with Item Replacement & Tax Recalculation
-erpRouter.put('/invoices/:id', async (req: Request, res: Response) => {
+erpRouter.put('/invoices/:id', requirePermission('invoices', 'edit'), async (req: Request, res: Response) => {
   try {
     const prevInvoice = await Invoice.findById(req.params.id);
     if (!prevInvoice) return res.status(404).json({ error: 'Invoice not found' });
@@ -1628,7 +1638,7 @@ erpRouter.put('/invoices/:id', async (req: Request, res: Response) => {
   }
 });
 
-erpRouter.patch('/invoices/:id', async (req: Request, res: Response) => {
+erpRouter.patch('/invoices/:id', requirePermission('invoices', 'edit'), async (req: Request, res: Response) => {
   try {
     const prevInvoice = await Invoice.findById(req.params.id);
     if (!prevInvoice) return res.status(404).json({ error: 'Invoice not found' });
@@ -1661,10 +1671,109 @@ erpRouter.patch('/invoices/:id', async (req: Request, res: Response) => {
   }
 });
 
+// Statutory E-Invoicing (IRN, Signed QR Code, E-Way Bill) Single-Click Generator
+erpRouter.post('/invoices/:id/generate-irn', requirePermission('invoices', 'edit'), async (req: Request, res: Response) => {
+  try {
+    const invoice = await Invoice.findById(req.params.id);
+    if (!invoice) return res.status(404).json({ error: 'Invoice not found' });
+
+    let supplierGstin = '';
+    if (invoice.branchId && mongoose.isValidObjectId(invoice.branchId)) {
+      const branch = await Branch.findById(invoice.branchId);
+      if (branch && branch.gstin) supplierGstin = branch.gstin;
+    }
+    if (!supplierGstin && invoice.organisationId && mongoose.isValidObjectId(invoice.organisationId)) {
+      const org = await Organisation.findById(invoice.organisationId);
+      if (org && org.gstin) supplierGstin = org.gstin;
+    }
+    if (!supplierGstin) {
+      const anyOrg = await Organisation.findOne();
+      supplierGstin = anyOrg?.gstin || '33AAACS0123M1Z2';
+    }
+
+    const einvData = await GstIntegrationService.processEInvoice(invoice, supplierGstin);
+
+    const callerName = (req as any).callerUser?.name || (req as any).user?.name || 'Authorized Officer';
+    const historyEntry = {
+      action: 'E-INVOICE GENERATED',
+      timestamp: new Date(),
+      user: callerName,
+      details: `Generated IRN: ${einvData.irn.substring(0, 16)}... | Ack No: ${einvData.ackNo}`,
+    };
+
+    invoice.irn = einvData.irn;
+    invoice.ackNo = einvData.ackNo;
+    invoice.ackDate = einvData.ackDate;
+    invoice.signedQrCode = einvData.signedQrCode;
+    invoice.ewayBillNumber = einvData.ewayBillNumber;
+    invoice.ewayBillDate = einvData.ewayBillDate;
+    invoice.einvoiceStatus = 'GENERATED';
+    invoice.history = [...(invoice.history || []), historyEntry];
+
+    await invoice.save();
+
+    logAuditAction(req, {
+      action: 'UPDATE',
+      entityType: 'Tax Invoice',
+      entityId: invoice._id.toString(),
+      entityIdentifier: invoice.invoiceNumber,
+      newData: invoice,
+      organisationId: invoice.organisationId,
+      branchId: invoice.branchId,
+      financialYear: invoice.financialYear,
+    });
+
+    return res.json({
+      success: true,
+      message: 'IRN and Signed QR Code generated successfully',
+      data: { ...invoice.toObject(), id: invoice._id.toString() },
+    });
+  } catch (err: any) {
+    return res.status(500).json({ error: 'E-Invoice generation failed: ' + err.message });
+  }
+});
+
+// Delete Invoice with Financial Immutability Protection
+erpRouter.delete('/invoices/:id', requirePermission('invoices', 'edit'), async (req: Request, res: Response) => {
+  try {
+    const invoice = await Invoice.findById(req.params.id);
+    if (!invoice) return res.status(404).json({ error: 'Invoice not found' });
+
+    if ((invoice.paidAmount && invoice.paidAmount > 0) || invoice.status === 'Paid') {
+      return res.status(422).json({
+        error: 'Financial document immutability: Invoices with recorded payments cannot be deleted. Please reverse or credit-note.',
+      });
+    }
+
+    invoice.status = 'Cancelled';
+    const callerName = (req as any).callerUser?.name || 'Authorized Officer';
+    invoice.history = [
+      ...(invoice.history || []),
+      { action: 'CANCELLED', timestamp: new Date(), user: callerName, details: 'Invoice cancelled / voided' },
+    ];
+    await invoice.save();
+
+    logAuditAction(req, {
+      action: 'UPDATE',
+      entityType: 'Tax Invoice',
+      entityId: invoice._id.toString(),
+      entityIdentifier: invoice.invoiceNumber,
+      newData: invoice,
+      organisationId: invoice.organisationId,
+      branchId: invoice.branchId,
+      financialYear: invoice.financialYear,
+    });
+
+    return res.json({ success: true, message: 'Invoice cancelled successfully' });
+  } catch (err: any) {
+    return res.status(500).json({ error: err.message });
+  }
+});
+
 // ==========================================
 // 6. PURCHASE ORDERS
 // ==========================================
-erpRouter.get('/purchase-orders', async (req: Request, res: Response) => {
+erpRouter.get('/purchase-orders', requirePermission('purchase', 'view'), async (req: Request, res: Response) => {
   try {
     const { branchId, organisationId, financialYear, page, per_page, search, sort_column, sort_order, filter_by } = req.query;
 
@@ -1715,7 +1824,7 @@ erpRouter.get('/purchase-orders', async (req: Request, res: Response) => {
   }
 });
 
-erpRouter.post('/purchase-orders', async (req: Request, res: Response) => {
+erpRouter.post('/purchase-orders', requirePermission('purchase', 'add'), async (req: Request, res: Response) => {
   try {
     const { items, vendorState, vendorGstin, shippingCharge } = req.body;
 
@@ -1807,7 +1916,7 @@ erpRouter.post('/purchase-orders', async (req: Request, res: Response) => {
   }
 });
 
-erpRouter.patch('/purchase-orders/:id', async (req: Request, res: Response) => {
+erpRouter.patch('/purchase-orders/:id', requirePermission('purchase', 'edit'), async (req: Request, res: Response) => {
   try {
     const prevPo = await PurchaseOrder.findById(req.params.id);
     if (!prevPo) return res.status(404).json({ error: 'Purchase Order not found' });
@@ -1850,7 +1959,7 @@ erpRouter.patch('/purchase-orders/:id', async (req: Request, res: Response) => {
  * POST /api/erp/purchase-orders/:id/approve-reorder
  * Super Admin approval for system-generated auto-reorder POs
  */
-erpRouter.post('/purchase-orders/:id/approve-reorder', async (req: Request, res: Response) => {
+erpRouter.post('/purchase-orders/:id/approve-reorder', requirePermission('purchase', 'approve'), async (req: Request, res: Response) => {
   try {
     const userRole = (req.user?.role || (req.headers['x-demo-role'] as string) || '').toLowerCase();
     if (!userRole.includes('superadmin') && !userRole.includes('owner')) {
@@ -1888,10 +1997,11 @@ erpRouter.post('/purchase-orders/:id/approve-reorder', async (req: Request, res:
 // ==========================================
 // 7. PRODUCTS & STORE
 // ==========================================
-erpRouter.get('/products', async (req: Request, res: Response) => {
+erpRouter.get('/products', requirePermission('products', 'view'), async (req: Request, res: Response) => {
   try {
     const { organisationId, approvedOnly } = req.query;
-    const query: any = organisationId ? { organisationId } : {};
+    const query: any = { isDeleted: { $ne: true } };
+    if (organisationId) query.organisationId = organisationId;
     if (approvedOnly === 'true') {
       query.approvalStatus = 'Approved';
     }
@@ -1902,7 +2012,7 @@ erpRouter.get('/products', async (req: Request, res: Response) => {
   }
 });
 
-erpRouter.post('/products', async (req: Request, res: Response) => {
+erpRouter.post('/products', requirePermission('products', 'add'), async (req: Request, res: Response) => {
   try {
     const product = await Product.create({
       ...req.body,
@@ -1940,7 +2050,7 @@ erpRouter.post('/products', async (req: Request, res: Response) => {
   }
 });
 
-erpRouter.patch('/products/:id/approve', async (req: Request, res: Response) => {
+erpRouter.patch('/products/:id/approve', requirePermission('products', 'approve'), async (req: Request, res: Response) => {
   try {
     const { id } = req.params;
     const prevProduct = await Product.findById(id);
@@ -1975,7 +2085,7 @@ erpRouter.patch('/products/:id/approve', async (req: Request, res: Response) => 
   }
 });
 
-erpRouter.patch('/products/:id/reject', async (req: Request, res: Response) => {
+erpRouter.patch('/products/:id/reject', requirePermission('products', 'approve'), async (req: Request, res: Response) => {
   try {
     const { id } = req.params;
     const prevProduct = await Product.findById(id);
@@ -2010,7 +2120,7 @@ erpRouter.patch('/products/:id/reject', async (req: Request, res: Response) => {
   }
 });
 
-erpRouter.patch('/products/:id/status', async (req: Request, res: Response) => {
+erpRouter.patch('/products/:id/status', requirePermission('products', 'edit'), async (req: Request, res: Response) => {
   try {
     const { id } = req.params;
     const { status } = req.body;
@@ -2046,10 +2156,37 @@ erpRouter.patch('/products/:id/status', async (req: Request, res: Response) => {
   }
 });
 
-erpRouter.get('/store-items', async (req: Request, res: Response) => {
+erpRouter.delete('/products/:id', requirePermission('products', 'edit'), async (req: Request, res: Response) => {
+  try {
+    const prevProduct = await Product.findById(req.params.id);
+    if (!prevProduct) return res.status(404).json({ error: 'Product not found' });
+
+    prevProduct.isDeleted = true;
+    prevProduct.deletedAt = new Date();
+    await prevProduct.save();
+
+    await StoreItem.updateMany({ productId: req.params.id }, { isDeleted: true, deletedAt: new Date() });
+
+    logAuditAction(req, {
+      action: 'DELETE',
+      entityType: 'Product',
+      entityId: req.params.id,
+      entityIdentifier: prevProduct.sku,
+      previousData: prevProduct,
+      organisationId: prevProduct.organisationId,
+      branchId: prevProduct.branchId,
+    });
+
+    res.json({ success: true, message: 'Product soft-deleted successfully' });
+  } catch (err: any) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+erpRouter.get('/store-items', requirePermission('store', 'view'), async (req: Request, res: Response) => {
   try {
     const { branchId, organisationId } = req.query;
-    const query: any = {};
+    const query: any = { isDeleted: { $ne: true } };
     if (branchId) query.branchId = branchId;
     if (organisationId) query.organisationId = organisationId;
 
@@ -2060,7 +2197,7 @@ erpRouter.get('/store-items', async (req: Request, res: Response) => {
   }
 });
 
-erpRouter.patch('/store-items/:productId/stock', async (req: Request, res: Response) => {
+erpRouter.patch('/store-items/:productId/stock', requirePermission('store', 'edit'), async (req: Request, res: Response) => {
   try {
     const { productId } = req.params;
     const { delta } = req.body;
@@ -2083,10 +2220,10 @@ erpRouter.patch('/store-items/:productId/stock', async (req: Request, res: Respo
 // ==========================================
 // 8. CUSTOMERS
 // ==========================================
-erpRouter.get('/customers', async (req: Request, res: Response) => {
+erpRouter.get('/customers', requirePermission('customers', 'view'), async (req: Request, res: Response) => {
   try {
     const { branchId, organisationId } = req.query;
-    const query: any = {};
+    const query: any = { isDeleted: { $ne: true } };
     if (organisationId) query.organisationId = organisationId;
     if (branchId) {
       query.$or = [{ branchId }, { branchId: '' }, { branchId: { $exists: false } }];
@@ -2099,7 +2236,7 @@ erpRouter.get('/customers', async (req: Request, res: Response) => {
   }
 });
 
-erpRouter.post('/customers', async (req: Request, res: Response) => {
+erpRouter.post('/customers', requirePermission('customers', 'add'), async (req: Request, res: Response) => {
   try {
     const { creditLimit, gstin } = req.body;
     if (creditLimit !== undefined && !validateCreditLimit(creditLimit)) {
@@ -2324,7 +2461,7 @@ erpRouter.put('/customers/:id/addresses/:addressId', async (req: Request, res: R
   }
 });
 
-erpRouter.patch('/customers/:id', async (req: Request, res: Response) => {
+erpRouter.patch('/customers/:id', requirePermission('customers', 'edit'), async (req: Request, res: Response) => {
   try {
     if (req.body.creditLimit !== undefined && !validateCreditLimit(req.body.creditLimit)) {
       return res.status(400).json({ error: 'Credit limit must be strictly more than ₹10,000' });
@@ -2355,13 +2492,48 @@ erpRouter.patch('/customers/:id', async (req: Request, res: Response) => {
   }
 });
 
+erpRouter.delete('/customers/:id', requirePermission('customers', 'edit'), async (req: Request, res: Response) => {
+  try {
+    const prevCustomer = await Customer.findById(req.params.id);
+    if (!prevCustomer) return res.status(404).json({ error: 'Customer not found' });
+
+    const activeInvoicesCount = await Invoice.countDocuments({
+      customerId: req.params.id,
+      status: { $ne: 'Cancelled' },
+    });
+    if (activeInvoicesCount > 0) {
+      return res.status(400).json({
+        error: 'Cannot delete customer with active invoices. Please settle or cancel invoices first.',
+      });
+    }
+
+    prevCustomer.isDeleted = true;
+    prevCustomer.deletedAt = new Date();
+    await prevCustomer.save();
+
+    logAuditAction(req, {
+      action: 'DELETE',
+      entityType: 'Customer',
+      entityId: prevCustomer._id.toString(),
+      entityIdentifier: prevCustomer.code,
+      previousData: prevCustomer,
+      organisationId: prevCustomer.organisationId,
+      branchId: prevCustomer.branchId,
+    });
+
+    res.json({ success: true, message: 'Customer soft-deleted successfully.' });
+  } catch (err: any) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
 // ==========================================
 // 8B. VENDORS
 // ==========================================
-erpRouter.get('/vendors', async (req: Request, res: Response) => {
+erpRouter.get('/vendors', requirePermission('purchase', 'view'), async (req: Request, res: Response) => {
   try {
     const { organisationId } = req.query;
-    const query: any = {};
+    const query: any = { isDeleted: { $ne: true } };
     if (organisationId) query.organisationId = organisationId;
 
     const vendors = await Vendor.find(query).sort({ createdAt: -1 });
@@ -2371,7 +2543,7 @@ erpRouter.get('/vendors', async (req: Request, res: Response) => {
   }
 });
 
-erpRouter.post('/vendors', async (req: Request, res: Response) => {
+erpRouter.post('/vendors', requirePermission('purchase', 'add'), async (req: Request, res: Response) => {
   try {
     const { gstin } = req.body;
     if (gstin && !validateGSTIN(gstin)) {
@@ -2400,7 +2572,7 @@ erpRouter.post('/vendors', async (req: Request, res: Response) => {
   }
 });
 
-erpRouter.patch('/vendors/:id', async (req: Request, res: Response) => {
+erpRouter.patch('/vendors/:id', requirePermission('purchase', 'edit'), async (req: Request, res: Response) => {
   try {
     if (req.body.gstin && !validateGSTIN(req.body.gstin)) {
       return res.status(400).json({ error: 'Invalid Vendor GSTIN format' });
@@ -2428,12 +2600,21 @@ erpRouter.patch('/vendors/:id', async (req: Request, res: Response) => {
   }
 });
 
-erpRouter.delete('/vendors/:id', async (req: Request, res: Response) => {
+erpRouter.delete('/vendors/:id', requirePermission('purchase', 'edit'), async (req: Request, res: Response) => {
   try {
     const prevVendor = await Vendor.findById(req.params.id);
     if (!prevVendor) return res.status(404).json({ error: 'Vendor not found' });
 
-    await Vendor.findByIdAndDelete(req.params.id);
+    const activeBillsCount = await Bill.countDocuments({ vendorId: req.params.id, status: { $ne: 'Cancelled' } });
+    if (activeBillsCount > 0) {
+      return res.status(400).json({
+        error: 'Cannot delete vendor with active bills. Please settle or cancel them first.',
+      });
+    }
+
+    prevVendor.isDeleted = true;
+    prevVendor.deletedAt = new Date();
+    await prevVendor.save();
 
     logAuditAction(req, {
       action: 'DELETE',
@@ -2445,7 +2626,7 @@ erpRouter.delete('/vendors/:id', async (req: Request, res: Response) => {
       branchId: prevVendor.branchId,
     });
 
-    res.json({ success: true });
+    res.json({ success: true, message: 'Vendor soft-deleted successfully.' });
   } catch (err: any) {
     res.status(500).json({ error: err.message });
   }
@@ -2611,9 +2792,9 @@ erpRouter.delete('/organisations/:id', async (req: Request, res: Response) => {
     if (totalCount <= 1) {
       return res.status(400).json({ error: 'Cannot delete the only remaining active organisation.' });
     }
-    await Branch.deleteMany({ organisationId: id });
-    await Organisation.findByIdAndDelete(id);
-    res.json({ success: true, message: 'Organisation and associated branches removed.' });
+    await Branch.updateMany({ organisationId: id }, { isDeleted: true, deletedAt: new Date() });
+    await Organisation.findByIdAndUpdate(id, { isDeleted: true, deletedAt: new Date() });
+    res.json({ success: true, message: 'Organisation and associated branches soft-deleted.' });
   } catch (err: any) {
     res.status(500).json({ error: err.message });
   }
@@ -2623,7 +2804,7 @@ erpRouter.delete('/organisations/:id', async (req: Request, res: Response) => {
 erpRouter.get('/organisation', async (req: Request, res: Response) => {
   try {
     const { organisationId } = req.query;
-    const org = organisationId ? await Organisation.findById(organisationId) : await Organisation.findOne();
+    const org = organisationId ? await Organisation.findOne({ _id: organisationId, isDeleted: { $ne: true } }) : await Organisation.findOne({ isDeleted: { $ne: true } });
     res.json(org ? { ...org.toObject(), id: org._id.toString() } : null);
   } catch (err: any) {
     res.status(500).json({ error: err.message });
@@ -2634,7 +2815,8 @@ erpRouter.get('/organisation', async (req: Request, res: Response) => {
 erpRouter.get('/branches', async (req: Request, res: Response) => {
   try {
     const { organisationId } = req.query;
-    const query = organisationId ? { organisationId } : {};
+    const query: any = { isDeleted: { $ne: true } };
+    if (organisationId) query.organisationId = organisationId;
     const branches = await Branch.find(query).sort({ createdAt: 1 });
     res.json(branches.map((b) => ({ ...b.toObject(), id: b._id.toString() })));
   } catch (err: any) {
@@ -2642,7 +2824,7 @@ erpRouter.get('/branches', async (req: Request, res: Response) => {
   }
 });
 
-erpRouter.post('/branches', async (req: Request, res: Response) => {
+erpRouter.post('/branches', requirePermission('branches', 'add'), async (req: Request, res: Response) => {
   try {
     const branch = await Branch.create(req.body);
     res.status(201).json({ ...branch.toObject(), id: branch._id.toString() });
@@ -2651,7 +2833,7 @@ erpRouter.post('/branches', async (req: Request, res: Response) => {
   }
 });
 
-erpRouter.put('/branches/:id', async (req: Request, res: Response) => {
+erpRouter.put('/branches/:id', requirePermission('branches', 'edit'), async (req: Request, res: Response) => {
   try {
     const { id } = req.params;
     const updated = await Branch.findByIdAndUpdate(id, req.body, { new: true });
@@ -2662,17 +2844,19 @@ erpRouter.put('/branches/:id', async (req: Request, res: Response) => {
   }
 });
 
-erpRouter.delete('/branches/:id', async (req: Request, res: Response) => {
+erpRouter.delete('/branches/:id', requirePermission('branches', 'edit'), async (req: Request, res: Response) => {
   try {
     const { id } = req.params;
     const branch = await Branch.findById(id);
     if (!branch) return res.status(404).json({ error: 'Branch not found' });
-    const countInOrg = await Branch.countDocuments({ organisationId: branch.organisationId });
+    const countInOrg = await Branch.countDocuments({ organisationId: branch.organisationId, isDeleted: { $ne: true } });
     if (countInOrg <= 1) {
       return res.status(400).json({ error: 'Cannot delete the only branch in this organisation.' });
     }
-    await Branch.findByIdAndDelete(id);
-    res.json({ success: true, message: 'Branch deleted successfully.' });
+    branch.isDeleted = true;
+    branch.deletedAt = new Date();
+    await branch.save();
+    res.json({ success: true, message: 'Branch soft-deleted successfully.' });
   } catch (err: any) {
     res.status(500).json({ error: err.message });
   }
@@ -2734,5 +2918,26 @@ erpRouter.get('/audit-history', async (req: Request, res: Response) => {
     });
   } catch (err: any) {
     return res.status(500).json({ error: err.message });
+  }
+});
+
+// ==========================================
+// 12. AUTOMATED SYSTEM BACKUPS (SUPERADMIN ONLY)
+// ==========================================
+erpRouter.post('/system/backup', requireSuperAdmin, async (req: Request, res: Response) => {
+  try {
+    const backup = await BackupService.createBackup();
+    return res.json({ success: true, message: 'Database backup created successfully', backup });
+  } catch (err: any) {
+    return res.status(500).json({ error: 'Backup creation failed: ' + err.message });
+  }
+});
+
+erpRouter.get('/system/backups', requireSuperAdmin, async (req: Request, res: Response) => {
+  try {
+    const backups = await BackupService.listBackups();
+    return res.json({ success: true, data: backups });
+  } catch (err: any) {
+    return res.status(500).json({ error: 'Failed to retrieve backups: ' + err.message });
   }
 });

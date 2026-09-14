@@ -16,6 +16,7 @@ import {
   Edit,
   History,
   Lock,
+  QrCode,
 } from 'lucide-react';
 import { useErpStore, Invoice, DocumentItem } from '../../store/erpStore';
 import { DataTable, ColumnDef } from '../shared/DataTable';
@@ -32,7 +33,7 @@ interface InvoiceModuleProps {
 }
 
 export const InvoiceModule: React.FC<InvoiceModuleProps> = ({ initialOpenAdd = false }) => {
-  const { invoices, customers, products, organisation, addInvoice } = useErpStore();
+  const { invoices, customers, products, organisation, addInvoice, generateEInvoice } = useErpStore();
   const { canAdd, canEdit, canHistory, canApprove } = usePermissions('invoices');
   const [isAddModalOpen, setIsAddModalOpen] = useState(false);
   const [viewInvoice, setViewInvoice] = useState<Invoice | null>(null);
@@ -306,6 +307,30 @@ export const InvoiceModule: React.FC<InvoiceModuleProps> = ({ initialOpenAdd = f
                 <History className="h-3.5 w-3.5 text-indigo-500" />
                 <span>History</span>
               </button>
+            )}
+
+            {/* E-Invoice IRN Generator Button */}
+            {canEdit && !inv.irn && (
+              <button
+                type="button"
+                onClick={async () => {
+                  await generateEInvoice(inv.id);
+                }}
+                className="inline-flex items-center gap-1 rounded-lg border border-purple-200 bg-purple-50 px-2 py-1 text-xs font-semibold text-purple-700 hover:bg-purple-100 hover:text-purple-900 transition cursor-pointer"
+                title="Generate Official Statutory IRN & Signed QR Code"
+              >
+                <QrCode className="h-3.5 w-3.5 text-purple-600" />
+                <span>IRN</span>
+              </button>
+            )}
+            {inv.irn && (
+              <span
+                className="inline-flex items-center gap-1 rounded-lg border border-purple-200 bg-purple-50/70 px-1.5 py-1 text-[11px] font-semibold text-purple-700"
+                title={`IRN: ${inv.irn}`}
+              >
+                <CheckCircle2 className="h-3 w-3 text-purple-600" />
+                <span>E-Inv</span>
+              </span>
             )}
 
             {out > 0 && canApprove && (

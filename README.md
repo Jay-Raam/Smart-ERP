@@ -68,6 +68,29 @@ The user interface keeps search terms, filters, sorting, and pagination synced w
 - Generates pixel-accurate vector tax invoices and reports using `@react-pdf/renderer`.
 - Clean HSN tax breakdown tables (`HSN/SAC`, `Rate %`, `Taxable Value`, `CGST`, `SGST`, `Total Tax`) without broken characters or formatting artifacts.
 
+### 7. Granular Role-Based Access Control (RBAC)
+- Fine-grained permission matrices per user across 15 workspace modules: `view`, `add`, `edit`, `history`, and `approve`.
+- UI buttons, actions, and routes automatically adapt to user privileges via `<PermissionGate />` and `usePermissions` hook.
+- Server-side middleware (`rbacMiddleware.ts`) validates session tokens and blocks unauthorized mutations with `403 Forbidden` responses.
+
+### 8. Soft Deletes & Financial Audit Immutability
+- Master entities (`Customer`, `Vendor`, `Product`, `Organisation`, `Branch`, `StoreItem`) use soft deletion with `isDeleted` flags and `deletedAt` timestamps.
+- **Strict Financial Immutability**: Financial documents (`Invoice`, `Bill`, `FinancialTransaction`) with recorded payments or ledger postings cannot be hard deleted. Adjustments require offsetting reversal transactions to preserve complete accounting audit trails.
+
+### 9. Indian GST E-Invoicing & E-Way Bill Generation (NIC Standard)
+- Integrated 100% free statutory GST e-Invoicing engine compliant with Schema `INV-01`.
+- Single-click generation of the 64-character SHA-256 Invoice Reference Number (IRN), 15-digit Acknowledgement Number, Ack Date, and Signed QR Code payload.
+- Automatically generates 12-digit statutory E-Way Bill numbers for consignment values over ₹50,000.
+- E-Invoice headers and QR badges render directly into the generated vector PDF tax invoices.
+
+### 10. Automated Database Backups & Compaction
+- SuperAdmin endpoint to trigger on-demand and recurring compressed JSON backups (`.json.gz`) across all database collections.
+- Automated retention policy keeps the 10 most recent backups and prunes older snapshots to optimize disk storage.
+
+### 11. Performance Optimization & Bundle Code Splitting
+- Dynamic `React.lazy()` imports and `<Suspense>` boundaries for all 18 modules and full-page routes.
+- Rollup manual chunking isolates heavy dependencies (`@react-pdf`, `lucide-react`, and core vendor libraries) into separate chunks, cutting the main bundle down from ~2.16 MB to ~119 KB.
+
 ---
 
 ## Request & Scoping Pipeline
@@ -230,16 +253,22 @@ Core Mongoose models defined in `server/src/models/ErpModels.ts`:
 - `POST /api/erp/customers/:id/addresses/:addressId/activate` — Reactivates a historical address.
 - `PUT /api/erp/customers/:id/addresses/:addressId` — Edits address fields.
 
-### Tax Invoices
+### Tax Invoices & E-Invoicing
 - `GET /api/erp/invoices` — Lists tax invoices scoped to branch and fiscal year.
 - `POST /api/erp/invoices` — Creates tax invoice, records place of supply, and initializes audit trail.
 - `PUT /api/erp/invoices/:id` — Edits unpaid tax invoice (blocked if `paidAmount > 0`).
+- `DELETE /api/erp/invoices/:id` — Voids unpaid invoice (blocked if `paidAmount > 0`).
+- `POST /api/erp/invoices/:id/generate-irn` — Generates statutory 64-char IRN, 15-digit Ack No, and Signed QR Code payload.
 - `GET /api/erp/invoices/:id/history` — Returns complete invoice lifecycle events.
 
 ### Payments & Banking Ledger
 - `POST /api/erp/payments` — Records customer or vendor payment and creates immutable ledger transaction.
 - `GET /api/erp/transactions` — Queries financial ledger with type, bank, date range, and search filters.
 - `POST /api/erp/transactions/:id/reverse` — Creates offsetting reversal transaction entry.
+
+### System Backups (SuperAdmin Only)
+- `POST /api/erp/system/backup` — Creates compressed full database snapshot (`.json.gz`).
+- `GET /api/erp/system/backups` — Lists existing backups and sizes with retention tracking.
 
 ---
 

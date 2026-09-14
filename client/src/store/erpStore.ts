@@ -266,6 +266,13 @@ export interface Invoice {
     branchName?: string;
     accountName?: string;
   };
+  irn?: string;
+  ackNo?: string;
+  ackDate?: string;
+  signedQrCode?: string;
+  ewayBillNumber?: string;
+  ewayBillDate?: string;
+  einvoiceStatus?: 'PENDING' | 'GENERATED' | 'FAILED' | 'CANCELLED';
   history?: InvoiceHistoryItem[];
 }
 
@@ -424,6 +431,7 @@ interface ErpState {
   recordVendorAdvance: (data: any) => Promise<any>;
   moveBillToStore: (billId: string, payload: any) => Promise<any>;
   approveAutoReorderPO: (poId: string) => Promise<any>;
+  generateEInvoice: (id: string) => Promise<Invoice | null>;
 }
 
 export const useErpStore = create<ErpState>((set, get) => ({
@@ -1014,6 +1022,29 @@ export const useErpStore = create<ErpState>((set, get) => ({
     } catch (err: any) {
       showAppToast('Error updating invoice: ' + err.message, 'error');
       throw err;
+    }
+  },
+
+  generateEInvoice: async (id) => {
+    try {
+      const res = await fetch(`/api/erp/invoices/${id}/generate-irn`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+      });
+      if (!res.ok) {
+        const errData = await res.json().catch(() => ({}));
+        throw new Error(errData.error || 'Failed to generate E-Invoice IRN');
+      }
+      const result = await res.json();
+      const updated = result.data || result;
+      set((state) => ({
+        invoices: state.invoices.map((i) => (i.id === id ? updated : i)),
+      }));
+      showAppToast(`E-Invoice IRN generated for ${updated.invoiceNumber}`, 'success');
+      return updated;
+    } catch (err: any) {
+      showAppToast(err.message, 'error');
+      return null;
     }
   },
 

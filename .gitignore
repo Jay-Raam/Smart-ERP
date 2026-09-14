@@ -99,3 +99,5 @@ Thumbs.db
 .system_generated/
 tmp/
 temp/
+backups/
+*.json.gz

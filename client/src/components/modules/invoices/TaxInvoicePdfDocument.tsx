@@ -27,6 +27,22 @@ const styles = StyleSheet.create({
     letterSpacing: 1.5,
     textTransform: 'uppercase',
   },
+  irnBanner: {
+    backgroundColor: '#f8fafc',
+    borderBottomWidth: 1,
+    borderBottomColor: '#1e293b',
+    padding: 6,
+  },
+  qrBox: {
+    width: 48,
+    height: 48,
+    borderWidth: 1,
+    borderColor: '#0f172a',
+    backgroundColor: '#ffffff',
+    padding: 2,
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
   twoColRow: {
     flexDirection: 'row',
     borderBottomWidth: 1,
@@ -355,6 +371,40 @@ export const TaxInvoicePdfDocument: React.FC<TaxInvoicePdfDocumentProps> = ({
     <Document title={`Tax_Invoice_${invoice.invoiceNumber}.pdf`} author={organisation.name}>
       <Page size="A4" style={styles.page}>
         <View style={styles.container}>
+          {/* Statutory Indian GST E-Invoice Header Banner if IRN exists */}
+          {invoice.irn && (
+            <View style={styles.irnBanner}>
+              <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' }}>
+                <View style={{ flex: 1, paddingRight: 8 }}>
+                  <Text style={{ fontSize: 7.5, fontFamily: 'Helvetica-Bold', color: '#1e3a8a', letterSpacing: 0.5 }}>
+                    GOVERNMENT OF INDIA GST E-INVOICE (NIC IRN COMPLIANT)
+                  </Text>
+                  <Text style={{ fontSize: 6.5, color: '#0f172a', marginTop: 1 }}>
+                    <Text style={{ fontFamily: 'Helvetica-Bold' }}>IRN: </Text>{invoice.irn}
+                  </Text>
+                  <View style={{ flexDirection: 'row', marginTop: 2, gap: 14 }}>
+                    <Text style={{ fontSize: 6.5, color: '#334155' }}>
+                      <Text style={{ fontFamily: 'Helvetica-Bold' }}>Ack No: </Text>{invoice.ackNo || 'N/A'}
+                    </Text>
+                    <Text style={{ fontSize: 6.5, color: '#334155' }}>
+                      <Text style={{ fontFamily: 'Helvetica-Bold' }}>Ack Date: </Text>{invoice.ackDate || invoice.invoiceDate}
+                    </Text>
+                    {invoice.ewayBillNumber && (
+                      <Text style={{ fontSize: 6.5, color: '#15803d', fontFamily: 'Helvetica-Bold' }}>
+                        E-Way Bill: {invoice.ewayBillNumber}
+                      </Text>
+                    )}
+                  </View>
+                </View>
+                <View style={styles.qrBox}>
+                  <Text style={{ fontSize: 5, fontFamily: 'Helvetica-Bold', textAlign: 'center', color: '#0f172a' }}>
+                    NIC GST{'\n'}VERIFIED{'\n'}QR CODE
+                  </Text>
+                </View>
+              </View>
+            </View>
+          )}
+
           {/* Header Title Banner */}
           <View style={styles.banner}>
             <Text style={styles.bannerTitle}>TAX INVOICE</Text>

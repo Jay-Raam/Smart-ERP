@@ -11,26 +11,38 @@ import { useAuthStore } from './store/authStore';
 import { useErpStore } from './store/erpStore';
 import { useThemeStore } from './store/themeStore';
 
-// ERP Modules
-import { DashboardModule } from './components/modules/DashboardModule';
-import { BillModule } from './components/modules/bills/BillModule';
-import { BillCreatePage } from './components/modules/bills/BillCreatePage';
-import { InvoiceModule } from './components/modules/InvoiceModule';
-import { InvoiceCreatePage } from './components/modules/invoices/InvoiceCreatePage';
-import { PurchaseModule } from './components/modules/PurchaseModule';
-import { PurchaseOrderCreatePage } from './components/modules/purchase/PurchaseOrderCreatePage';
-import { StoreModule } from './components/modules/StoreModule';
-import { ProductsModule } from './components/modules/ProductsModule';
-import { CustomerModule } from './components/modules/CustomerModule';
-import { CustomerDetailPage } from './components/modules/customers/CustomerDetailPage';
-import { DeliveryModule } from './components/modules/DeliveryModule';
-import { OrganisationModule } from './components/modules/OrganisationModule';
-import { BranchModule } from './components/modules/BranchModule';
-import { FinancialYearModule } from './components/modules/FinancialYearModule';
-import { ReportsModule } from './components/modules/reports/ReportsModule';
-import { BankModule } from './components/modules/banking/BankModule';
-import { TransactionModule } from './components/modules/banking/TransactionModule';
-import { UsersModule } from './components/modules/admin/UsersModule';
+// Lazy-loaded ERP Modules for Code Splitting & Performance
+const DashboardModule = React.lazy(() => import('./components/modules/DashboardModule').then((m) => ({ default: m.DashboardModule })));
+const BillModule = React.lazy(() => import('./components/modules/bills/BillModule').then((m) => ({ default: m.BillModule })));
+const BillCreatePage = React.lazy(() => import('./components/modules/bills/BillCreatePage').then((m) => ({ default: m.BillCreatePage })));
+const InvoiceModule = React.lazy(() => import('./components/modules/InvoiceModule').then((m) => ({ default: m.InvoiceModule })));
+const InvoiceCreatePage = React.lazy(() => import('./components/modules/invoices/InvoiceCreatePage').then((m) => ({ default: m.InvoiceCreatePage })));
+const PurchaseModule = React.lazy(() => import('./components/modules/PurchaseModule').then((m) => ({ default: m.PurchaseModule })));
+const PurchaseOrderCreatePage = React.lazy(() => import('./components/modules/purchase/PurchaseOrderCreatePage').then((m) => ({ default: m.PurchaseOrderCreatePage })));
+const StoreModule = React.lazy(() => import('./components/modules/StoreModule').then((m) => ({ default: m.StoreModule })));
+const ProductsModule = React.lazy(() => import('./components/modules/ProductsModule').then((m) => ({ default: m.ProductsModule })));
+const CustomerModule = React.lazy(() => import('./components/modules/CustomerModule').then((m) => ({ default: m.CustomerModule })));
+const CustomerDetailPage = React.lazy(() => import('./components/modules/customers/CustomerDetailPage').then((m) => ({ default: m.CustomerDetailPage })));
+const DeliveryModule = React.lazy(() => import('./components/modules/DeliveryModule').then((m) => ({ default: m.DeliveryModule })));
+const OrganisationModule = React.lazy(() => import('./components/modules/OrganisationModule').then((m) => ({ default: m.OrganisationModule })));
+const BranchModule = React.lazy(() => import('./components/modules/BranchModule').then((m) => ({ default: m.BranchModule })));
+const FinancialYearModule = React.lazy(() => import('./components/modules/FinancialYearModule').then((m) => ({ default: m.FinancialYearModule })));
+const ReportsModule = React.lazy(() => import('./components/modules/reports/ReportsModule').then((m) => ({ default: m.ReportsModule })));
+const BankModule = React.lazy(() => import('./components/modules/banking/BankModule').then((m) => ({ default: m.BankModule })));
+const TransactionModule = React.lazy(() => import('./components/modules/banking/TransactionModule').then((m) => ({ default: m.TransactionModule })));
+const UsersModule = React.lazy(() => import('./components/modules/admin/UsersModule').then((m) => ({ default: m.UsersModule })));
+
+const ModuleLoadingSkeleton: React.FC = () => (
+  <div className="space-y-6 animate-pulse p-2">
+    <div className="h-8 bg-slate-200 dark:bg-slate-800 rounded-xl w-64" />
+    <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
+      <div className="h-24 bg-slate-100 dark:bg-slate-900 rounded-2xl border border-slate-200 dark:border-slate-800" />
+      <div className="h-24 bg-slate-100 dark:bg-slate-900 rounded-2xl border border-slate-200 dark:border-slate-800" />
+      <div className="h-24 bg-slate-100 dark:bg-slate-900 rounded-2xl border border-slate-200 dark:border-slate-800" />
+    </div>
+    <div className="h-80 bg-slate-100 dark:bg-slate-900 rounded-2xl border border-slate-200 dark:border-slate-800" />
+  </div>
+);
 
 export function App() {
   const {
@@ -268,50 +280,52 @@ export function App() {
           style={{ backgroundColor: 'var(--bg-app)' }}
         >
           <div className="max-w-7xl w-full mx-auto pb-12">
-            {/* Dedicated Full Pages */}
-            {currentPath === '/invoices/new' && <InvoiceCreatePage />}
-            {currentPath.startsWith('/invoices/') && currentPath.endsWith('/edit') && (
-              <InvoiceCreatePage isEdit={true} invoiceId={currentPath.split('/')[2]} />
-            )}
-            {currentPath.startsWith('/customers/') && (
-              <CustomerDetailPage customerId={currentPath.replace('/customers/', '').split('/')[0]} />
-            )}
-            {currentPath === '/purchase-orders/new' && <PurchaseOrderCreatePage />}
-            {currentPath === '/bills/new' && <BillCreatePage />}
+            <React.Suspense fallback={<ModuleLoadingSkeleton />}>
+              {/* Dedicated Full Pages */}
+              {currentPath === '/invoices/new' && <InvoiceCreatePage />}
+              {currentPath.startsWith('/invoices/') && currentPath.endsWith('/edit') && (
+                <InvoiceCreatePage isEdit={true} invoiceId={currentPath.split('/')[2]} />
+              )}
+              {currentPath.startsWith('/customers/') && (
+                <CustomerDetailPage customerId={currentPath.replace('/customers/', '').split('/')[0]} />
+              )}
+              {currentPath === '/purchase-orders/new' && <PurchaseOrderCreatePage />}
+              {currentPath === '/bills/new' && <BillCreatePage />}
 
-            {/* Standard Module Routes */}
-            {!['/invoices/new', '/purchase-orders/new', '/bills/new'].includes(currentPath) &&
-              !(currentPath.startsWith('/invoices/') && currentPath.endsWith('/edit')) &&
-              !currentPath.startsWith('/customers/') && (
-              <>
-                {activeModule === 'dashboard' && (
-                  <DashboardModule onNavigate={(m) => {
-                    setActiveModule(m);
-                    navigateTo('/', m);
-                  }} />
-                )}
-                {activeModule === 'invoices' && (
-                  <InvoiceModule initialOpenAdd={quickAddType === 'invoice'} />
-                )}
-                {activeModule === 'bills' && <BillModule />}
-                {activeModule === 'purchase' && <PurchaseModule />}
-                {activeModule === 'store' && <StoreModule />}
-                {activeModule === 'products' && (
-                  <ProductsModule initialOpenAdd={quickAddType === 'product'} />
-                )}
-                {activeModule === 'customers' && (
-                  <CustomerModule initialOpenAdd={quickAddType === 'customer'} />
-                )}
-                {activeModule === 'delivery' && <DeliveryModule />}
-                {activeModule === 'organisations' && <OrganisationModule />}
-                {activeModule === 'branches' && <BranchModule />}
-                {activeModule === 'financial-years' && <FinancialYearModule />}
-                {activeModule === 'bank' && <BankModule />}
-                {activeModule === 'transactions' && <TransactionModule />}
-                {activeModule === 'reports' && <ReportsModule />}
-                {activeModule === 'users' && <UsersModule />}
-              </>
-            )}
+              {/* Standard Module Routes */}
+              {!['/invoices/new', '/purchase-orders/new', '/bills/new'].includes(currentPath) &&
+                !(currentPath.startsWith('/invoices/') && currentPath.endsWith('/edit')) &&
+                !currentPath.startsWith('/customers/') && (
+                <>
+                  {activeModule === 'dashboard' && (
+                    <DashboardModule onNavigate={(m) => {
+                      setActiveModule(m);
+                      navigateTo('/', m);
+                    }} />
+                  )}
+                  {activeModule === 'invoices' && (
+                    <InvoiceModule initialOpenAdd={quickAddType === 'invoice'} />
+                  )}
+                  {activeModule === 'bills' && <BillModule />}
+                  {activeModule === 'purchase' && <PurchaseModule />}
+                  {activeModule === 'store' && <StoreModule />}
+                  {activeModule === 'products' && (
+                    <ProductsModule initialOpenAdd={quickAddType === 'product'} />
+                  )}
+                  {activeModule === 'customers' && (
+                    <CustomerModule initialOpenAdd={quickAddType === 'customer'} />
+                  )}
+                  {activeModule === 'delivery' && <DeliveryModule />}
+                  {activeModule === 'organisations' && <OrganisationModule />}
+                  {activeModule === 'branches' && <BranchModule />}
+                  {activeModule === 'financial-years' && <FinancialYearModule />}
+                  {activeModule === 'bank' && <BankModule />}
+                  {activeModule === 'transactions' && <TransactionModule />}
+                  {activeModule === 'reports' && <ReportsModule />}
+                  {activeModule === 'users' && <UsersModule />}
+                </>
+              )}
+            </React.Suspense>
           </div>
         </main>
       </div>
