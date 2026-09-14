@@ -21,6 +21,7 @@ import {
   StockMovement,
   ItemCategory,
   GstRateMaster,
+  ScrapRecord,
 } from '../models/ErpModels';
 import { generateTokens, verifyAccessToken } from '../security/auth';
 import { requirePermission, requireSuperAdmin } from '../middleware/rbacMiddleware';
@@ -528,6 +529,7 @@ erpRouter.get('/bootstrap', async (req: Request, res: Response) => {
         totalInWords: po.totalInWords || '',
         status: po.status,
         isAutoReorder: po.isAutoReorder || false,
+        history: po.history || [],
       })),
       vendors: vendors.map((v) => ({
         id: v._id.toString(),
@@ -546,6 +548,8 @@ erpRouter.get('/bootstrap', async (req: Request, res: Response) => {
         gstin: v.gstin,
         pan: v.pan,
         outstandingBalance: v.outstandingBalance || 0,
+        addresses: v.addresses || [],
+        history: v.history || [],
         organisationId: v.organisationId,
         branchId: v.branchId,
       })),
@@ -561,6 +565,11 @@ erpRouter.get('/bootstrap', async (req: Request, res: Response) => {
         maxLevel: st.maxLevel,
         lastAudited: st.lastAudited || '',
         status: st.status,
+        expiryDate: st.expiryDate || '',
+        batchNumber: st.batchNumber || '',
+        sourceBillNumber: st.sourceBillNumber || '',
+        sourcePoNumber: st.sourcePoNumber || '',
+        sourceVendorName: st.sourceVendorName || '',
         branchId: st.branchId,
         organisationId: st.organisationId,
       })),
@@ -582,6 +591,9 @@ erpRouter.get('/bootstrap', async (req: Request, res: Response) => {
         driverPhone: dc.driverPhone,
         items: dc.items || [],
         status: dc.status,
+        irn: dc.irn || '',
+        signedQrCode: dc.signedQrCode || '',
+        totalAmount: dc.totalAmount || 0,
         branchId: dc.branchId,
         organisationId: dc.organisationId,
         financialYear: dc.financialYear,
@@ -1116,6 +1128,79 @@ erpRouter.patch('/bills/:id', async (req: Request, res: Response) => {
   }
 });
 
+erpRouter.put('/bills/:id', requirePermission('bills', 'edit'), async (req: Request, res: Response) => {
+  try {
+    const prevBill = await Bill.findById(req.params.id);
+    if (!prevBill) return res.status(404).json({ error: 'Bill not found' });
+
+    if (prevBill.paidAmount > 0 || prevBill.status === 'Paid') {
+      return res.status(422).json({
+        error: 'This Bill cannot be edited because a payment has already been recorded.',
+      });
+    }
+
+    if (prevBill.storeMovementStatus && prevBill.storeMovementStatus !== 'NOT_MOVED') {
+      return res.status(422).json({
+        error: 'This Bill cannot be edited because stock items have already been moved to Store inventory.',
+      });
+    }
+
+    const { items, vendorState, vendorGstin, shippingCharge, dueDate, vendorInvoiceNumber, billingAddress, shippingAddress } = req.body;
+    const numShipping = Math.max(0, Number(shippingCharge) || 0);
+    const stateToUse = vendorState || prevBill.vendorState || 'Tamil Nadu';
+    const gstinToUse = vendorGstin !== undefined ? vendorGstin : prevBill.vendorGstin;
+    const itemsToUse = items && items.length > 0 ? items : prevBill.items;
+
+    const taxResult = calculateDocumentTaxes(itemsToUse, stateToUse, gstinToUse, numShipping);
+
+    const preparedItems = taxResult.items.map((it: any) => ({
+      ...it,
+      movedToStoreQuantity: 0,
+      remainingToMoveQuantity: it.quantity,
+    }));
+
+    const updateData: any = {
+      ...req.body,
+      items: preparedItems,
+      vendorInvoiceNumber: vendorInvoiceNumber || prevBill.vendorInvoiceNumber,
+      dueDate: dueDate || prevBill.dueDate,
+      billingAddress: billingAddress !== undefined ? billingAddress : prevBill.billingAddress,
+      shippingAddress: shippingAddress !== undefined ? shippingAddress : prevBill.shippingAddress,
+      subtotal: taxResult.subtotal,
+      shippingCharge: taxResult.shippingCharge,
+      shippingTax: taxResult.shippingTax,
+      taxableAmount: taxResult.taxableAmount,
+      totalDiscount: taxResult.totalDiscount,
+      cgstAmount: taxResult.cgstAmount,
+      sgstAmount: taxResult.sgstAmount,
+      igstAmount: taxResult.igstAmount,
+      taxAmount: taxResult.totalTax,
+      totalAmount: taxResult.grandTotal,
+      outstandingAmount: taxResult.grandTotal,
+      totalInWords: taxResult.totalInWords,
+    };
+
+    const updated = await Bill.findByIdAndUpdate(req.params.id, updateData, { new: true });
+    if (!updated) return res.status(404).json({ error: 'Bill not found' });
+
+    logAuditAction(req, {
+      action: 'UPDATE',
+      entityType: 'Bill',
+      entityId: updated._id.toString(),
+      entityIdentifier: updated.billNumber,
+      previousData: prevBill,
+      newData: updated,
+      organisationId: updated.organisationId,
+      branchId: updated.branchId,
+      financialYear: updated.financialYear,
+    });
+
+    res.json({ ...updated.toObject(), id: updated._id.toString() });
+  } catch (err: any) {
+    res.status(400).json({ error: err.message });
+  }
+});
+
 /**
  * POST /api/erp/bills/:id/move-to-store
  * Move stock from vendor bill to store inventory with atomic transaction and auto-reorder trigger
@@ -1255,6 +1340,11 @@ erpRouter.post('/bills/:id/move-to-store', async (req: Request, res: Response) =
         storeItem.availableStock += moveQty;
         storeItem.status = storeItem.availableStock <= storeItem.minLevel ? 'Low Stock' : 'In Stock';
         storeItem.lastAudited = movementDate;
+        if (effectiveExpiry) storeItem.expiryDate = effectiveExpiry;
+        if (effectiveBatch) storeItem.batchNumber = effectiveBatch;
+        storeItem.sourceBillNumber = bill.billNumber;
+        storeItem.sourcePoNumber = bill.poNumber || '';
+        storeItem.sourceVendorName = bill.vendorName;
         await storeItem.save({ session });
         updatedStoreItems.push(storeItem);
       } else {
@@ -1269,6 +1359,11 @@ erpRouter.post('/bills/:id/move-to-store', async (req: Request, res: Response) =
           maxLevel: 100,
           lastAudited: movementDate,
           status: moveQty <= 10 ? 'Low Stock' : 'In Stock',
+          expiryDate: effectiveExpiry || '',
+          batchNumber: effectiveBatch || '',
+          sourceBillNumber: bill.billNumber,
+          sourcePoNumber: bill.poNumber || '',
+          sourceVendorName: bill.vendorName,
           branchId: bill.branchId,
           organisationId: bill.organisationId,
         });
@@ -1986,6 +2081,88 @@ erpRouter.patch('/purchase-orders/:id', requirePermission('purchase', 'edit'), a
   }
 });
 
+erpRouter.put('/purchase-orders/:id', requirePermission('purchase', 'edit'), async (req: Request, res: Response) => {
+  try {
+    const prevPo = await PurchaseOrder.findById(req.params.id);
+    if (!prevPo) return res.status(404).json({ error: 'Purchase Order not found' });
+
+    if (prevPo.status === 'PARTIALLY_BILLED' || prevPo.status === 'FULLY_BILLED' || prevPo.status === 'Received') {
+      return res.status(422).json({
+        error: 'This Purchase Order cannot be edited because it has already been converted to a Bill.',
+      });
+    }
+
+    if (prevPo.paidAmount > 0) {
+      return res.status(422).json({
+        error: 'This Purchase Order cannot be edited because a payment/vendor advance has already been recorded.',
+      });
+    }
+
+    const { items, vendorState, vendorGstin, shippingCharge, expectedDate, vendorAddress, billingAddress, shippingAddress } = req.body;
+    const numShipping = Math.max(0, Number(shippingCharge) || 0);
+    const stateToUse = vendorState || prevPo.vendorState || 'Tamil Nadu';
+    const gstinToUse = vendorGstin !== undefined ? vendorGstin : prevPo.vendorGstin;
+    const itemsToUse = items && items.length > 0 ? items : prevPo.items;
+
+    const taxResult = calculateDocumentTaxes(itemsToUse, stateToUse, gstinToUse, numShipping);
+
+    const preparedItems = taxResult.items.map((it: any) => ({
+      ...it,
+      orderedQuantity: it.quantity,
+      billedQuantity: 0,
+      remainingQuantity: it.quantity,
+    }));
+
+    const historyEntry = {
+      action: 'EDITED',
+      timestamp: new Date(),
+      user: (req as any).user?.name || (req as any).user?.username || 'Authorized Officer',
+      details: `Purchase Order updated. Line items: ${taxResult.items.length}, Total: ₹${taxResult.grandTotal.toLocaleString('en-IN')}`,
+    };
+
+    const updateData: any = {
+      ...req.body,
+      items: preparedItems,
+      vendorAddress: vendorAddress !== undefined ? vendorAddress : prevPo.vendorAddress,
+      billingAddress: billingAddress !== undefined ? billingAddress : prevPo.billingAddress,
+      shippingAddress: shippingAddress !== undefined ? shippingAddress : prevPo.shippingAddress,
+      expectedDate: expectedDate || prevPo.expectedDate,
+      subtotal: taxResult.subtotal,
+      shippingCharge: taxResult.shippingCharge,
+      shippingTax: taxResult.shippingTax,
+      taxableAmount: taxResult.taxableAmount,
+      totalDiscount: taxResult.totalDiscount,
+      cgstAmount: taxResult.cgstAmount,
+      sgstAmount: taxResult.sgstAmount,
+      igstAmount: taxResult.igstAmount,
+      taxAmount: taxResult.totalTax,
+      totalAmount: taxResult.grandTotal,
+      outstandingAmount: taxResult.grandTotal - (prevPo.paidAmount || 0),
+      totalInWords: taxResult.totalInWords,
+      history: [...(prevPo.history || []), historyEntry],
+    };
+
+    const updated = await PurchaseOrder.findByIdAndUpdate(req.params.id, updateData, { new: true });
+    if (!updated) return res.status(404).json({ error: 'Purchase Order not found' });
+
+    logAuditAction(req, {
+      action: 'UPDATE',
+      entityType: 'Purchase Order',
+      entityId: updated._id.toString(),
+      entityIdentifier: updated.poNumber,
+      previousData: prevPo,
+      newData: updated,
+      organisationId: updated.organisationId,
+      branchId: updated.branchId,
+      financialYear: updated.financialYear,
+    });
+
+    res.json({ ...updated.toObject(), id: updated._id.toString() });
+  } catch (err: any) {
+    res.status(400).json({ error: err.message });
+  }
+});
+
 /**
  * POST /api/erp/purchase-orders/:id/approve-reorder
  * Super Admin approval for system-generated auto-reorder POs
@@ -2245,6 +2422,83 @@ erpRouter.patch('/store-items/:productId/stock', requirePermission('store', 'edi
     res.json({ ...storeItem.toObject(), id: storeItem._id.toString() });
   } catch (err: any) {
     res.status(400).json({ error: err.message });
+  }
+});
+
+erpRouter.post('/store/issue-stock', requirePermission('store', 'edit'), async (req: Request, res: Response) => {
+  try {
+    const { productId, quantity, reason, warehouse, binLocation } = req.body;
+    const numQty = Number(quantity);
+    if (!productId || !numQty || numQty <= 0) {
+      return res.status(400).json({ error: 'Valid Product and positive quantity are required.' });
+    }
+
+    const storeItem = await StoreItem.findOne({ productId });
+    if (!storeItem) {
+      return res.status(404).json({ error: 'Store inventory record not found for this product.' });
+    }
+
+    if (numQty > storeItem.availableStock) {
+      return res.status(422).json({
+        error: `Cannot deduct ${numQty} units. Maximum available stock is ${storeItem.availableStock} units.`,
+      });
+    }
+
+    // Deduct stock from StoreItem
+    storeItem.availableStock -= numQty;
+    storeItem.status = storeItem.availableStock <= storeItem.minLevel ? 'Low Stock' : 'In Stock';
+    storeItem.lastAudited = new Date().toISOString().split('T')[0];
+    await storeItem.save();
+
+    // Deduct stock from Product Master
+    const prod = await Product.findById(productId);
+    if (prod) {
+      prod.currentStock = Math.max(0, (prod.currentStock || 0) - numQty);
+      await prod.save();
+    }
+
+    const userName = (req as any).user?.name || (req as any).user?.username || 'Authorized Store Officer';
+
+    // Record into ScrapRecord ledger
+    const scrap = await ScrapRecord.create({
+      productId,
+      productName: storeItem.productName,
+      sku: storeItem.sku,
+      itemCode: storeItem.sku,
+      itemName: storeItem.productName,
+      warehouse: warehouse || storeItem.warehouse,
+      binLocation: binLocation || storeItem.binLocation,
+      deductedQty: numQty,
+      quantity: numQty,
+      unitPrice: prod?.purchaseCost || prod?.sellingPrice || 0,
+      reason: reason || 'Physical Stock Count Adjustment / Scrap',
+      remarks: reason || 'Physical Stock Count Adjustment / Scrap',
+      actionDate: new Date().toISOString().split('T')[0],
+      date: new Date(),
+      userName,
+      issuedBy: userName,
+      branchId: storeItem.branchId,
+      organisationId: storeItem.organisationId,
+    });
+
+    logAuditAction(req, {
+      action: 'UPDATE',
+      entityType: 'Store Inventory',
+      entityId: storeItem._id.toString(),
+      entityIdentifier: storeItem.sku,
+      newData: storeItem,
+      organisationId: storeItem.organisationId,
+      branchId: storeItem.branchId,
+    });
+
+    res.json({
+      success: true,
+      message: `Successfully issued/deducted ${numQty} units of ${storeItem.productName}. Logged in Scrap & Wastage register.`,
+      storeItem: { ...storeItem.toObject(), id: storeItem._id.toString() },
+      scrapRecord: { ...scrap.toObject(), id: scrap._id.toString() },
+    });
+  } catch (err: any) {
+    res.status(500).json({ error: err.message });
   }
 });
 
@@ -2631,6 +2885,213 @@ erpRouter.patch('/vendors/:id', requirePermission('purchase', 'edit'), async (re
   }
 });
 
+erpRouter.get('/vendors/:id', requirePermission('purchase', 'view'), async (req: Request, res: Response) => {
+  try {
+    const vendor = await Vendor.findById(req.params.id);
+    if (!vendor) return res.status(404).json({ error: 'Vendor not found' });
+    res.json({ ...vendor.toObject(), id: vendor._id.toString() });
+  } catch (err: any) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+erpRouter.put('/vendors/:id', requirePermission('purchase', 'edit'), async (req: Request, res: Response) => {
+  try {
+    const prevVendor = await Vendor.findById(req.params.id);
+    if (!prevVendor) return res.status(404).json({ error: 'Vendor not found' });
+
+    // GSTIN Lock Rule: Vendor GSTIN cannot be changed after registration
+    if (req.body.gstin && prevVendor.gstin && req.body.gstin.trim().toUpperCase() !== prevVendor.gstin.trim().toUpperCase()) {
+      return res.status(422).json({
+        error: 'Vendor GSTIN is locked and permanently immutable to maintain purchase audit integrity.',
+      });
+    }
+
+    const historyEntry = {
+      action: 'EDITED',
+      timestamp: new Date(),
+      user: (req as any).user?.name || (req as any).user?.username || 'Authorized Officer',
+      details: `Vendor details updated for ${prevVendor.name}`,
+    };
+
+    const updateData = {
+      ...req.body,
+      gstin: prevVendor.gstin, // Keep original GSTIN strictly locked
+      history: [...(prevVendor.history || []), historyEntry],
+    };
+
+    const updated = await Vendor.findByIdAndUpdate(req.params.id, updateData, { new: true });
+    if (!updated) return res.status(404).json({ error: 'Vendor not found' });
+
+    logAuditAction(req, {
+      action: 'UPDATE',
+      entityType: 'Vendor',
+      entityId: updated._id.toString(),
+      entityIdentifier: updated.code,
+      previousData: prevVendor,
+      newData: updated,
+      organisationId: updated.organisationId,
+      branchId: updated.branchId,
+    });
+
+    res.json({ ...updated.toObject(), id: updated._id.toString() });
+  } catch (err: any) {
+    res.status(400).json({ error: err.message });
+  }
+});
+
+// Add new Address to Vendor
+erpRouter.post('/vendors/:id/addresses', async (req: Request, res: Response) => {
+  try {
+    const vendor = await Vendor.findById(req.params.id);
+    if (!vendor) return res.status(404).json({ error: 'Vendor not found' });
+
+    const { type, attention, addressLine1, addressLine2, city, state, pincode, phone, country } = req.body;
+    if (!type || !addressLine1 || !city || !state || !pincode) {
+      return res.status(400).json({ error: 'Type, Address Line 1, City, State and Pincode are required.' });
+    }
+
+    if (!vendor.addresses) vendor.addresses = [];
+
+    // Only ONE address of this type can be active at a time
+    vendor.addresses.forEach((addr: any) => {
+      if (addr.type === type) {
+        addr.isActive = false;
+      }
+    });
+
+    const newAddr: any = {
+      type,
+      attention: attention || '',
+      addressLine1,
+      addressLine2: addressLine2 || '',
+      city,
+      state,
+      pincode,
+      country: country || 'India',
+      phone: phone || vendor.phone || '',
+      isActive: true,
+      createdAt: new Date(),
+    };
+
+    vendor.addresses.push(newAddr);
+
+    const fullAddrString = [addressLine1, addressLine2, `${city} - ${pincode}`, state, country || 'India']
+      .filter(Boolean)
+      .join(', ');
+    if (type === 'BILLING') {
+      vendor.billingAddress = fullAddrString;
+      vendor.billingState = state;
+      vendor.city = city;
+      vendor.state = state;
+    } else {
+      vendor.shippingAddress = fullAddrString;
+      vendor.shippingState = state;
+    }
+
+    await vendor.save();
+    res.status(201).json({ ...vendor.toObject(), id: vendor._id.toString() });
+  } catch (err: any) {
+    res.status(400).json({ error: err.message });
+  }
+});
+
+// Activate an existing address for Vendor
+erpRouter.post('/vendors/:id/addresses/:addressId/activate', async (req: Request, res: Response) => {
+  try {
+    const vendor = await Vendor.findById(req.params.id);
+    if (!vendor) return res.status(404).json({ error: 'Vendor not found' });
+
+    if (!vendor.addresses || vendor.addresses.length === 0) {
+      return res.status(404).json({ error: 'No addresses found for vendor' });
+    }
+
+    const targetAddr = (vendor.addresses as any).id(req.params.addressId);
+    if (!targetAddr) return res.status(404).json({ error: 'Address record not found' });
+
+    vendor.addresses.forEach((addr: any) => {
+      if (addr.type === targetAddr.type) {
+        addr.isActive = false;
+      }
+    });
+
+    targetAddr.isActive = true;
+
+    const fullAddrString = [
+      targetAddr.addressLine1,
+      targetAddr.addressLine2,
+      `${targetAddr.city} - ${targetAddr.pincode}`,
+      targetAddr.state,
+      targetAddr.country || 'India',
+    ]
+      .filter(Boolean)
+      .join(', ');
+
+    if (targetAddr.type === 'BILLING') {
+      vendor.billingAddress = fullAddrString;
+      vendor.billingState = targetAddr.state;
+      vendor.city = targetAddr.city;
+      vendor.state = targetAddr.state;
+    } else {
+      vendor.shippingAddress = fullAddrString;
+      vendor.shippingState = targetAddr.state;
+    }
+
+    await vendor.save();
+    res.json({ ...vendor.toObject(), id: vendor._id.toString() });
+  } catch (err: any) {
+    res.status(400).json({ error: err.message });
+  }
+});
+
+// Update an existing address for Vendor
+erpRouter.put('/vendors/:id/addresses/:addressId', async (req: Request, res: Response) => {
+  try {
+    const vendor = await Vendor.findById(req.params.id);
+    if (!vendor) return res.status(404).json({ error: 'Vendor not found' });
+
+    const targetAddr = (vendor.addresses as any).id(req.params.addressId);
+    if (!targetAddr) return res.status(404).json({ error: 'Address record not found' });
+
+    const { attention, addressLine1, addressLine2, city, state, pincode, phone, country } = req.body;
+    if (attention !== undefined) targetAddr.attention = attention;
+    if (addressLine1 !== undefined) targetAddr.addressLine1 = addressLine1;
+    if (addressLine2 !== undefined) targetAddr.addressLine2 = addressLine2;
+    if (city !== undefined) targetAddr.city = city;
+    if (state !== undefined) targetAddr.state = state;
+    if (pincode !== undefined) targetAddr.pincode = pincode;
+    if (phone !== undefined) targetAddr.phone = phone;
+    if (country !== undefined) targetAddr.country = country;
+
+    if (targetAddr.isActive) {
+      const fullAddrString = [
+        targetAddr.addressLine1,
+        targetAddr.addressLine2,
+        `${targetAddr.city} - ${targetAddr.pincode}`,
+        targetAddr.state,
+        targetAddr.country || 'India',
+      ]
+        .filter(Boolean)
+        .join(', ');
+
+      if (targetAddr.type === 'BILLING') {
+        vendor.billingAddress = fullAddrString;
+        vendor.billingState = targetAddr.state;
+        vendor.city = targetAddr.city;
+        vendor.state = targetAddr.state;
+      } else {
+        vendor.shippingAddress = fullAddrString;
+        vendor.shippingState = targetAddr.state;
+      }
+    }
+
+    await vendor.save();
+    res.json({ ...vendor.toObject(), id: vendor._id.toString() });
+  } catch (err: any) {
+    res.status(400).json({ error: err.message });
+  }
+});
+
 erpRouter.delete('/vendors/:id', requirePermission('purchase', 'edit'), async (req: Request, res: Response) => {
   try {
     const prevVendor = await Vendor.findById(req.params.id);
@@ -2694,10 +3155,18 @@ erpRouter.post('/delivery-challans', async (req: Request, res: Response) => {
         }
       }
     }
+    let invoiceData: any = null;
+    if (invoiceNumber) {
+      invoiceData = await Invoice.findOne({ invoiceNumber });
+    }
     const count = (await DeliveryChallan.countDocuments()) + 41;
     const dcNumber = `DC-2026-00${count}`;
     const dc = await DeliveryChallan.create({
       ...req.body,
+      invoiceId: req.body.invoiceId || (invoiceData?._id?.toString() || ''),
+      irn: req.body.irn || invoiceData?.irn || '',
+      signedQrCode: req.body.signedQrCode || invoiceData?.signedQrCode || '',
+      totalAmount: req.body.totalAmount ?? (invoiceData?.totalAmount || 0),
       dcNumber,
     });
 

@@ -446,6 +446,8 @@ export interface IVendor extends Document {
   outstandingBalance?: number;
   organisationId: string;
   branchId?: string;
+  addresses?: ICustomerAddress[];
+  history?: IInvoiceHistoryItem[];
   isDeleted?: boolean;
   deletedAt?: Date | null;
 }
@@ -467,6 +469,8 @@ const VendorSchema = new Schema<IVendor>(
     gstin: { type: String, required: true },
     pan: { type: String, default: '' },
     outstandingBalance: { type: Number, default: 0 },
+    addresses: [CustomerAddressSchema],
+    history: [InvoiceHistorySchema],
     organisationId: { type: String, default: '' },
     branchId: { type: String, default: '' },
     isDeleted: { type: Boolean, default: false },
@@ -522,6 +526,7 @@ export interface IPurchaseOrder extends Document {
     | 'REJECTED'
     | string;
   isAutoReorder?: boolean;
+  history?: IInvoiceHistoryItem[];
 }
 
 const PurchaseOrderSchema = new Schema<IPurchaseOrder>(
@@ -563,6 +568,7 @@ const PurchaseOrderSchema = new Schema<IPurchaseOrder>(
       default: 'APPROVED',
     },
     isAutoReorder: { type: Boolean, default: false },
+    history: [InvoiceHistorySchema],
   },
   { timestamps: true }
 );
@@ -575,6 +581,7 @@ PurchaseOrderSchema.index({ paymentStatus: 1 });
 // 10. Bill (Vendor Invoices / Bills with or without PO)
 export interface IBill extends Document {
   billNumber: string;
+  vendorInvoiceNumber?: string;
   billDate: string;
   dueDate: string;
   poId?: string;
@@ -610,6 +617,7 @@ export interface IBill extends Document {
 const BillSchema = new Schema<IBill>(
   {
     billNumber: { type: String, required: true, unique: true },
+    vendorInvoiceNumber: { type: String, default: '' },
     billDate: { type: String, required: true },
     dueDate: { type: String, required: true },
     poId: { type: String, default: '' },
@@ -672,6 +680,11 @@ export interface IStoreItem extends Document {
   maxLevel: number;
   lastAudited: string;
   status: string;
+  expiryDate?: string;
+  batchNumber?: string;
+  sourceBillNumber?: string;
+  sourcePoNumber?: string;
+  sourceVendorName?: string;
   branchId: string;
   organisationId: string;
   isDeleted?: boolean;
@@ -690,6 +703,11 @@ const StoreItemSchema = new Schema<IStoreItem>(
     maxLevel: { type: Number, required: true, default: 100 },
     lastAudited: { type: String },
     status: { type: String, default: 'In Stock' },
+    expiryDate: { type: String, default: '' },
+    batchNumber: { type: String, default: '' },
+    sourceBillNumber: { type: String, default: '' },
+    sourcePoNumber: { type: String, default: '' },
+    sourceVendorName: { type: String, default: '' },
     branchId: { type: String, default: '' },
     organisationId: { type: String, default: '' },
     isDeleted: { type: Boolean, default: false },
@@ -722,6 +740,9 @@ export interface IDeliveryChallan extends Document {
   driverPhone: string;
   items?: IDocumentItem[];
   status: string;
+  irn?: string;
+  signedQrCode?: string;
+  totalAmount?: number;
   branchId: string;
   organisationId: string;
   financialYear: string;
@@ -740,11 +761,14 @@ const DeliveryChallanSchema = new Schema<IDeliveryChallan>(
     dispatchDate: { type: String, required: true },
     transportMode: { type: String, required: true },
     vehicleNumber: { type: String, required: true },
-    ewayBillNumber: { type: String, required: true },
+    ewayBillNumber: { type: String, default: '' },
     driverName: { type: String, required: true },
     driverPhone: { type: String, required: true },
     items: [DocumentItemSchema],
     status: { type: String, default: 'In Transit' },
+    irn: { type: String, default: '' },
+    signedQrCode: { type: String, default: '' },
+    totalAmount: { type: Number, default: 0 },
     branchId: { type: String, default: '' },
     organisationId: { type: String, default: '' },
     financialYear: { type: String, default: '2026-2027' },
@@ -1125,6 +1149,58 @@ const GstRateMasterSchema = new Schema<IGstRateMaster>(
 GstRateMasterSchema.index({ rate: 1 });
 GstRateMasterSchema.index({ sortOrder: 1 });
 
+export interface IScrapRecord extends Document {
+  productId: string;
+  productName: string;
+  sku: string;
+  warehouse: string;
+  binLocation?: string;
+  deductedQty: number;
+  reason: string;
+  actionDate: string;
+  userName: string;
+  itemCode?: string;
+  itemName?: string;
+  quantity?: number;
+  unitPrice?: number;
+  batchNumber?: string;
+  remarks?: string;
+  date?: Date;
+  issuedBy?: string;
+  branchId?: string;
+  organisationId?: string;
+  financialYear?: string;
+}
+
+const ScrapRecordSchema = new Schema<IScrapRecord>(
+  {
+    productId: { type: String, required: true },
+    productName: { type: String, required: true },
+    sku: { type: String, required: true },
+    itemCode: { type: String, default: '' },
+    itemName: { type: String, default: '' },
+    warehouse: { type: String, required: true },
+    binLocation: { type: String, default: 'Scrap Yard' },
+    deductedQty: { type: Number, required: true },
+    quantity: { type: Number, default: 0 },
+    unitPrice: { type: Number, default: 0 },
+    batchNumber: { type: String, default: '' },
+    reason: { type: String, required: true },
+    remarks: { type: String, default: '' },
+    actionDate: { type: String, required: true },
+    date: { type: Date, default: Date.now },
+    userName: { type: String, required: true },
+    issuedBy: { type: String, default: '' },
+    branchId: { type: String, default: '' },
+    organisationId: { type: String, default: '' },
+    financialYear: { type: String, default: '2026-2027' },
+  },
+  { timestamps: true }
+);
+
+ScrapRecordSchema.index({ organisationId: 1, actionDate: -1 });
+ScrapRecordSchema.index({ productId: 1, actionDate: -1 });
+
 // Export Models
 export const Organisation = mongoose.model<IOrganisation>('Organisation', OrganisationSchema);
 export const Branch = mongoose.model<IBranch>('Branch', BranchSchema);
@@ -1144,6 +1220,7 @@ export const FinancialTransaction = mongoose.model<IFinancialTransaction>('Finan
 export const StockMovement = mongoose.model<IStockMovement>('StockMovement', StockMovementSchema);
 export const ItemCategory = mongoose.model<IItemCategory>('ItemCategory', ItemCategorySchema);
 export const GstRateMaster = mongoose.model<IGstRateMaster>('GstRateMaster', GstRateMasterSchema);
+export const ScrapRecord = mongoose.model<IScrapRecord>('ScrapRecord', ScrapRecordSchema);
 
 
 

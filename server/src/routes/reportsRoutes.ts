@@ -8,6 +8,7 @@ import {
   Bill,
   StoreItem,
   UserAccount,
+  ScrapRecord,
 } from '../models/ErpModels';
 import { verifyAccessToken } from '../security/auth';
 import jwt from 'jsonwebtoken';
@@ -803,3 +804,59 @@ reportsRouter.get('/balance-sheet', async (req: Request, res: Response) => {
     return res.status(500).json({ error: err.message });
   }
 });
+
+// =========================================================================
+// 8. SCRAP & WASTAGE REPORT (Super Admin Dedicated)
+// =========================================================================
+reportsRouter.get('/scrap-wastage', async (req: Request, res: Response) => {
+  try {
+    const { organisationId, branchId, fromDate, toDate, search, reason } = req.query as Record<string, string>;
+
+    const query: any = {};
+    if (organisationId) query.organisationId = organisationId;
+    if (branchId) {
+      query.$or = [{ branchId }, { branchId: '' }, { branchId: { $exists: false } }];
+    }
+    if (reason && reason !== 'ALL') {
+      query.reason = reason;
+    }
+    if (fromDate || toDate) {
+      query.date = {};
+      if (fromDate) query.date.$gte = new Date(fromDate);
+      if (toDate) {
+        const end = new Date(toDate);
+        end.setHours(23, 59, 59, 999);
+        query.date.$lte = end;
+      }
+    }
+    if (search) {
+      query.$or = [
+        { itemName: { $regex: search, $options: 'i' } },
+        { itemCode: { $regex: search, $options: 'i' } },
+        { batchNumber: { $regex: search, $options: 'i' } },
+        { remarks: { $regex: search, $options: 'i' } },
+        { issuedBy: { $regex: search, $options: 'i' } },
+      ];
+    }
+
+    const records = await ScrapRecord.find(query).sort({ createdAt: -1 }).lean();
+
+    const totalQuantity = records.reduce((sum: number, r: any) => sum + (r.quantity || r.deductedQty || 0), 0);
+    const totalValueLoss = records.reduce((sum: number, r: any) => sum + ((r.quantity || r.deductedQty || 0) * (r.unitPrice || 0)), 0);
+
+    return res.json({
+      message: 'success',
+      reportType: 'Scrap & Wastage Inventory Register',
+      count: records.length,
+      summary: {
+        totalDeductionsCount: records.length,
+        totalQuantityScrapped: totalQuantity,
+        totalValueLoss: Math.round(totalValueLoss * 100) / 100,
+      },
+      records,
+    });
+  } catch (err: any) {
+    return res.status(500).json({ error: err.message });
+  }
+});
+

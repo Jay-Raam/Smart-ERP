@@ -78,6 +78,8 @@ export interface Vendor {
   shippingState?: string;
   gstin?: string;
   pan?: string;
+  addresses?: CustomerAddress[];
+  history?: InvoiceHistoryItem[];
   organisationId?: string;
   branchId?: string;
 }
@@ -307,6 +309,7 @@ export interface PurchaseOrder {
   paymentStatus?: 'UNPAID' | 'PARTIALLY_PAID' | 'PAID';
   isAutoReorder?: boolean;
   totalInWords?: string;
+  history?: InvoiceHistoryItem[];
   status: 'Approved' | 'Pending Approval' | 'Received' | 'Cancelled' | 'Billed' | 'PARTIALLY_BILLED' | 'FULLY_BILLED' | 'AUTO_REORDER_PENDING';
 }
 
@@ -321,6 +324,11 @@ export interface StoreItem {
   minLevel: number;
   maxLevel: number;
   lastAudited: string;
+  expiryDate?: string;
+  batchNumber?: string;
+  sourceBillNumber?: string;
+  sourcePoNumber?: string;
+  sourceVendorName?: string;
   status: 'In Stock' | 'Low Stock' | 'Critical';
   branchId?: string;
   organisationId?: string;
@@ -342,6 +350,9 @@ export interface DeliveryChallan {
   ewayBillNumber: string;
   driverName: string;
   driverPhone: string;
+  irn?: string;
+  signedQrCode?: string;
+  totalAmount?: number;
   items?: DocumentItem[];
   status: 'Dispatched' | 'In Transit' | 'Delivered';
   branchId?: string;
@@ -401,7 +412,10 @@ interface ErpState {
   addCustomer: (customer: Omit<Customer, 'id' | 'code'>) => Promise<void>;
   updateCustomer: (id: string, updates: Partial<Customer>) => Promise<void>;
   addVendor: (vendor: Omit<Vendor, 'id' | 'code'>) => Promise<void>;
-  updateVendor: (id: string, updates: Partial<Vendor>) => Promise<void>;
+  updateVendor: (id: string, updates: Partial<Vendor>) => Promise<Vendor | undefined>;
+  addVendorAddress: (vendorId: string, address: Omit<CustomerAddress, 'id' | '_id' | 'isActive'>) => Promise<Vendor | undefined>;
+  activateVendorAddress: (vendorId: string, addressId: string) => Promise<Vendor | undefined>;
+  updateVendorAddress: (vendorId: string, addressId: string, addressData: Partial<CustomerAddress>) => Promise<Vendor | undefined>;
   addProduct: (product: Omit<Product, 'id'>) => Promise<void>;
   approveProduct: (id: string) => Promise<void>;
   rejectProduct: (id: string) => Promise<void>;
@@ -420,8 +434,10 @@ interface ErpState {
   activateCustomerAddress: (customerId: string, addressId: string) => Promise<Customer | undefined>;
   updateCustomerAddress: (customerId: string, addressId: string, addressData: Partial<CustomerAddress>) => Promise<Customer | undefined>;
   addPurchaseOrder: (po: Omit<PurchaseOrder, 'id' | 'poNumber'>) => Promise<PurchaseOrder | undefined>;
+  updatePurchaseOrder: (id: string, updates: Partial<PurchaseOrder>) => Promise<PurchaseOrder | undefined>;
   addDeliveryChallan: (dc: Omit<DeliveryChallan, 'id' | 'dcNumber'>) => Promise<void>;
   updateStoreStock: (productId: string, deltaQuantity: number) => Promise<void>;
+  issueStoreStock: (payload: { storeItemId: string; quantity: number; reason: string; remarks?: string }) => Promise<void>;
   fetchBankAccounts: () => Promise<void>;
   addBankAccount: (account: Partial<BankAccount>) => Promise<BankAccount | undefined>;
   setPrimaryBankAccount: (id: string) => Promise<void>;
@@ -807,18 +823,91 @@ export const useErpStore = create<ErpState>((set, get) => ({
   updateVendor: async (id, updates) => {
     try {
       const res = await fetch(`/api/erp/vendors/${id}`, {
-        method: 'PATCH',
+        method: 'PUT',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(updates),
       });
-      if (!res.ok) throw new Error('Failed to update vendor');
+      if (!res.ok) {
+        const errData = await res.json().catch(() => ({}));
+        throw new Error(errData.error || 'Failed to update vendor');
+      }
       const updated = await res.json();
       set((state) => ({
         vendors: state.vendors.map((v) => (v.id === id ? updated : v)),
       }));
       showAppToast(`Vendor updated successfully`, 'success');
+      return updated;
     } catch (err: any) {
       showAppToast('Error updating vendor: ' + err.message, 'error');
+      throw err;
+    }
+  },
+
+  addVendorAddress: async (vendorId, address) => {
+    try {
+      const res = await fetch(`/api/erp/vendors/${vendorId}/addresses`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(address),
+      });
+      if (!res.ok) {
+        const errData = await res.json().catch(() => ({}));
+        throw new Error(errData.error || 'Failed to add vendor address');
+      }
+      const updatedVendor = await res.json();
+      set((state) => ({
+        vendors: state.vendors.map((v) => (v.id === vendorId ? updatedVendor : v)),
+      }));
+      showAppToast('Vendor address added and activated', 'success');
+      return updatedVendor;
+    } catch (err: any) {
+      showAppToast('Error adding address: ' + err.message, 'error');
+      throw err;
+    }
+  },
+
+  activateVendorAddress: async (vendorId, addressId) => {
+    try {
+      const res = await fetch(`/api/erp/vendors/${vendorId}/addresses/${addressId}/activate`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+      });
+      if (!res.ok) {
+        const errData = await res.json().catch(() => ({}));
+        throw new Error(errData.error || 'Failed to activate vendor address');
+      }
+      const updatedVendor = await res.json();
+      set((state) => ({
+        vendors: state.vendors.map((v) => (v.id === vendorId ? updatedVendor : v)),
+      }));
+      showAppToast('Vendor address set as active default', 'success');
+      return updatedVendor;
+    } catch (err: any) {
+      showAppToast('Error activating address: ' + err.message, 'error');
+      throw err;
+    }
+  },
+
+  updateVendorAddress: async (vendorId, addressId, addressData) => {
+    try {
+      const res = await fetch(`/api/erp/vendors/${vendorId}/addresses/${addressId}`, {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(addressData),
+      });
+      if (!res.ok) {
+        const errData = await res.json().catch(() => ({}));
+        throw new Error(errData.error || 'Failed to update vendor address');
+      }
+      const updatedVendor = await res.json();
+      set((state) => ({
+        vendors: state.vendors.map((v) => (v.id === vendorId ? updatedVendor : v)),
+      }));
+      showAppToast('Vendor address updated successfully', 'success');
+      return updatedVendor;
+    } catch (err: any) {
+      showAppToast('Error updating address: ' + err.message, 'error');
+      throw err;
     }
   },
 
@@ -1140,6 +1229,29 @@ export const useErpStore = create<ErpState>((set, get) => ({
     }
   },
 
+  updatePurchaseOrder: async (id, updates) => {
+    try {
+      const res = await fetch(`/api/erp/purchase-orders/${id}`, {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(updates),
+      });
+      if (!res.ok) {
+        const errData = await res.json().catch(() => ({}));
+        throw new Error(errData.error || 'Failed to update purchase order');
+      }
+      const updated = await res.json();
+      set((state) => ({
+        purchaseOrders: state.purchaseOrders.map((p) => (p.id === id ? updated : p)),
+      }));
+      showAppToast(`Purchase Order ${updated.poNumber} updated successfully`, 'success');
+      return updated;
+    } catch (err: any) {
+      showAppToast('Error updating purchase order: ' + err.message, 'error');
+      throw err;
+    }
+  },
+
   addDeliveryChallan: async (dc) => {
     try {
       const res = await fetch('/api/erp/delivery-challans', {
@@ -1180,6 +1292,32 @@ export const useErpStore = create<ErpState>((set, get) => ({
       showAppToast(`Stock adjusted by ${deltaQuantity > 0 ? '+' : ''}${deltaQuantity}`, 'info');
     } catch (err: any) {
       showAppToast('Error updating stock: ' + err.message, 'error');
+    }
+  },
+
+  issueStoreStock: async (payload: { storeItemId: string; quantity: number; reason: string; remarks?: string }) => {
+    try {
+      const res = await fetch('/api/erp/store/issue-stock', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(payload),
+      });
+      if (!res.ok) {
+        const errData = await res.json().catch(() => ({}));
+        throw new Error(errData.error || 'Failed to issue/deduct stock');
+      }
+      const data = await res.json();
+      const updatedItem = data.item;
+      set((state) => ({
+        storeItems: state.storeItems.map((s) => (s.id === updatedItem.id ? updatedItem : s)),
+        products: state.products.map((p) =>
+          p.id === updatedItem.productId ? { ...p, currentStock: updatedItem.availableStock } : p
+        ),
+      }));
+      showAppToast(`Stock deducted successfully: -${payload.quantity}`, 'success');
+    } catch (err: any) {
+      showAppToast('Error issuing stock: ' + err.message, 'error');
+      throw err;
     }
   },
 

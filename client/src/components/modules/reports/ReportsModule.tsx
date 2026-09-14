@@ -16,6 +16,7 @@ import {
   CheckCircle2,
   ShieldAlert,
   ArrowRight,
+  Trash2,
 } from 'lucide-react';
 import { useAuthStore } from '../../../store/authStore';
 import { useErpStore } from '../../../store/erpStore';
@@ -29,7 +30,8 @@ type ReportTab =
   | 'products'
   | 'gst'
   | 'hsn-summary'
-  | 'balance-sheet';
+  | 'balance-sheet'
+  | 'scrap-wastage';
 
 interface TabItem {
   id: ReportTab;
@@ -80,6 +82,12 @@ const REPORT_TABS: TabItem[] = [
     label: 'Balance Sheet',
     icon: BarChart3,
     description: 'Executive financial statement: Assets, Liabilities, and Owner Equity balance',
+  },
+  {
+    id: 'scrap-wastage',
+    label: 'Scrap & Wastage',
+    icon: Trash2,
+    description: 'Material write-offs, quality rejections, shelf-life expiries, and store scrap audit register',
   },
 ];
 
@@ -365,13 +373,35 @@ export const ReportsModule: React.FC = () => {
             transform: (v) => `₹${Number(v || 0).toLocaleString('en-IN')}`,
           },
         ];
+      case 'scrap-wastage':
+        return [
+          { key: 'date', label: 'Date', transform: (v) => v ? new Date(v).toLocaleDateString('en-IN') : '—' },
+          { key: 'itemCode', label: 'SKU Code' },
+          { key: 'itemName', label: 'Item Name' },
+          { key: 'batchNumber', label: 'Batch' },
+          { key: 'quantity', label: 'Deducted Qty' },
+          {
+            key: 'unitPrice',
+            label: 'Unit Cost',
+            transform: (v) => `₹${Number(v || 0).toLocaleString('en-IN', { minimumFractionDigits: 2 })}`,
+          },
+          {
+            key: 'totalLoss',
+            label: 'Total Value Loss',
+            transform: (v, row) => `₹${Number((row.quantity || 0) * (row.unitPrice || 0)).toLocaleString('en-IN', { minimumFractionDigits: 2 })}`,
+          },
+          { key: 'reason', label: 'Scrap Reason' },
+          { key: 'warehouse', label: 'Depot' },
+          { key: 'issuedBy', label: 'Authorized By' },
+          { key: 'remarks', label: 'Remarks / Ref' },
+        ];
       default:
         return [];
     }
   };
 
   const currentTabInfo = REPORT_TABS.find((t) => t.id === activeTab);
-  const rows = reportData?.data || [];
+  const rows = reportData?.data || reportData?.records || [];
 
   return (
     <div className="space-y-6">
@@ -535,7 +565,7 @@ export const ReportsModule: React.FC = () => {
       )}
 
       {/* KPI Cards / Report Summaries */}
-      {reportData?.totals && (
+      {(reportData?.totals || reportData?.summary) && (
         <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
           {activeTab === 'customer-balance' && (
             <>
@@ -648,6 +678,32 @@ export const ReportsModule: React.FC = () => {
                 <div className="mt-1 text-xl font-bold font-mono text-emerald-600">
                   ₹{Number(reportData.totals.totalStockValuation || 0).toLocaleString('en-IN')}
                 </div>
+              </div>
+            </>
+          )}
+
+          {activeTab === 'scrap-wastage' && (
+            <>
+              <div className="rounded-2xl border border-slate-200 bg-white p-4 shadow-xs">
+                <span className="text-[11px] font-semibold text-slate-500 uppercase tracking-wider">Total Deduction Events</span>
+                <div className="mt-1 text-xl font-bold font-mono text-slate-900">
+                  {reportData?.summary?.totalDeductionsCount ?? rows.length} Records
+                </div>
+                <div className="text-[11px] text-slate-400 mt-0.5">Scrap & wastage entries</div>
+              </div>
+              <div className="rounded-2xl border border-slate-200 bg-white p-4 shadow-xs">
+                <span className="text-[11px] font-semibold text-slate-500 uppercase tracking-wider">Total Quantity Scrapped</span>
+                <div className="mt-1 text-xl font-bold font-mono text-rose-600">
+                  {reportData?.summary?.totalQuantityScrapped ?? 0} Units
+                </div>
+                <div className="text-[11px] text-rose-500 mt-0.5">Stock written off</div>
+              </div>
+              <div className="rounded-2xl border border-slate-200 bg-white p-4 shadow-xs col-span-2">
+                <span className="text-[11px] font-semibold text-slate-500 uppercase tracking-wider">Total Material Valuation Loss</span>
+                <div className="mt-1 text-xl font-bold font-mono text-amber-600">
+                  ₹{Number(reportData?.summary?.totalValueLoss || 0).toLocaleString('en-IN', { minimumFractionDigits: 2 })}
+                </div>
+                <div className="text-[11px] text-amber-600 mt-0.5">Calculated at unit inward cost</div>
               </div>
             </>
           )}

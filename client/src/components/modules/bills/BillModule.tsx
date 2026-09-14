@@ -10,6 +10,8 @@ import {
   DollarSign,
   Building2,
   Download,
+  Lock,
+  Pencil,
 } from 'lucide-react';
 import { useErpStore, Bill } from '../../../store/erpStore';
 import { DataTable, ColumnDef } from '../../shared/DataTable';
@@ -22,7 +24,7 @@ import { usePermissions } from '../../../hooks/usePermissions';
 
 export const BillModule: React.FC = () => {
   const { bills, updateBill } = useErpStore();
-  const { canAdd, canApprove } = usePermissions('bills');
+  const { canAdd, canEdit, canApprove } = usePermissions('bills');
   const [selectedBillForPdf, setSelectedBillForPdf] = useState<Bill | null>(null);
   const [selectedBillForPayment, setSelectedBillForPayment] = useState<Bill | null>(null);
   const [viewingBillId, setViewingBillId] = useState<string | null>(() => {
@@ -206,6 +208,30 @@ export const BillModule: React.FC = () => {
             : Math.max(0, b.totalAmount - (b.paidAmount || 0) - (b.advanceAdjusted || 0));
         return (
           <div className="flex items-center justify-end gap-1.5">
+            {canEdit && (
+              ((b.paidAmount || 0) > 0 || b.storeMovementStatus === 'PARTIALLY_MOVED' || b.storeMovementStatus === 'FULLY_MOVED') ? (
+                <span
+                  className="inline-flex items-center gap-1 rounded-lg border border-slate-200 bg-slate-50 px-2 py-1 text-xs font-semibold text-slate-400 cursor-not-allowed shadow-2xs"
+                  title="Bill Editing Locked: payment recorded or items moved to store"
+                >
+                  <Lock className="h-3.5 w-3.5" />
+                  <span>Locked</span>
+                </span>
+              ) : (
+                <button
+                  type="button"
+                  onClick={() => {
+                    window.history.pushState(null, '', `/bills/${b.id}/edit`);
+                    window.dispatchEvent(new PopStateEvent('popstate'));
+                  }}
+                  className="inline-flex items-center gap-1 rounded-lg border border-slate-200 bg-white px-2 py-1 text-xs font-semibold text-slate-700 hover:bg-slate-50 hover:text-blue-600 transition cursor-pointer shadow-xs"
+                  title="Edit Bill"
+                >
+                  <Pencil className="h-3.5 w-3.5" />
+                  <span>Edit</span>
+                </button>
+              )
+            )}
             <button
               type="button"
               onClick={() => {

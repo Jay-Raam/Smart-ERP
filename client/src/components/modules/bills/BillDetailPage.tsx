@@ -22,6 +22,7 @@ import { RecordPaymentModal } from '../../shared/RecordPaymentModal';
 import { showAppToast } from '../../../utils/handleApiError';
 import { BillPdfDocument } from '../../pdf/BillPdfDocument';
 import { PdfPreviewModal } from '../../pdf/PdfPreviewModal';
+import { Combobox } from '../../shared/Combobox';
 import { usePermissions } from '../../../hooks/usePermissions';
 
 interface BillDetailPageProps {
@@ -510,15 +511,19 @@ export const BillDetailPage: React.FC<BillDetailPageProps> = ({ billId, onBack }
                     {/* Warehouse */}
                     <div>
                       <label className="block font-semibold text-slate-700 mb-1">Target Warehouse</label>
-                      <select
-                        value={item.warehouse}
-                        onChange={(e) => handleMovementItemChange(idx, 'warehouse', e.target.value)}
-                        className="w-full px-3 py-1.5 rounded-lg border border-slate-300 text-xs"
-                      >
-                        <option value="Main Warehouse">Main Warehouse</option>
-                        <option value="Raw Materials Bay">Raw Materials Bay</option>
-                        <option value="Finished Goods Store">Finished Goods Store</option>
-                      </select>
+                      <Combobox
+                        value={item.warehouse || 'Main Warehouse'}
+                        onChange={(val) => handleMovementItemChange(idx, 'warehouse', val)}
+                        options={[
+                          { value: 'Main Warehouse', label: 'Main Warehouse' },
+                          { value: 'Raw Materials Bay', label: 'Raw Materials Bay' },
+                          { value: 'Finished Goods Store', label: 'Finished Goods Store' },
+                          { value: 'Central Store', label: 'Central Store' },
+                          { value: 'Spares & Maintenance Bay', label: 'Spares & Maintenance Bay' },
+                        ]}
+                        placeholder="Select target warehouse..."
+                        searchable={true}
+                      />
                     </div>
                   </div>
 

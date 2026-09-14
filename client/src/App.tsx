@@ -23,6 +23,7 @@ const StoreModule = React.lazy(() => import('./components/modules/StoreModule').
 const ProductsModule = React.lazy(() => import('./components/modules/ProductsModule').then((m) => ({ default: m.ProductsModule })));
 const CustomerModule = React.lazy(() => import('./components/modules/CustomerModule').then((m) => ({ default: m.CustomerModule })));
 const CustomerDetailPage = React.lazy(() => import('./components/modules/customers/CustomerDetailPage').then((m) => ({ default: m.CustomerDetailPage })));
+const VendorDetailPage = React.lazy(() => import('./components/modules/vendors/VendorDetailPage').then((m) => ({ default: m.VendorDetailPage })));
 const DeliveryModule = React.lazy(() => import('./components/modules/DeliveryModule').then((m) => ({ default: m.DeliveryModule })));
 const OrganisationModule = React.lazy(() => import('./components/modules/OrganisationModule').then((m) => ({ default: m.OrganisationModule })));
 const BranchModule = React.lazy(() => import('./components/modules/BranchModule').then((m) => ({ default: m.BranchModule })));
@@ -64,9 +65,10 @@ export function App() {
     if (typeof window !== 'undefined') {
       const p = window.location.pathname;
       if (p.startsWith('/customers')) return 'customers';
+      if (p.startsWith('/vendors')) return 'purchase';
       if (p.startsWith('/bills')) return 'bills';
       if (p.startsWith('/invoices')) return 'invoices';
-      if (p === '/purchase-orders') return 'purchase';
+      if (p.startsWith('/purchase-orders')) return 'purchase';
       if (p === '/reports') return 'reports';
       if (p === '/bank') return 'bank';
       if (p === '/transactions') return 'transactions';
@@ -104,9 +106,10 @@ export function App() {
       const path = window.location.pathname;
       setCurrentPath(path);
       if (path.startsWith('/customers')) setActiveModule('customers');
+      else if (path.startsWith('/vendors')) setActiveModule('purchase');
       else if (path.startsWith('/bills')) setActiveModule('bills');
       else if (path.startsWith('/invoices')) setActiveModule('invoices');
-      else if (path === '/purchase-orders') setActiveModule('purchase');
+      else if (path.startsWith('/purchase-orders')) setActiveModule('purchase');
       else if (path === '/reports') setActiveModule('reports');
       else if (path === '/bank') setActiveModule('bank');
       else if (path === '/transactions') setActiveModule('transactions');
@@ -289,13 +292,23 @@ export function App() {
               {currentPath.startsWith('/customers/') && (
                 <CustomerDetailPage customerId={currentPath.replace('/customers/', '').split('/')[0]} />
               )}
-              {currentPath === '/purchase-orders/new' && <PurchaseOrderCreatePage />}
-              {currentPath === '/bills/new' && <BillCreatePage />}
+              {currentPath.startsWith('/vendors/') && (
+                <VendorDetailPage vendorId={currentPath.replace('/vendors/', '').split('/')[0]} />
+              )}
+              {(currentPath === '/purchase-orders/new' || (currentPath.startsWith('/purchase-orders/') && currentPath.endsWith('/edit'))) && (
+                <PurchaseOrderCreatePage />
+              )}
+              {(currentPath === '/bills/new' || (currentPath.startsWith('/bills/') && currentPath.endsWith('/edit'))) && (
+                <BillCreatePage />
+              )}
 
               {/* Standard Module Routes */}
               {!['/invoices/new', '/purchase-orders/new', '/bills/new'].includes(currentPath) &&
                 !(currentPath.startsWith('/invoices/') && currentPath.endsWith('/edit')) &&
-                !currentPath.startsWith('/customers/') && (
+                !(currentPath.startsWith('/purchase-orders/') && currentPath.endsWith('/edit')) &&
+                !(currentPath.startsWith('/bills/') && currentPath.endsWith('/edit')) &&
+                !currentPath.startsWith('/customers/') &&
+                !currentPath.startsWith('/vendors/') && (
                 <>
                   {activeModule === 'dashboard' && (
                     <DashboardModule onNavigate={(m) => {

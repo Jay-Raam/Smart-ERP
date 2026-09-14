@@ -34,6 +34,7 @@ export interface DataTableProps<T> {
   pageSizeDefault?: number;
   syncWithUrl?: boolean;
   onRowClick?: (item: T) => void;
+  getRowClassName?: (item: T) => string;
 }
 
 export function DataTable<T extends Record<string, any>>({
@@ -49,6 +50,7 @@ export function DataTable<T extends Record<string, any>>({
   pageSizeDefault = 10,
   syncWithUrl = true,
   onRowClick,
+  getRowClassName,
 }: DataTableProps<T>) {
   const urlState = useUrlTableState({
     perPage: pageSizeDefault,
@@ -352,8 +354,10 @@ export function DataTable<T extends Record<string, any>>({
                   <tr
                     key={row.id || idx}
                     onClick={() => onRowClick && onRowClick(row)}
-                    className={`hover:bg-blue-50/40 transition-colors ${
-                      onRowClick ? 'cursor-pointer hover:bg-blue-50/60' : ''
+                    className={`${
+                      getRowClassName ? getRowClassName(row) : 'hover:bg-blue-50/40'
+                    } transition-colors ${
+                      onRowClick ? 'cursor-pointer' : ''
                     }`}
                   >
                     {columns.map((col) => (

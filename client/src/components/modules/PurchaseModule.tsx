@@ -17,6 +17,8 @@ import {
   Phone,
   Download,
   DollarSign,
+  Lock,
+  Pencil,
 } from 'lucide-react';
 import { useErpStore, PurchaseOrder, Vendor, DocumentItem } from '../../store/erpStore';
 import { DataTable, ColumnDef } from '../shared/DataTable';
@@ -59,7 +61,7 @@ export const PurchaseModule: React.FC<PurchaseModuleProps> = ({ initialOpenAdd =
     approveAutoReorderPO,
   } = useErpStore();
 
-  const { canAdd: canAddPO, canApprove: canApprovePO } = usePermissions('purchase');
+  const { canAdd: canAddPO, canEdit: canEditPO, canApprove: canApprovePO } = usePermissions('purchase');
   const { canAdd: canAddBill } = usePermissions('bills');
 
   const [activeTab, setActiveTab] = useState<'orders' | 'vendors'>('orders');
@@ -455,6 +457,34 @@ export const PurchaseModule: React.FC<PurchaseModuleProps> = ({ initialOpenAdd =
             </>
           )}
 
+          {canEditPO && (
+            (po.paidAmount || 0) > 0 ||
+            po.status === 'Billed' ||
+            po.status === 'PARTIALLY_BILLED' ||
+            po.status === 'FULLY_BILLED' ? (
+              <span
+                className="inline-flex items-center gap-1 rounded-lg border border-slate-200 bg-slate-50 px-2 py-1 text-xs font-semibold text-slate-400 cursor-not-allowed shadow-2xs"
+                title="PO Editing Locked: advance payment or vendor bill exists"
+              >
+                <Lock className="h-3.5 w-3.5" />
+                <span>Locked</span>
+              </span>
+            ) : (
+              <button
+                type="button"
+                onClick={() => {
+                  window.history.pushState({}, '', `/purchase-orders/${po.id}/edit`);
+                  window.dispatchEvent(new PopStateEvent('popstate'));
+                }}
+                className="inline-flex items-center gap-1 rounded-lg border border-slate-200 bg-white px-2 py-1 text-xs font-semibold text-slate-700 hover:bg-slate-100 hover:text-blue-600 transition cursor-pointer shadow-xs"
+                title="Edit Purchase Order"
+              >
+                <Pencil className="h-3.5 w-3.5" />
+                <span>Edit</span>
+              </button>
+            )
+          )}
+
           <button
             type="button"
             onClick={() => setSelectedPO(po)}
@@ -474,13 +504,35 @@ export const PurchaseModule: React.FC<PurchaseModuleProps> = ({ initialOpenAdd =
       key: 'code',
       header: 'Vendor Code',
       sortable: true,
-      render: (v) => <span className="font-mono font-bold text-blue-700">{v.code}</span>,
+      render: (v) => (
+        <button
+          type="button"
+          onClick={() => {
+            window.history.pushState({}, '', `/vendors/${v.id}`);
+            window.dispatchEvent(new PopStateEvent('popstate'));
+          }}
+          className="font-mono font-bold text-blue-700 hover:underline cursor-pointer"
+        >
+          {v.code}
+        </button>
+      ),
     },
     {
       key: 'name',
       header: 'Vendor Name',
       sortable: true,
-      render: (v) => <span className="font-bold text-slate-900">{v.name}</span>,
+      render: (v) => (
+        <button
+          type="button"
+          onClick={() => {
+            window.history.pushState({}, '', `/vendors/${v.id}`);
+            window.dispatchEvent(new PopStateEvent('popstate'));
+          }}
+          className="font-bold text-slate-900 hover:text-blue-600 transition text-left cursor-pointer"
+        >
+          {v.name}
+        </button>
+      ),
     },
     {
       key: 'contactPerson',
@@ -514,6 +566,27 @@ export const PurchaseModule: React.FC<PurchaseModuleProps> = ({ initialOpenAdd =
       header: 'GSTIN',
       sortable: true,
       render: (v) => <span className="font-mono text-slate-600">{v.gstin || '—'}</span>,
+    },
+    {
+      key: 'actions',
+      header: 'Actions',
+      align: 'right',
+      render: (v) => (
+        <div className="flex items-center justify-end gap-1.5">
+          <button
+            type="button"
+            onClick={() => {
+              window.history.pushState({}, '', `/vendors/${v.id}`);
+              window.dispatchEvent(new PopStateEvent('popstate'));
+            }}
+            className="inline-flex items-center gap-1 rounded-lg border border-slate-200 bg-white px-2.5 py-1 text-xs font-semibold text-slate-700 hover:bg-slate-100 hover:text-blue-600 transition cursor-pointer shadow-xs"
+            title="View Full Vendor Details & Transactions"
+          >
+            <Eye className="h-3.5 w-3.5" />
+            <span>View</span>
+          </button>
+        </div>
+      ),
     },
   ];
 
@@ -557,7 +630,10 @@ export const PurchaseModule: React.FC<PurchaseModuleProps> = ({ initialOpenAdd =
               </button>
             ) : (
               <button
-                onClick={() => setIsAddPOModalOpen(true)}
+                onClick={() => {
+                  window.history.pushState({}, '', '/purchase-orders/new');
+                  window.dispatchEvent(new PopStateEvent('popstate'));
+                }}
                 className="flex items-center gap-1.5 rounded-xl bg-blue-600 px-3.5 py-2 text-xs font-semibold text-white hover:bg-blue-700 transition shadow-xs cursor-pointer"
               >
                 <Plus className="h-4 w-4" />
