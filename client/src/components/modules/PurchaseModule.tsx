@@ -25,7 +25,7 @@ import { DataTable, ColumnDef } from '../shared/DataTable';
 import { Combobox } from '../shared/Combobox';
 import { PurchasePrintModal } from './PurchasePrintModal';
 import { calculateDocumentTaxes, isStateTamilNadu } from '../../utils/taxCalculation';
-import { INDIA_STATES_LIST } from '../../utils/indiaStates';
+import { INDIA_STATES_LIST, getStateFromGstin } from '../../utils/indiaStates';
 import { useFormValidation, isValidGSTIN, EMAIL_REGEX, PHONE_REGEX } from '../../utils/validation';
 import { ExportModal, ExportColumn } from '../shared/ExportModal';
 import { RecordPaymentModal } from '../shared/RecordPaymentModal';
@@ -164,10 +164,10 @@ export const PurchaseModule: React.FC<PurchaseModuleProps> = ({ initialOpenAdd =
       contactPerson: '',
       email: '',
       phone: '',
-      city: 'Hyderabad',
-      billingState: 'Telangana',
+      city: '',
+      billingState: 'Tamil Nadu',
       billingAddress: '',
-      shippingState: 'Telangana',
+      shippingState: 'Tamil Nadu',
       shippingAddress: '',
       sameAsBilling: true,
       gstin: '',
@@ -228,6 +228,29 @@ export const PurchaseModule: React.FC<PurchaseModuleProps> = ({ initialOpenAdd =
       ],
     },
   });
+
+  // Auto-resolve Indian State and PAN upon GSTIN entry
+  const handleVendorGstinChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const rawVal = e.target.value.toUpperCase();
+    setVendorFieldValue('gstin', rawVal);
+
+    if (rawVal.length >= 2) {
+      const detectedState = getStateFromGstin(rawVal);
+      if (detectedState) {
+        setVendorFieldValue('billingState', detectedState);
+        if (vendorForm.sameAsBilling) {
+          setVendorFieldValue('shippingState', detectedState);
+        }
+      }
+    }
+
+    if (rawVal.length >= 12) {
+      const panPart = rawVal.substring(2, 12);
+      if (/^[A-Z]{5}[0-9]{4}[A-Z]{1}$/.test(panPart)) {
+        setVendorFieldValue('pan', panPart);
+      }
+    }
+  };
 
   const onSubmitVendor = async (data: VendorFormData) => {
     await addVendor({
@@ -1039,18 +1062,27 @@ export const PurchaseModule: React.FC<PurchaseModuleProps> = ({ initialOpenAdd =
                   )}
                 </div>
                 <div>
-                  <label className="block font-semibold text-slate-700 mb-1">GSTIN (Optional / 15 chars)</label>
+                  <label className="block font-semibold text-slate-700 mb-1">GSTIN (15-digit Tax Identifier)</label>
                   <input
                     type="text"
                     name="gstin"
-                    placeholder="36AAACM1234P1Z1"
+                    maxLength={15}
+                    placeholder="e.g. 33AAAAA0000A1Z5 or 36AAACM1234P1Z1"
                     value={vendorForm.gstin}
-                    onChange={handleVendorChange}
+                    onChange={handleVendorGstinChange}
                     onBlur={handleVendorBlur}
                     className={`w-full rounded-lg border p-2.5 outline-none font-mono uppercase transition text-slate-800 ${
                       vendorErrors.gstin ? 'border-red-500 bg-red-50/30' : 'border-slate-200 focus:border-blue-500'
                     }`}
                   />
+                  {vendorForm.gstin && vendorForm.gstin.length >= 2 && getStateFromGstin(vendorForm.gstin) && (
+                    <div className="mt-1 flex items-center gap-1.5 text-[11px] text-emerald-700 font-semibold bg-emerald-50 px-2 py-1 rounded border border-emerald-200">
+                      <CheckCircle2 className="h-3.5 w-3.5 text-emerald-600 shrink-0" />
+                      <span>
+                        Auto-Loaded State: <strong>{getStateFromGstin(vendorForm.gstin)}</strong> (Code {vendorForm.gstin.slice(0, 2)})
+                      </span>
+                    </div>
+                  )}
                   {vendorErrors.gstin && (
                     <p className="mt-1 text-[11px] font-medium text-red-600">{vendorErrors.gstin}</p>
                   )}

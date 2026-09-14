@@ -68,6 +68,23 @@ export const FALLBACK_INDIA_STATES: IndiaStateOption[] = Object.entries(GST_STAT
 
 export const INDIA_STATES_LIST = FALLBACK_INDIA_STATES;
 
+/**
+ * Resolves the state name from a GSTIN or 2-digit GST state code.
+ * E.g., "33AAAAA0000A1Z5" -> "Tamil Nadu", "36AAACM1234P1Z1" -> "Telangana", etc.
+ */
+export function getStateFromGstin(gstin: string): string | null {
+  if (!gstin) return null;
+  const clean = gstin.trim().toUpperCase();
+  if (clean.length < 2) return null;
+  const code = clean.slice(0, 2);
+  for (const [stateName, meta] of Object.entries(GST_STATE_CODE_MAP)) {
+    if (meta.code === code) {
+      return stateName;
+    }
+  }
+  return null;
+}
+
 const CACHE_KEY = 'smart_erp_india_states_v1';
 
 /**

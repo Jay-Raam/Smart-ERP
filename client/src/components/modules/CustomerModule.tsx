@@ -17,7 +17,7 @@ import {
 import { useErpStore, Customer } from '../../store/erpStore';
 import { DataTable, ColumnDef } from '../shared/DataTable';
 import { Combobox } from '../shared/Combobox';
-import { useIndiaStates } from '../../utils/indiaStates';
+import { useIndiaStates, getStateFromGstin } from '../../utils/indiaStates';
 import { CustomerDetailsDrawer } from './customers/CustomerDetailsDrawer';
 import { ExportModal, ExportColumn } from '../shared/ExportModal';
 import { usePermissions } from '../../hooks/usePermissions';
@@ -168,6 +168,22 @@ export const CustomerModule: React.FC<CustomerModuleProps> = ({
       ],
     },
   });
+
+  // Auto-resolve Indian State upon GSTIN entry
+  const handleCustomerGstinChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const rawVal = e.target.value.toUpperCase();
+    setFieldValue('gstin', rawVal);
+
+    if (rawVal.length >= 2) {
+      const detectedState = getStateFromGstin(rawVal);
+      if (detectedState) {
+        setFieldValue('billingState', detectedState);
+        if (values.sameAsBilling) {
+          setFieldValue('shippingState', detectedState);
+        }
+      }
+    }
+  };
 
   const onSubmitAddCustomer = async (formVals: CustomerFormData) => {
     const finalShipAddr = formVals.sameAsBilling
@@ -558,8 +574,9 @@ export const CustomerModule: React.FC<CustomerModuleProps> = ({
                     <input
                       type="text"
                       name="gstin"
+                      maxLength={15}
                       value={values.gstin}
-                      onChange={handleChange}
+                      onChange={handleCustomerGstinChange}
                       onBlur={handleBlur}
                       placeholder="e.g. 33AAACB1234P1Z1"
                       className={`w-full rounded-xl border p-2.5 outline-none font-mono uppercase transition ${touched.gstin && errors.gstin
@@ -567,6 +584,14 @@ export const CustomerModule: React.FC<CustomerModuleProps> = ({
                           : 'border-slate-200 focus:border-blue-500'
                         }`}
                     />
+                    {values.gstin && values.gstin.length >= 2 && getStateFromGstin(values.gstin) && (
+                      <div className="mt-1 flex items-center gap-1.5 text-[11px] text-emerald-700 font-semibold bg-emerald-50 px-2 py-1 rounded border border-emerald-200">
+                        <CheckCircle2 className="h-3.5 w-3.5 text-emerald-600 shrink-0" />
+                        <span>
+                          Auto-Loaded State: <strong>{getStateFromGstin(values.gstin)}</strong> (Code {values.gstin.slice(0, 2)})
+                        </span>
+                      </div>
+                    )}
                     {touched.gstin && errors.gstin && (
                       <p className="text-[11px] text-rose-600 mt-1">{errors.gstin}</p>
                     )}
