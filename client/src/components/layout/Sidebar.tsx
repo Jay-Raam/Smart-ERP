@@ -17,6 +17,7 @@ import {
   BarChart3,
   Landmark,
   ArrowLeftRight,
+  Layers,
 } from 'lucide-react';
 import { useErpStore } from '../../store/erpStore';
 import { useAuthStore } from '../../store/authStore';
@@ -30,6 +31,7 @@ export type ModuleType =
   | 'store'
   | 'products'
   | 'delivery'
+  | 'organisations'
   | 'branches'
   | 'financial-years'
   | 'bank'
@@ -64,6 +66,8 @@ export const Sidebar: React.FC<SidebarProps> = ({
   setIsCollapsed,
 }) => {
   const {
+    organisations,
+    organisation,
     customers,
     bills,
     invoices,
@@ -140,6 +144,12 @@ export const Sidebar: React.FC<SidebarProps> = ({
     {
       title: 'Organisation & Setup',
       items: [
+        {
+          id: 'organisations' as ModuleType,
+          label: 'Organisations',
+          icon: Layers,
+          badge: `${organisations && organisations.length > 0 ? organisations.length : 1} Org`,
+        },
         { id: 'branches' as ModuleType, label: 'Branches & Hubs', icon: Building2, badge: `${branches.length} Br` },
         { id: 'financial-years' as ModuleType, label: 'Financial Years', icon: Calendar, badge: `${financialYears.length} FY` },
       ],
@@ -245,7 +255,7 @@ export const Sidebar: React.FC<SidebarProps> = ({
               style={{ backgroundColor: 'var(--color-primary)' }}
               title="Click to Expand Sidebar"
             >
-              S
+              {organisation?.name ? organisation.name.charAt(0) : 'S'}
             </button>
           ) : (
             <div className="flex items-center justify-between w-full">
@@ -254,13 +264,15 @@ export const Sidebar: React.FC<SidebarProps> = ({
                   className="flex h-9 w-9 shrink-0 items-center justify-center rounded-xl font-bold text-white shadow-sm"
                   style={{ backgroundColor: 'var(--color-primary)' }}
                 >
-                  S
+                  {organisation?.name ? organisation.name.charAt(0) : 'S'}
                 </div>
                 <div className="min-w-0">
                   <div className="text-xs font-bold tracking-tight text-slate-900 dark:text-slate-100 flex items-center gap-1.5 truncate">
-                    Smart Enterprise
+                    <span className="truncate">
+                      {organisation?.name ? organisation.name.split(' ')[0] + ' ' + (organisation.name.split(' ')[1] || '') : 'Smart Enterprise'}
+                    </span>
                     <span
-                      className="rounded px-1.5 py-0.2 text-[9px] font-bold border"
+                      className="rounded px-1.5 py-0.2 text-[9px] font-bold border shrink-0"
                       style={{
                         backgroundColor: 'var(--color-primary-light)',
                         color: 'var(--color-primary)',

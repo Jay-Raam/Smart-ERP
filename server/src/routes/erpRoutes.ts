@@ -327,8 +327,30 @@ erpRouter.get('/bootstrap', async (req: Request, res: Response) => {
       BankAccount.find(finalOrgId ? { organisationId: finalOrgId } : {}).sort({ isPrimary: -1, createdAt: -1 }),
     ]);
 
+    // Fetch all active enterprise organisations
+    const allOrganisations = await Organisation.find().sort({ createdAt: 1 });
+    const branchCounts = await Branch.aggregate([
+      { $group: { _id: '$organisationId', count: { $sum: 1 } } },
+    ]);
+    const branchCountMap = new Map<string, number>();
+    branchCounts.forEach((bc) => {
+      if (bc._id) branchCountMap.set(String(bc._id), bc.count);
+    });
+
     return res.json({
-      organisation: orgDoc || null,
+      organisation: orgDoc ? { ...orgDoc.toObject(), id: orgDoc._id.toString() } : null,
+      organisations: allOrganisations.map((o) => ({
+        id: o._id.toString(),
+        name: o.name,
+        cin: o.cin,
+        gstin: o.gstin,
+        pan: o.pan,
+        email: o.email,
+        phone: o.phone,
+        website: o.website,
+        address: o.address,
+        branchCount: branchCountMap.get(o._id.toString()) || 0,
+      })),
       branches: branches.map((b) => ({
         id: b._id.toString(),
         code: b.code,
@@ -2187,8 +2209,130 @@ erpRouter.post('/delivery-challans', async (req: Request, res: Response) => {
 });
 
 // ==========================================
-// 10. BRANCHES & ORGANISATION
+// 10. ORGANISATIONS & BRANCHES CRUD
 // ==========================================
+// List all organisations with branch count
+erpRouter.get('/organisations', async (req: Request, res: Response) => {
+  try {
+    const orgs = await Organisation.find().sort({ createdAt: 1 });
+    const branchCounts = await Branch.aggregate([
+      { $group: { _id: '$organisationId', count: { $sum: 1 } } },
+    ]);
+    const branchCountMap = new Map<string, number>();
+    branchCounts.forEach((bc) => {
+      if (bc._id) branchCountMap.set(String(bc._id), bc.count);
+    });
+
+    res.json(
+      orgs.map((o) => ({
+        ...o.toObject(),
+        id: o._id.toString(),
+        branchCount: branchCountMap.get(o._id.toString()) || 0,
+      }))
+    );
+  } catch (err: any) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+// Create new organisation
+erpRouter.post('/organisations', async (req: Request, res: Response) => {
+  try {
+    const { name, cin, gstin, pan, email, phone, website, address } = req.body;
+    if (!name || !cin || !gstin) {
+      return res.status(400).json({ error: 'Organisation name, CIN, and GSTIN are required.' });
+    }
+
+    const org = await Organisation.create({
+      name,
+      cin,
+      gstin,
+      pan: pan || (cin.length >= 12 ? cin.slice(2, 12) : 'AAACT1024K'),
+      email: email || '',
+      phone: phone || '',
+      website: website || '',
+      address: address || '',
+    });
+
+    // Create default financial years for this new organisation
+    await FinancialYear.insertMany([
+      {
+        yearName: '2026-2027',
+        startDate: '2026-04-01',
+        endDate: '2027-03-31',
+        isCurrent: true,
+        status: 'Active',
+        organisationId: org._id.toString(),
+      },
+      {
+        yearName: '2025-2026',
+        startDate: '2025-04-01',
+        endDate: '2026-03-31',
+        isCurrent: false,
+        status: 'Closed',
+        organisationId: org._id.toString(),
+      },
+    ]);
+
+    // Create default HQ branch
+    const defaultBranchCode = req.body.defaultBranchCode || `BR-${org.name.slice(0, 3).toUpperCase()}-01`;
+    await Branch.create({
+      code: defaultBranchCode,
+      name: `${org.name.split(' ')[0]} Corporate HQ & Operations`,
+      location: req.body.location || 'Corporate Headquarters',
+      address: org.address || 'Headquarters Campus',
+      gstin: org.gstin,
+      phone: org.phone || '+91 44 2839 4910',
+      isHeadOffice: true,
+      organisationId: org._id.toString(),
+    });
+
+    res.status(201).json({ ...org.toObject(), id: org._id.toString() });
+  } catch (err: any) {
+    res.status(400).json({ error: err.message });
+  }
+});
+
+// Update organisation
+erpRouter.put('/organisations/:id', async (req: Request, res: Response) => {
+  try {
+    const { id } = req.params;
+    const updated = await Organisation.findByIdAndUpdate(id, req.body, { new: true });
+    if (!updated) return res.status(404).json({ error: 'Organisation not found' });
+    res.json({ ...updated.toObject(), id: updated._id.toString() });
+  } catch (err: any) {
+    res.status(400).json({ error: err.message });
+  }
+});
+
+// Delete organisation (with guard)
+erpRouter.delete('/organisations/:id', async (req: Request, res: Response) => {
+  try {
+    const { id } = req.params;
+    const totalCount = await Organisation.countDocuments();
+    if (totalCount <= 1) {
+      return res.status(400).json({ error: 'Cannot delete the only remaining active organisation.' });
+    }
+    await Branch.deleteMany({ organisationId: id });
+    await Organisation.findByIdAndDelete(id);
+    res.json({ success: true, message: 'Organisation and associated branches removed.' });
+  } catch (err: any) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+// Single organisation (legacy / query support)
+erpRouter.get('/organisation', async (req: Request, res: Response) => {
+  try {
+    const { organisationId } = req.query;
+    const org = organisationId ? await Organisation.findById(organisationId) : await Organisation.findOne();
+    res.json(org ? { ...org.toObject(), id: org._id.toString() } : null);
+  } catch (err: any) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+// Branches CRUD
 erpRouter.get('/branches', async (req: Request, res: Response) => {
   try {
     const { organisationId } = req.query;
@@ -2209,11 +2353,28 @@ erpRouter.post('/branches', async (req: Request, res: Response) => {
   }
 });
 
-erpRouter.get('/organisation', async (req: Request, res: Response) => {
+erpRouter.put('/branches/:id', async (req: Request, res: Response) => {
   try {
-    const { organisationId } = req.query;
-    const org = organisationId ? await Organisation.findById(organisationId) : await Organisation.findOne();
-    res.json(org);
+    const { id } = req.params;
+    const updated = await Branch.findByIdAndUpdate(id, req.body, { new: true });
+    if (!updated) return res.status(404).json({ error: 'Branch not found' });
+    res.json({ ...updated.toObject(), id: updated._id.toString() });
+  } catch (err: any) {
+    res.status(400).json({ error: err.message });
+  }
+});
+
+erpRouter.delete('/branches/:id', async (req: Request, res: Response) => {
+  try {
+    const { id } = req.params;
+    const branch = await Branch.findById(id);
+    if (!branch) return res.status(404).json({ error: 'Branch not found' });
+    const countInOrg = await Branch.countDocuments({ organisationId: branch.organisationId });
+    if (countInOrg <= 1) {
+      return res.status(400).json({ error: 'Cannot delete the only branch in this organisation.' });
+    }
+    await Branch.findByIdAndDelete(id);
+    res.json({ success: true, message: 'Branch deleted successfully.' });
   } catch (err: any) {
     res.status(500).json({ error: err.message });
   }

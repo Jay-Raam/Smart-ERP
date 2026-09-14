@@ -309,6 +309,7 @@ export interface DeliveryChallan {
 
 export interface OrganisationInfo {
   id?: string;
+  _id?: string;
   name: string;
   cin: string;
   gstin: string;
@@ -317,10 +318,12 @@ export interface OrganisationInfo {
   phone: string;
   website: string;
   address: string;
+  branchCount?: number;
 }
 
 interface ErpState {
   organisation: OrganisationInfo;
+  organisations: OrganisationInfo[];
   branches: Branch[];
   financialYears: FinancialYear[];
   activeOrganisationId: string;
@@ -345,7 +348,12 @@ interface ErpState {
   switchOrganisation: (orgId: string) => Promise<void>;
   switchFinancialYear: (year: string) => Promise<void>;
   setActiveBranch: (branchId: string) => void;
+  addOrganisation: (org: Omit<OrganisationInfo, 'id' | '_id'>) => Promise<OrganisationInfo | undefined>;
+  updateOrganisation: (id: string, updates: Partial<OrganisationInfo>) => Promise<void>;
+  deleteOrganisation: (id: string) => Promise<void>;
   addBranch: (branch: Omit<Branch, 'id'>) => Promise<void>;
+  updateBranch: (id: string, updates: Partial<Branch>) => Promise<void>;
+  deleteBranch: (id: string) => Promise<void>;
   addFinancialYear: (fy: Omit<FinancialYear, 'id'>) => Promise<void>;
   updateFinancialYear: (id: string, updates: Partial<FinancialYear>) => Promise<void>;
   addCustomer: (customer: Omit<Customer, 'id' | 'code'>) => Promise<void>;
@@ -390,6 +398,7 @@ export const useErpStore = create<ErpState>((set, get) => ({
     website: 'https://smart.erp.com',
     address: 'Plot 48/A, Industrial Estate, Guindy, Chennai - 600032, Tamil Nadu, India',
   },
+  organisations: [],
   branches: [],
   financialYears: [],
   activeOrganisationId: localStorage.getItem('OrganizationId') || '',
@@ -453,15 +462,17 @@ export const useErpStore = create<ErpState>((set, get) => ({
       if (activeFy) {
         localStorage.setItem('FinancialYear', activeFy);
       }
-      if (finalData.organisation?._id) {
-        localStorage.setItem('OrganizationId', finalData.organisation._id);
+      const resolvedOrgId = finalData.organisation?.id || finalData.organisation?._id;
+      if (resolvedOrgId) {
+        localStorage.setItem('OrganizationId', resolvedOrgId);
       }
 
       set({
         organisation: finalData.organisation || get().organisation,
+        organisations: finalData.organisations || get().organisations || [],
         branches: finalData.branches || [],
         financialYears: finalData.financialYears || [],
-        activeOrganisationId: orgId,
+        activeOrganisationId: resolvedOrgId || orgId,
         activeBranchId: activeBrId,
         activeFinancialYear: activeFy,
         customers: finalData.customers || [],
@@ -492,10 +503,13 @@ export const useErpStore = create<ErpState>((set, get) => ({
   },
 
   switchOrganisation: async (orgId: string) => {
-    set({ activeOrganisationId: orgId });
+    set({ activeOrganisationId: orgId, activeBranchId: '' });
     localStorage.setItem('OrganizationId', orgId);
+    localStorage.removeItem('Branch');
+    localStorage.removeItem('BranchName');
     await get().fetchBootstrap(orgId, '', get().activeFinancialYear);
-    showAppToast('Organisation workspace switched', 'info');
+    const targetOrg = get().organisations.find((o) => o.id === orgId || o._id === orgId);
+    showAppToast(`Switched workspace to ${targetOrg?.name || 'Organisation'}`, 'info');
   },
 
   switchFinancialYear: async (year: string) => {
@@ -507,6 +521,76 @@ export const useErpStore = create<ErpState>((set, get) => ({
 
   setActiveBranch: (branchId: string) => {
     get().switchBranch(branchId);
+  },
+
+  addOrganisation: async (orgData) => {
+    try {
+      const res = await fetch('/api/erp/organisations', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(orgData),
+      });
+      if (!res.ok) {
+        const errData = await res.json().catch(() => ({}));
+        throw new Error(errData.error || 'Failed to create organisation');
+      }
+      const created = await res.json();
+      set((state) => ({ organisations: [...state.organisations, created] }));
+      showAppToast(`Organisation ${created.name} created successfully`, 'success');
+      await get().switchOrganisation(created.id || created._id);
+      return created;
+    } catch (err: any) {
+      showAppToast('Error creating organisation: ' + err.message, 'error');
+      throw err;
+    }
+  },
+
+  updateOrganisation: async (id, updates) => {
+    try {
+      const res = await fetch(`/api/erp/organisations/${id}`, {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(updates),
+      });
+      if (!res.ok) throw new Error('Failed to update organisation');
+      const updated = await res.json();
+      set((state) => ({
+        organisations: state.organisations.map((o) =>
+          o.id === id || o._id === id ? { ...o, ...updated } : o
+        ),
+        organisation:
+          state.organisation.id === id || (state.organisation as any)._id === id
+            ? { ...state.organisation, ...updated }
+            : state.organisation,
+      }));
+      showAppToast('Organisation details updated', 'success');
+    } catch (err: any) {
+      showAppToast('Error updating organisation: ' + err.message, 'error');
+      throw err;
+    }
+  },
+
+  deleteOrganisation: async (id) => {
+    try {
+      const res = await fetch(`/api/erp/organisations/${id}`, {
+        method: 'DELETE',
+      });
+      if (!res.ok) {
+        const errData = await res.json().catch(() => ({}));
+        throw new Error(errData.error || 'Failed to delete organisation');
+      }
+      set((state) => ({
+        organisations: state.organisations.filter((o) => o.id !== id && o._id !== id),
+      }));
+      showAppToast('Organisation deleted successfully', 'info');
+      const remaining = get().organisations;
+      if (remaining.length > 0) {
+        await get().switchOrganisation(remaining[0].id || remaining[0]._id || '');
+      }
+    } catch (err: any) {
+      showAppToast('Error deleting organisation: ' + err.message, 'error');
+      throw err;
+    }
   },
 
   addBranch: async (branch) => {
@@ -525,6 +609,47 @@ export const useErpStore = create<ErpState>((set, get) => ({
       showAppToast(`Branch ${created.name} registered successfully`, 'success');
     } catch (err: any) {
       showAppToast('Error saving branch: ' + err.message, 'error');
+    }
+  },
+
+  updateBranch: async (id, updates) => {
+    try {
+      const res = await fetch(`/api/erp/branches/${id}`, {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(updates),
+      });
+      if (!res.ok) throw new Error('Failed to update branch');
+      const updated = await res.json();
+      set((state) => ({
+        branches: state.branches.map((b) => (b.id === id ? { ...b, ...updated } : b)),
+      }));
+      showAppToast(`Branch ${updated.name} updated successfully`, 'success');
+    } catch (err: any) {
+      showAppToast('Error updating branch: ' + err.message, 'error');
+      throw err;
+    }
+  },
+
+  deleteBranch: async (id) => {
+    try {
+      const res = await fetch(`/api/erp/branches/${id}`, {
+        method: 'DELETE',
+      });
+      if (!res.ok) {
+        const errData = await res.json().catch(() => ({}));
+        throw new Error(errData.error || 'Failed to delete branch');
+      }
+      set((state) => ({
+        branches: state.branches.filter((b) => b.id !== id),
+      }));
+      showAppToast('Branch removed successfully', 'info');
+      if (get().activeBranchId === id && get().branches.length > 0) {
+        await get().switchBranch(get().branches[0].id);
+      }
+    } catch (err: any) {
+      showAppToast('Error deleting branch: ' + err.message, 'error');
+      throw err;
     }
   },
 

@@ -23,6 +23,7 @@ import { StoreModule } from './components/modules/StoreModule';
 import { ProductsModule } from './components/modules/ProductsModule';
 import { CustomerModule } from './components/modules/CustomerModule';
 import { DeliveryModule } from './components/modules/DeliveryModule';
+import { OrganisationModule } from './components/modules/OrganisationModule';
 import { BranchModule } from './components/modules/BranchModule';
 import { FinancialYearModule } from './components/modules/FinancialYearModule';
 import { ReportsModule } from './components/modules/reports/ReportsModule';
@@ -56,6 +57,8 @@ export function App() {
       if (p === '/bank') return 'bank';
       if (p === '/transactions') return 'transactions';
       if (p === '/users') return 'users';
+      if (p === '/organisations') return 'organisations';
+      if (p === '/branches') return 'branches';
     }
     return 'dashboard';
   });
@@ -93,6 +96,8 @@ export function App() {
       else if (path === '/bank') setActiveModule('bank');
       else if (path === '/transactions') setActiveModule('transactions');
       else if (path === '/users') setActiveModule('users');
+      else if (path === '/organisations') setActiveModule('organisations');
+      else if (path === '/branches') setActiveModule('branches');
     };
     window.addEventListener('popstate', handlePopState);
     return () => window.removeEventListener('popstate', handlePopState);
@@ -286,6 +291,7 @@ export function App() {
                   <CustomerModule initialOpenAdd={quickAddType === 'customer'} />
                 )}
                 {activeModule === 'delivery' && <DeliveryModule />}
+                {activeModule === 'organisations' && <OrganisationModule />}
                 {activeModule === 'branches' && <BranchModule />}
                 {activeModule === 'financial-years' && <FinancialYearModule />}
                 {activeModule === 'bank' && <BankModule />}
