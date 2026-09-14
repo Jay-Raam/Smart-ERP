@@ -249,7 +249,7 @@ export const Navbar: React.FC<NavbarProps> = ({
             {getInitials(user.userName)}
           </div>
           <div className="hidden xl:flex flex-col text-left">
-            <span className="text-xs font-semibold text-slate-800 dark:text-slate-200 leading-tight truncate max-w-[90px]">
+            <span className="text-xs font-semibold text-slate-800 dark:text-slate-200 leading-tight truncate max-w-22.5">
               {user.userName}
             </span>
             <span className="text-[10px] font-medium text-slate-400 capitalize">

@@ -13,6 +13,9 @@ import {
   Trash2,
   Info,
   DollarSign,
+  Edit,
+  History,
+  Lock,
 } from 'lucide-react';
 import { useErpStore, Invoice, DocumentItem } from '../../store/erpStore';
 import { DataTable, ColumnDef } from '../shared/DataTable';
@@ -21,6 +24,7 @@ import { InvoicePrintModal } from './InvoicePrintModal';
 import { calculateDocumentTaxes, isStateTamilNadu } from '../../utils/taxCalculation';
 import { ExportModal, ExportColumn } from '../shared/ExportModal';
 import { RecordPaymentModal } from '../shared/RecordPaymentModal';
+import { InvoiceHistoryModal } from './invoices/InvoiceHistoryModal';
 
 interface InvoiceModuleProps {
   initialOpenAdd?: boolean;
@@ -31,6 +35,7 @@ export const InvoiceModule: React.FC<InvoiceModuleProps> = ({ initialOpenAdd = f
   const [isAddModalOpen, setIsAddModalOpen] = useState(false);
   const [viewInvoice, setViewInvoice] = useState<Invoice | null>(null);
   const [selectedInvoiceForPayment, setSelectedInvoiceForPayment] = useState<Invoice | null>(null);
+  const [selectedInvoiceForHistory, setSelectedInvoiceForHistory] = useState<Invoice | null>(null);
   const [isExportModalOpen, setIsExportModalOpen] = useState(false);
 
   const exportColumns: ExportColumn<Invoice>[] = [
@@ -256,8 +261,47 @@ export const InvoiceModule: React.FC<InvoiceModuleProps> = ({ initialOpenAdd = f
           : (inv.outstandingAmount !== undefined && inv.outstandingAmount > 0)
             ? inv.outstandingAmount
             : Math.max(0, inv.totalAmount - (inv.paidAmount || 0));
+        const isUnpaid = inv.status !== 'Paid' && (inv.paidAmount || 0) === 0;
+
         return (
           <div className="flex items-center justify-end gap-1.5">
+            {/* Edit Direct Tax Invoice (Locked if paid) */}
+            {isUnpaid ? (
+              <button
+                type="button"
+                onClick={() => {
+                  window.history.pushState({}, '', `/invoices/${inv.id}/edit`);
+                  window.dispatchEvent(new PopStateEvent('popstate'));
+                }}
+                className="inline-flex items-center gap-1 rounded-lg border border-slate-200 bg-white px-2 py-1 text-xs font-semibold text-slate-700 hover:bg-slate-100 hover:text-blue-600 transition cursor-pointer"
+                title="Edit Direct Tax Invoice"
+              >
+                <Edit className="h-3.5 w-3.5 text-slate-500" />
+                <span>Edit</span>
+              </button>
+            ) : (
+              <button
+                type="button"
+                disabled
+                className="inline-flex items-center gap-1 rounded-lg border border-slate-100 bg-slate-50 px-2 py-1 text-xs font-medium text-slate-400 cursor-not-allowed opacity-60"
+                title="Editing locked: Invoice has recorded payments"
+              >
+                <Lock className="h-3 w-3 text-slate-400" />
+                <span>Edit</span>
+              </button>
+            )}
+
+            {/* Audit History Timeline */}
+            <button
+              type="button"
+              onClick={() => setSelectedInvoiceForHistory(inv)}
+              className="inline-flex items-center gap-1 rounded-lg border border-slate-200 bg-white px-2 py-1 text-xs font-semibold text-slate-700 hover:bg-slate-100 hover:text-indigo-600 transition cursor-pointer"
+              title="View Invoice Audit History"
+            >
+              <History className="h-3.5 w-3.5 text-indigo-500" />
+              <span>History</span>
+            </button>
+
             {out > 0 && (
               <button
                 type="button"
@@ -708,6 +752,15 @@ export const InvoiceModule: React.FC<InvoiceModuleProps> = ({ initialOpenAdd = f
                 ? selectedInvoiceForPayment.outstandingAmount
                 : Math.max(0, selectedInvoiceForPayment.totalAmount - (selectedInvoiceForPayment.paidAmount || 0))
           }
+        />
+      )}
+
+      {/* Invoice Audit History Timeline Modal */}
+      {selectedInvoiceForHistory && (
+        <InvoiceHistoryModal
+          invoice={selectedInvoiceForHistory}
+          isOpen={true}
+          onClose={() => setSelectedInvoiceForHistory(null)}
         />
       )}
     </div>

@@ -201,9 +201,9 @@ export const CustomerModule: React.FC<CustomerModuleProps> = ({
       key: 'code',
       header: 'Code',
       sortable: true,
-      className: 'w-32',
+      className: 'w-36 whitespace-nowrap',
       render: (c) => (
-        <span className="font-mono font-bold text-xs text-blue-700 bg-blue-50 border border-blue-200/80 px-2.5 py-1 rounded-md inline-block">
+        <span className="font-mono font-bold text-xs text-blue-700 bg-blue-50 border border-blue-200/80 px-2.5 py-1 rounded-md inline-block whitespace-nowrap">
           {c.code}
         </span>
       ),
@@ -272,9 +272,6 @@ export const CustomerModule: React.FC<CustomerModuleProps> = ({
             <Users className="h-5 w-5 text-blue-600" />
             <span>Customer Directory Master</span>
           </h2>
-          <p className="text-xs text-slate-500 mt-0.5">
-            Registered customer entities, GST compliance, credit term controls, and live account receivable statuses
-          </p>
         </div>
 
         <div className="flex items-center gap-2 self-start">
@@ -305,7 +302,10 @@ export const CustomerModule: React.FC<CustomerModuleProps> = ({
           searchPlaceholder="Search by customer code, company name, contact, city, or GSTIN..."
           searchKeys={['name', 'contactPerson', 'city', 'gstin', 'code', 'email', 'phone']}
           pageSizeDefault={10}
-          onRowClick={(cust) => setSelectedCustomer(cust)}
+          onRowClick={(cust) => {
+            window.history.pushState({}, '', `/customers/${cust.id}`);
+            window.dispatchEvent(new PopStateEvent('popstate'));
+          }}
         />
       </div>
 
@@ -365,11 +365,10 @@ export const CustomerModule: React.FC<CustomerModuleProps> = ({
                     onChange={handleChange}
                     onBlur={handleBlur}
                     placeholder="e.g. Bharat Electronics Ltd"
-                    className={`w-full rounded-xl border p-2.5 outline-none transition ${
-                      touched.name && errors.name
+                    className={`w-full rounded-xl border p-2.5 outline-none transition ${touched.name && errors.name
                         ? 'border-rose-400 bg-rose-50/20 focus:border-rose-500'
                         : 'border-slate-200 focus:border-blue-500'
-                    }`}
+                      }`}
                   />
                   {touched.name && errors.name && (
                     <p className="text-[11px] text-rose-600 mt-1 flex items-center gap-1">
@@ -392,11 +391,10 @@ export const CustomerModule: React.FC<CustomerModuleProps> = ({
                       onChange={handleChange}
                       onBlur={handleBlur}
                       placeholder="e.g. S. Ramanathan"
-                      className={`w-full rounded-xl border p-2.5 outline-none transition ${
-                        touched.contactPerson && errors.contactPerson
+                      className={`w-full rounded-xl border p-2.5 outline-none transition ${touched.contactPerson && errors.contactPerson
                           ? 'border-rose-400 bg-rose-50/20 focus:border-rose-500'
                           : 'border-slate-200 focus:border-blue-500'
-                      }`}
+                        }`}
                     />
                     {touched.contactPerson && errors.contactPerson && (
                       <p className="text-[11px] text-rose-600 mt-1">{errors.contactPerson}</p>
@@ -414,11 +412,10 @@ export const CustomerModule: React.FC<CustomerModuleProps> = ({
                       onChange={handleChange}
                       onBlur={handleBlur}
                       placeholder="e.g. 9840123456"
-                      className={`w-full rounded-xl border p-2.5 outline-none font-mono transition ${
-                        touched.phone && errors.phone
+                      className={`w-full rounded-xl border p-2.5 outline-none font-mono transition ${touched.phone && errors.phone
                           ? 'border-rose-400 bg-rose-50/20 focus:border-rose-500'
                           : 'border-slate-200 focus:border-blue-500'
-                      }`}
+                        }`}
                     />
                     {touched.phone && errors.phone && (
                       <p className="text-[11px] text-rose-600 mt-1">{errors.phone}</p>
@@ -438,11 +435,10 @@ export const CustomerModule: React.FC<CustomerModuleProps> = ({
                     onChange={handleChange}
                     onBlur={handleBlur}
                     placeholder="e.g. accounts@bharatelectronics.com"
-                    className={`w-full rounded-xl border p-2.5 outline-none transition ${
-                      touched.email && errors.email
+                    className={`w-full rounded-xl border p-2.5 outline-none transition ${touched.email && errors.email
                         ? 'border-rose-400 bg-rose-50/20 focus:border-rose-500'
                         : 'border-slate-200 focus:border-blue-500'
-                    }`}
+                      }`}
                   />
                   {touched.email && errors.email && (
                     <p className="text-[11px] text-rose-600 mt-1">{errors.email}</p>
@@ -462,11 +458,10 @@ export const CustomerModule: React.FC<CustomerModuleProps> = ({
                       onChange={handleChange}
                       onBlur={handleBlur}
                       placeholder="e.g. Chennai"
-                      className={`w-full rounded-xl border p-2.5 outline-none transition ${
-                        touched.city && errors.city
+                      className={`w-full rounded-xl border p-2.5 outline-none transition ${touched.city && errors.city
                           ? 'border-rose-400 bg-rose-50/20 focus:border-rose-500'
                           : 'border-slate-200 focus:border-blue-500'
-                      }`}
+                        }`}
                     />
                   </div>
 
@@ -497,11 +492,10 @@ export const CustomerModule: React.FC<CustomerModuleProps> = ({
                     onChange={handleChange}
                     onBlur={handleBlur}
                     placeholder="Enter registered physical billing address..."
-                    className={`w-full rounded-xl border p-2.5 outline-none transition resize-none ${
-                      touched.billingAddress && errors.billingAddress
+                    className={`w-full rounded-xl border p-2.5 outline-none transition resize-none ${touched.billingAddress && errors.billingAddress
                         ? 'border-rose-400 bg-rose-50/20 focus:border-rose-500'
                         : 'border-slate-200 focus:border-blue-500'
-                    }`}
+                      }`}
                   />
                   {touched.billingAddress && errors.billingAddress && (
                     <p className="text-[11px] text-rose-600 mt-0.5">{errors.billingAddress}</p>
@@ -562,11 +556,10 @@ export const CustomerModule: React.FC<CustomerModuleProps> = ({
                       onChange={handleChange}
                       onBlur={handleBlur}
                       placeholder="e.g. 33AAACB1234P1Z1"
-                      className={`w-full rounded-xl border p-2.5 outline-none font-mono uppercase transition ${
-                        touched.gstin && errors.gstin
+                      className={`w-full rounded-xl border p-2.5 outline-none font-mono uppercase transition ${touched.gstin && errors.gstin
                           ? 'border-rose-400 bg-rose-50/20 focus:border-rose-500'
                           : 'border-slate-200 focus:border-blue-500'
-                      }`}
+                        }`}
                     />
                     {touched.gstin && errors.gstin && (
                       <p className="text-[11px] text-rose-600 mt-1">{errors.gstin}</p>
@@ -585,11 +578,10 @@ export const CustomerModule: React.FC<CustomerModuleProps> = ({
                       onChange={handleChange}
                       onBlur={handleBlur}
                       placeholder="Minimum ₹10,001"
-                      className={`w-full rounded-xl border p-2.5 outline-none font-mono transition ${
-                        touched.creditLimit && errors.creditLimit
+                      className={`w-full rounded-xl border p-2.5 outline-none font-mono transition ${touched.creditLimit && errors.creditLimit
                           ? 'border-rose-400 bg-rose-50/20 focus:border-rose-500'
                           : 'border-slate-200 focus:border-blue-500'
-                      }`}
+                        }`}
                     />
                     {touched.creditLimit && errors.creditLimit && (
                       <p className="text-[11px] text-rose-600 mt-1 font-semibold">{errors.creditLimit}</p>

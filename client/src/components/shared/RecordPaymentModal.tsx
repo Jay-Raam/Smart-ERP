@@ -190,18 +190,33 @@ export const RecordPaymentModal: React.FC<RecordPaymentModalProps> = ({
           {/* Amount and Date */}
           <div className="grid grid-cols-2 gap-3">
             <div>
-              <label className="block font-semibold text-slate-700 mb-1">Payment Amount (₹) *</label>
+              <div className="flex items-center justify-between mb-1">
+                <label className="block font-semibold text-slate-700">Payment Amount (₹) *</label>
+                {targetType === 'INVOICE' && (
+                  <span className="text-[10px] font-medium text-amber-700 bg-amber-50 px-1.5 py-0.5 rounded border border-amber-200">
+                    Locked
+                  </span>
+                )}
+              </div>
               <input
                 type="number"
                 step="0.01"
                 value={amount}
                 max={outstandingAmount}
+                readOnly={targetType === 'INVOICE'}
+                disabled={targetType === 'INVOICE'}
                 onChange={(e) => {
-                  setAmount(e.target.value);
-                  setErrors((prev) => ({ ...prev, amount: '' }));
+                  if (targetType !== 'INVOICE') {
+                    setAmount(e.target.value);
+                    setErrors((prev) => ({ ...prev, amount: '' }));
+                  }
                 }}
                 className={`w-full px-3 py-1.5 rounded-lg border text-xs font-mono font-bold ${
-                  errors.amount ? 'border-red-500 bg-red-50/40' : 'border-slate-300'
+                  targetType === 'INVOICE'
+                    ? 'bg-slate-100 text-slate-700 cursor-not-allowed border-slate-200 shadow-inner'
+                    : errors.amount
+                    ? 'border-red-500 bg-red-50/40'
+                    : 'border-slate-300'
                 }`}
                 required
               />
@@ -209,15 +224,30 @@ export const RecordPaymentModal: React.FC<RecordPaymentModalProps> = ({
             </div>
 
             <div>
-              <label className="block font-semibold text-slate-700 mb-1">Payment Date *</label>
+              <div className="flex items-center justify-between mb-1">
+                <label className="block font-semibold text-slate-700">Payment Date *</label>
+                {targetType === 'INVOICE' && (
+                  <span className="text-[10px] font-medium text-amber-700 bg-amber-50 px-1.5 py-0.5 rounded border border-amber-200">
+                    Locked
+                  </span>
+                )}
+              </div>
               <input
                 type="date"
                 value={paymentDate}
+                readOnly={targetType === 'INVOICE'}
+                disabled={targetType === 'INVOICE'}
                 onChange={(e) => {
-                  setPaymentDate(e.target.value);
-                  setErrors((prev) => ({ ...prev, paymentDate: '' }));
+                  if (targetType !== 'INVOICE') {
+                    setPaymentDate(e.target.value);
+                    setErrors((prev) => ({ ...prev, paymentDate: '' }));
+                  }
                 }}
-                className="w-full px-3 py-1.5 rounded-lg border border-slate-300 text-xs"
+                className={`w-full px-3 py-1.5 rounded-lg border text-xs ${
+                  targetType === 'INVOICE'
+                    ? 'bg-slate-100 text-slate-700 cursor-not-allowed border-slate-200 shadow-inner font-mono'
+                    : 'border-slate-300'
+                }`}
                 required
               />
               {errors.paymentDate && <p className="text-[10px] text-red-600 mt-0.5">{errors.paymentDate}</p>}

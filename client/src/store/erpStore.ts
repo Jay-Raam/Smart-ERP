@@ -24,6 +24,22 @@ export interface FinancialYear {
   branchId?: string;
 }
 
+export interface CustomerAddress {
+  _id?: string;
+  id?: string;
+  type: 'BILLING' | 'SHIPPING';
+  attention?: string;
+  addressLine1: string;
+  addressLine2?: string;
+  city: string;
+  state: string;
+  pincode: string;
+  country?: string;
+  phone?: string;
+  isActive: boolean;
+  createdAt?: string;
+}
+
 export interface Customer {
   id: string;
   code: string;
@@ -41,6 +57,7 @@ export interface Customer {
   gstin: string;
   outstandingBalance: number;
   creditLimit: number;
+  addresses?: CustomerAddress[];
   organisationId?: string;
   branchId?: string;
 }
@@ -201,6 +218,13 @@ export interface Bill {
   financialYear?: string;
 }
 
+export interface InvoiceHistoryItem {
+  action: string;
+  timestamp: string;
+  user?: string;
+  details?: string;
+}
+
 export interface Invoice {
   id: string;
   invoiceNumber: string;
@@ -210,6 +234,8 @@ export interface Invoice {
   customerState?: string;
   billingAddress?: string;
   shippingAddress?: string;
+  billingState?: string;
+  shippingState?: string;
   invoiceDate: string;
   dueDate: string;
   branchId?: string;
@@ -232,6 +258,15 @@ export interface Invoice {
   paymentStatus?: 'UNPAID' | 'PARTIALLY_PAID' | 'PAID';
   totalInWords?: string;
   status: 'Paid' | 'Pending' | 'Overdue';
+  termsAndConditions?: string;
+  bankDetails?: {
+    bankName?: string;
+    accountNumber?: string;
+    ifscCode?: string;
+    branchName?: string;
+    accountName?: string;
+  };
+  history?: InvoiceHistoryItem[];
 }
 
 export interface PurchaseOrder {
@@ -373,6 +408,10 @@ interface ErpState {
     dueDate?: string
   ) => Promise<Bill | undefined>;
   addInvoice: (inv: Omit<Invoice, 'id' | 'invoiceNumber'>) => Promise<Invoice | undefined>;
+  updateInvoice: (id: string, invoiceData: Partial<Invoice>) => Promise<Invoice | undefined>;
+  addCustomerAddress: (customerId: string, address: Omit<CustomerAddress, 'id' | '_id' | 'isActive'>) => Promise<Customer | undefined>;
+  activateCustomerAddress: (customerId: string, addressId: string) => Promise<Customer | undefined>;
+  updateCustomerAddress: (customerId: string, addressId: string, addressData: Partial<CustomerAddress>) => Promise<Customer | undefined>;
   addPurchaseOrder: (po: Omit<PurchaseOrder, 'id' | 'poNumber'>) => Promise<PurchaseOrder | undefined>;
   addDeliveryChallan: (dc: Omit<DeliveryChallan, 'id' | 'dcNumber'>) => Promise<void>;
   updateStoreStock: (productId: string, deltaQuantity: number) => Promise<void>;
@@ -952,6 +991,97 @@ export const useErpStore = create<ErpState>((set, get) => ({
       return created;
     } catch (err: any) {
       showAppToast('Error generating invoice: ' + err.message, 'error');
+    }
+  },
+
+  updateInvoice: async (id, inv) => {
+    try {
+      const res = await fetch(`/api/erp/invoices/${id}`, {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(inv),
+      });
+      if (!res.ok) {
+        const errData = await res.json().catch(() => ({}));
+        throw new Error(errData.error || 'Failed to update invoice');
+      }
+      const updated = await res.json();
+      set((state) => ({
+        invoices: state.invoices.map((i) => (i.id === id ? updated : i)),
+      }));
+      showAppToast(`Tax Invoice ${updated.invoiceNumber} updated successfully`, 'success');
+      return updated;
+    } catch (err: any) {
+      showAppToast('Error updating invoice: ' + err.message, 'error');
+      throw err;
+    }
+  },
+
+  addCustomerAddress: async (customerId, address) => {
+    try {
+      const res = await fetch(`/api/erp/customers/${customerId}/addresses`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(address),
+      });
+      if (!res.ok) {
+        const errData = await res.json().catch(() => ({}));
+        throw new Error(errData.error || 'Failed to add address');
+      }
+      const updatedCustomer = await res.json();
+      set((state) => ({
+        customers: state.customers.map((c) => (c.id === customerId ? updatedCustomer : c)),
+      }));
+      showAppToast('Customer address added and activated', 'success');
+      return updatedCustomer;
+    } catch (err: any) {
+      showAppToast('Error adding address: ' + err.message, 'error');
+      throw err;
+    }
+  },
+
+  activateCustomerAddress: async (customerId, addressId) => {
+    try {
+      const res = await fetch(`/api/erp/customers/${customerId}/addresses/${addressId}/activate`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+      });
+      if (!res.ok) {
+        const errData = await res.json().catch(() => ({}));
+        throw new Error(errData.error || 'Failed to activate address');
+      }
+      const updatedCustomer = await res.json();
+      set((state) => ({
+        customers: state.customers.map((c) => (c.id === customerId ? updatedCustomer : c)),
+      }));
+      showAppToast('Address activated successfully', 'success');
+      return updatedCustomer;
+    } catch (err: any) {
+      showAppToast('Error activating address: ' + err.message, 'error');
+      throw err;
+    }
+  },
+
+  updateCustomerAddress: async (customerId, addressId, addressData) => {
+    try {
+      const res = await fetch(`/api/erp/customers/${customerId}/addresses/${addressId}`, {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(addressData),
+      });
+      if (!res.ok) {
+        const errData = await res.json().catch(() => ({}));
+        throw new Error(errData.error || 'Failed to update address');
+      }
+      const updatedCustomer = await res.json();
+      set((state) => ({
+        customers: state.customers.map((c) => (c.id === customerId ? updatedCustomer : c)),
+      }));
+      showAppToast('Address updated successfully', 'success');
+      return updatedCustomer;
+    } catch (err: any) {
+      showAppToast('Error updating address: ' + err.message, 'error');
+      throw err;
     }
   },
 

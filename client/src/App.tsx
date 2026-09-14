@@ -22,6 +22,7 @@ import { PurchaseOrderCreatePage } from './components/modules/purchase/PurchaseO
 import { StoreModule } from './components/modules/StoreModule';
 import { ProductsModule } from './components/modules/ProductsModule';
 import { CustomerModule } from './components/modules/CustomerModule';
+import { CustomerDetailPage } from './components/modules/customers/CustomerDetailPage';
 import { DeliveryModule } from './components/modules/DeliveryModule';
 import { OrganisationModule } from './components/modules/OrganisationModule';
 import { BranchModule } from './components/modules/BranchModule';
@@ -50,8 +51,9 @@ export function App() {
   const [activeModule, setActiveModule] = useState<ModuleType>(() => {
     if (typeof window !== 'undefined') {
       const p = window.location.pathname;
+      if (p.startsWith('/customers')) return 'customers';
       if (p.startsWith('/bills')) return 'bills';
-      if (p === '/invoices') return 'invoices';
+      if (p.startsWith('/invoices')) return 'invoices';
       if (p === '/purchase-orders') return 'purchase';
       if (p === '/reports') return 'reports';
       if (p === '/bank') return 'bank';
@@ -89,8 +91,9 @@ export function App() {
     const handlePopState = () => {
       const path = window.location.pathname;
       setCurrentPath(path);
-      if (path.startsWith('/bills')) setActiveModule('bills');
-      else if (path === '/invoices') setActiveModule('invoices');
+      if (path.startsWith('/customers')) setActiveModule('customers');
+      else if (path.startsWith('/bills')) setActiveModule('bills');
+      else if (path.startsWith('/invoices')) setActiveModule('invoices');
       else if (path === '/purchase-orders') setActiveModule('purchase');
       else if (path === '/reports') setActiveModule('reports');
       else if (path === '/bank') setActiveModule('bank');
@@ -266,11 +269,19 @@ export function App() {
           <div className="max-w-7xl w-full mx-auto pb-12">
             {/* Dedicated Full Pages */}
             {currentPath === '/invoices/new' && <InvoiceCreatePage />}
+            {currentPath.startsWith('/invoices/') && currentPath.endsWith('/edit') && (
+              <InvoiceCreatePage isEdit={true} invoiceId={currentPath.split('/')[2]} />
+            )}
+            {currentPath.startsWith('/customers/') && (
+              <CustomerDetailPage customerId={currentPath.replace('/customers/', '').split('/')[0]} />
+            )}
             {currentPath === '/purchase-orders/new' && <PurchaseOrderCreatePage />}
             {currentPath === '/bills/new' && <BillCreatePage />}
 
             {/* Standard Module Routes */}
-            {!['/invoices/new', '/purchase-orders/new', '/bills/new'].includes(currentPath) && (
+            {!['/invoices/new', '/purchase-orders/new', '/bills/new'].includes(currentPath) &&
+              !(currentPath.startsWith('/invoices/') && currentPath.endsWith('/edit')) &&
+              !currentPath.startsWith('/customers/') && (
               <>
                 {activeModule === 'dashboard' && (
                   <DashboardModule onNavigate={(m) => {

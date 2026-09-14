@@ -62,10 +62,6 @@ export const CustomerDetailsDrawer: React.FC<CustomerDetailsDrawerProps> = ({
                 <span className="font-mono text-xs font-bold text-blue-700 bg-blue-50 border border-blue-200 px-2 py-0.5 rounded-md">
                   {customer.code}
                 </span>
-                <span className="inline-flex items-center gap-1 text-[11px] font-medium text-emerald-700 bg-emerald-50 border border-emerald-200 px-2 py-0.5 rounded-md">
-                  <CheckCircle2 className="h-3 w-3" />
-                  Active Master
-                </span>
               </div>
               <h2 className="text-lg font-bold text-slate-900 truncate" title={customer.name}>
                 {customer.name}
@@ -117,13 +113,12 @@ export const CustomerDetailsDrawer: React.FC<CustomerDetailsDrawerProps> = ({
               {/* Credit Progress Bar */}
               <div className="w-full bg-slate-200 h-2 rounded-full overflow-hidden mb-1.5">
                 <div
-                  className={`h-full transition-all ${
-                    creditUsagePercent > 80
-                      ? 'bg-rose-500'
-                      : creditUsagePercent > 50
+                  className={`h-full transition-all ${creditUsagePercent > 80
+                    ? 'bg-rose-500'
+                    : creditUsagePercent > 50
                       ? 'bg-amber-500'
                       : 'bg-blue-600'
-                  }`}
+                    }`}
                   style={{ width: `${creditUsagePercent}%` }}
                 />
               </div>

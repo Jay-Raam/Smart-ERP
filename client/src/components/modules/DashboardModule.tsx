@@ -39,9 +39,7 @@ export const DashboardModule: React.FC<DashboardProps> = ({ onNavigate }) => {
           <h2 className="text-xl font-bold tracking-tight text-slate-900">
             Smart Enterprise ERP — Operational Command Center
           </h2>
-          <p className="text-xs text-slate-500 mt-0.5">
-            Operational dashboard for <span className="font-semibold text-blue-700">{activeBranch.name}</span> ({activeBranch.code})
-          </p>
+
         </div>
         <div className="flex items-center gap-2">
           <span className="flex items-center gap-1.5 rounded-lg border border-blue-200 bg-white px-3 py-1.5 text-xs font-semibold text-blue-700 shadow-xs">
@@ -173,13 +171,12 @@ export const DashboardModule: React.FC<DashboardProps> = ({ onNavigate }) => {
                   <div className="flex items-center gap-2">
                     <span className="font-mono text-xs font-bold text-blue-700">{b.billNumber}</span>
                     <span
-                      className={`inline-flex rounded-full px-2 py-0.5 text-[10px] font-semibold ${
-                        b.status === 'Paid'
+                      className={`inline-flex rounded-full px-2 py-0.5 text-[10px] font-semibold ${b.status === 'Paid'
                           ? 'bg-emerald-100 text-emerald-800'
                           : b.status === 'Approved'
-                          ? 'bg-blue-100 text-blue-800'
-                          : 'bg-amber-100 text-amber-800'
-                      }`}
+                            ? 'bg-blue-100 text-blue-800'
+                            : 'bg-amber-100 text-amber-800'
+                        }`}
                     >
                       {b.status}
                     </span>
@@ -214,13 +211,12 @@ export const DashboardModule: React.FC<DashboardProps> = ({ onNavigate }) => {
                   <div className="flex items-center gap-2">
                     <span className="font-mono text-xs font-bold text-slate-900">{inv.invoiceNumber}</span>
                     <span
-                      className={`inline-flex rounded-full px-2 py-0.5 text-[10px] font-semibold ${
-                        inv.status === 'Paid'
+                      className={`inline-flex rounded-full px-2 py-0.5 text-[10px] font-semibold ${inv.status === 'Paid'
                           ? 'badge-success'
                           : inv.status === 'Pending'
-                          ? 'badge-warning'
-                          : 'badge-error'
-                      }`}
+                            ? 'badge-warning'
+                            : 'badge-error'
+                        }`}
                     >
                       {inv.status}
                     </span>

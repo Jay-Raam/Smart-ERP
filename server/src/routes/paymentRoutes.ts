@@ -96,6 +96,15 @@ paymentRouter.post('/payments/customer', async (req: Request, res: Response) => 
     if (newPaymentStatus === 'PAID') {
       invoice.status = 'Paid';
     }
+
+    if (!invoice.history) invoice.history = [];
+    invoice.history.push({
+      action: 'PAYMENT_RECORDED',
+      timestamp: new Date(),
+      user: user.name || (user as any).username || 'Jay Raam',
+      details: `Payment of ₹${payAmount.toLocaleString('en-IN')} recorded via ${paymentMethod} (Ref: ${referenceNumber || 'N/A'}). Status: ${newPaymentStatus}. Outstanding: ₹${newOutstanding.toLocaleString('en-IN')}`,
+    });
+
     await invoice.save({ session });
 
     // 2. Update Customer outstanding balance

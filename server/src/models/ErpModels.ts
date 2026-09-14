@@ -78,6 +78,39 @@ const FinancialYearSchema = new Schema<IFinancialYear>(
 
 FinancialYearSchema.index({ organisationId: 1, branchId: 1, yearName: 1 });
 
+// 4. Customer Address
+export interface ICustomerAddress {
+  _id?: any;
+  id?: string;
+  type: 'BILLING' | 'SHIPPING';
+  attention?: string;
+  addressLine1: string;
+  addressLine2?: string;
+  city: string;
+  state: string;
+  pincode: string;
+  country?: string;
+  phone?: string;
+  isActive: boolean;
+  createdAt?: Date;
+}
+
+export const CustomerAddressSchema = new Schema<ICustomerAddress>(
+  {
+    type: { type: String, enum: ['BILLING', 'SHIPPING'], required: true },
+    attention: { type: String, default: '' },
+    addressLine1: { type: String, required: true },
+    addressLine2: { type: String, default: '' },
+    city: { type: String, required: true },
+    state: { type: String, required: true },
+    pincode: { type: String, required: true },
+    country: { type: String, default: 'India' },
+    phone: { type: String, default: '' },
+    isActive: { type: Boolean, default: true },
+  },
+  { timestamps: true }
+);
+
 // 4. Customer
 export interface ICustomer extends Document {
   code: string;
@@ -95,6 +128,7 @@ export interface ICustomer extends Document {
   gstin: string;
   outstandingBalance: number;
   creditLimit: number;
+  addresses?: ICustomerAddress[];
   organisationId: string;
   branchId: string;
 }
@@ -116,6 +150,7 @@ const CustomerSchema = new Schema<ICustomer>(
     gstin: { type: String, required: true },
     outstandingBalance: { type: Number, default: 0 },
     creditLimit: { type: Number, default: 0 },
+    addresses: [CustomerAddressSchema],
     organisationId: { type: String, default: '' },
     branchId: { type: String, default: '' },
   },
@@ -231,6 +266,24 @@ export const DocumentItemSchema = new Schema<IDocumentItem>(
   { _id: false }
 );
 
+// 7. Invoice History
+export interface IInvoiceHistoryItem {
+  action: string;
+  timestamp: Date;
+  user?: string;
+  details?: string;
+}
+
+export const InvoiceHistorySchema = new Schema<IInvoiceHistoryItem>(
+  {
+    action: { type: String, required: true },
+    timestamp: { type: Date, default: Date.now },
+    user: { type: String, default: 'Jay Raam' },
+    details: { type: String, default: '' },
+  },
+  { _id: false }
+);
+
 // 7. Invoice
 export interface IInvoice extends Document {
   invoiceNumber: string;
@@ -240,6 +293,8 @@ export interface IInvoice extends Document {
   customerState: string;
   billingAddress: string;
   shippingAddress: string;
+  billingState?: string;
+  shippingState?: string;
   invoiceDate: string;
   dueDate: string;
   branchId: string;
@@ -262,6 +317,14 @@ export interface IInvoice extends Document {
   paymentStatus: 'UNPAID' | 'PARTIALLY_PAID' | 'PAID';
   totalInWords: string;
   status: string;
+  termsAndConditions?: string;
+  bankDetails?: {
+    bankName?: string;
+    accountNumber?: string;
+    ifscCode?: string;
+    branchName?: string;
+  };
+  history?: IInvoiceHistoryItem[];
 }
 
 const InvoiceSchema = new Schema<IInvoice>(
@@ -273,6 +336,8 @@ const InvoiceSchema = new Schema<IInvoice>(
     customerState: { type: String, default: 'Tamil Nadu' },
     billingAddress: { type: String, default: '' },
     shippingAddress: { type: String, default: '' },
+    billingState: { type: String, default: '' },
+    shippingState: { type: String, default: '' },
     invoiceDate: { type: String, required: true },
     dueDate: { type: String, required: true },
     branchId: { type: String, default: '' },
@@ -299,6 +364,14 @@ const InvoiceSchema = new Schema<IInvoice>(
     },
     totalInWords: { type: String, default: '' },
     status: { type: String, default: 'Pending' },
+    termsAndConditions: { type: String, default: '' },
+    bankDetails: {
+      bankName: { type: String, default: '' },
+      accountNumber: { type: String, default: '' },
+      ifscCode: { type: String, default: '' },
+      branchName: { type: String, default: '' },
+    },
+    history: [InvoiceHistorySchema],
   },
   { timestamps: true }
 );

@@ -268,9 +268,9 @@ export const InvoicePdfDocument: React.FC<InvoicePdfDocumentProps> = ({
             <Text style={[styles.colItem, styles.tableHeaderText]}>Product / Description</Text>
             <Text style={[styles.colHsn, styles.tableHeaderText]}>HSN/SAC</Text>
             <Text style={[styles.colQty, styles.tableHeaderText]}>Qty</Text>
-            <Text style={[styles.colRate, styles.tableHeaderText]}>Rate (₹)</Text>
+            <Text style={[styles.colRate, styles.tableHeaderText]}>Rate</Text>
             <Text style={[styles.colTax, styles.tableHeaderText]}>GST %</Text>
-            <Text style={[styles.colTotal, styles.tableHeaderText]}>Taxable (₹)</Text>
+            <Text style={[styles.colTotal, styles.tableHeaderText]}>Taxable Value</Text>
           </View>
 
           {taxResult.items.map((item, idx) => (
@@ -344,8 +344,12 @@ export const InvoicePdfDocument: React.FC<InvoicePdfDocumentProps> = ({
 
             <View style={{ marginTop: 10 }}>
               <Text style={{ fontSize: 7, fontFamily: 'Helvetica-Bold', color: '#64748b' }}>BANK REMITTANCE DETAILS:</Text>
-              <Text style={{ fontSize: 7.5, color: '#334155' }}>Bank: HDFC Bank Ltd | A/C: 50200088912441</Text>
-              <Text style={{ fontSize: 7.5, color: '#334155' }}>IFSC: HDFC0000240 | Branch: Guindy Industrial Estate, Chennai</Text>
+              <Text style={{ fontSize: 7.5, color: '#334155' }}>
+                Bank: {invoice.bankDetails?.bankName || 'HDFC Bank Ltd'} | A/C: {invoice.bankDetails?.accountNumber || '50200088912441'}
+              </Text>
+              <Text style={{ fontSize: 7.5, color: '#334155' }}>
+                IFSC: {invoice.bankDetails?.ifscCode || 'HDFC0000240'} | Branch: {invoice.bankDetails?.branchName || 'Guindy Industrial Estate, Chennai'}
+              </Text>
             </View>
           </View>
 

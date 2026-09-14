@@ -473,10 +473,10 @@ export const TaxInvoicePdfDocument: React.FC<TaxInvoicePdfDocumentProps> = ({
             <Text style={styles.colHsn}>HSN/SAC</Text>
             <Text style={styles.colQty}>Qty</Text>
             <Text style={styles.colUom}>Unit</Text>
-            <Text style={styles.colRate}>Rate (₹)</Text>
+            <Text style={styles.colRate}>Rate</Text>
             <Text style={styles.colTotal}>Total Amt</Text>
             <Text style={styles.colDisc}>Disc</Text>
-            <Text style={styles.colSub}>Sub Total (₹)</Text>
+            <Text style={styles.colSub}>Sub Total</Text>
           </View>
 
           {taxCalc.items.map((item, index) => (
@@ -519,17 +519,17 @@ export const TaxInvoicePdfDocument: React.FC<TaxInvoicePdfDocumentProps> = ({
               <View style={styles.hsnTable}>
                 <View style={styles.hsnHeaderRow}>
                   <Text style={{ width: '22%', paddingLeft: 3 }}>HSN/SAC</Text>
-                  <Text style={{ width: '12%', textAlign: 'center' }}>Rate</Text>
-                  <Text style={{ width: '22%', textAlign: 'right', paddingRight: 3 }}>Taxable (₹)</Text>
+                  <Text style={{ width: '12%', textAlign: 'center' }}>Rate %</Text>
+                  <Text style={{ width: '22%', textAlign: 'right', paddingRight: 3 }}>Taxable Value</Text>
                   {isTN ? (
                     <>
-                      <Text style={{ width: '15%', textAlign: 'right', paddingRight: 2 }}>CGST (₹)</Text>
-                      <Text style={{ width: '15%', textAlign: 'right', paddingRight: 2 }}>SGST (₹)</Text>
+                      <Text style={{ width: '15%', textAlign: 'right', paddingRight: 2 }}>CGST</Text>
+                      <Text style={{ width: '15%', textAlign: 'right', paddingRight: 2 }}>SGST</Text>
                     </>
                   ) : (
-                    <Text style={{ width: '30%', textAlign: 'right', paddingRight: 2 }}>IGST (₹)</Text>
+                    <Text style={{ width: '30%', textAlign: 'right', paddingRight: 2 }}>IGST</Text>
                   )}
-                  <Text style={{ width: '14%', textAlign: 'right', paddingRight: 3 }}>Tax (₹)</Text>
+                  <Text style={{ width: '14%', textAlign: 'right', paddingRight: 3 }}>Total Tax</Text>
                 </View>
 
                 {taxCalc.hsnSummary.map((hsn, idx) => (
@@ -562,16 +562,24 @@ export const TaxInvoicePdfDocument: React.FC<TaxInvoicePdfDocumentProps> = ({
               <View style={styles.bankAndTermsRow}>
                 <View style={styles.subBox}>
                   <Text style={styles.subBoxTitle}>Company Bank Details</Text>
-                  <Text><Text style={styles.label}>Bank: </Text>{activeBank.bankName}</Text>
-                  <Text><Text style={styles.label}>A/c No: </Text>{activeBank.accountNumber}</Text>
-                  <Text><Text style={styles.label}>IFSC: </Text>{activeBank.ifscCode}</Text>
-                  <Text><Text style={styles.label}>Branch: </Text>{activeBank.branchName}</Text>
+                  <Text><Text style={styles.label}>Bank: </Text>{invoice.bankDetails?.bankName || activeBank.bankName}</Text>
+                  <Text><Text style={styles.label}>A/c No: </Text>{invoice.bankDetails?.accountNumber || activeBank.accountNumber}</Text>
+                  <Text><Text style={styles.label}>IFSC: </Text>{invoice.bankDetails?.ifscCode || activeBank.ifscCode}</Text>
+                  <Text><Text style={styles.label}>Branch: </Text>{invoice.bankDetails?.branchName || activeBank.branchName}</Text>
                 </View>
                 <View style={styles.subBox}>
                   <Text style={styles.subBoxTitle}>Terms & Conditions</Text>
-                  <Text>1. Goods once sold will not be taken back.</Text>
-                  <Text>2. Interest @18% p.a. charged if unpaid by due date.</Text>
-                  <Text>3. Subject to Chennai jurisdiction only.</Text>
+                  {invoice.termsAndConditions ? (
+                    invoice.termsAndConditions.split('\n').filter(Boolean).map((line, idx) => (
+                      <Text key={idx}>{line}</Text>
+                    ))
+                  ) : (
+                    <>
+                      <Text>1. Goods once sold will not be taken back.</Text>
+                      <Text>2. Interest @18% p.a. charged if unpaid by due date.</Text>
+                      <Text>3. Subject to jurisdiction of local branch.</Text>
+                    </>
+                  )}
                 </View>
               </View>
             </View>

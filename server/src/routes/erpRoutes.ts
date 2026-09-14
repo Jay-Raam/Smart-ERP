@@ -1475,6 +1475,15 @@ erpRouter.post('/invoices', async (req: Request, res: Response) => {
     const numShipping = Math.max(0, Number(shippingCharge) || 0);
     const taxResult = calculateDocumentTaxes(items, customerState || 'Tamil Nadu', customerGstin, numShipping);
 
+    const initialHistory = [
+      {
+        action: 'CREATED',
+        timestamp: new Date(),
+        user: (req as any).user?.name || (req as any).user?.username || 'Jay Raam',
+        details: `Direct Tax Invoice ${invoiceNumber} created for ${req.body.customerName || 'Customer'} with ${taxResult.items.length} line items. Total: ₹${taxResult.grandTotal.toLocaleString('en-IN')}`,
+      },
+    ];
+
     const invoice = await Invoice.create({
       ...req.body,
       invoiceNumber,
@@ -1493,6 +1502,7 @@ erpRouter.post('/invoices', async (req: Request, res: Response) => {
       outstandingAmount: taxResult.grandTotal,
       paymentStatus: 'UNPAID',
       totalInWords: taxResult.totalInWords,
+      history: initialHistory,
     });
 
     logAuditAction(req, {
@@ -1522,13 +1532,109 @@ erpRouter.get('/invoices/:id', async (req: Request, res: Response) => {
   }
 });
 
+// Full Invoice Update with Item Replacement & Tax Recalculation
+erpRouter.put('/invoices/:id', async (req: Request, res: Response) => {
+  try {
+    const prevInvoice = await Invoice.findById(req.params.id);
+    if (!prevInvoice) return res.status(404).json({ error: 'Invoice not found' });
+
+    // Document Edit Lock: If payment recorded or Paid, reject editing
+    if ((prevInvoice.paidAmount && prevInvoice.paidAmount > 0) || prevInvoice.status === 'Paid') {
+      return res.status(422).json({
+        error: 'This Invoice cannot be edited because a payment has already been recorded.',
+      });
+    }
+
+    const {
+      items,
+      customerState,
+      customerGstin,
+      shippingCharge,
+      billingAddress,
+      shippingAddress,
+      dueDate,
+      termsAndConditions,
+      bankDetails,
+    } = req.body;
+
+    if (items && Array.isArray(items)) {
+      for (const it of items) {
+        if (!it.productName || !it.quantity || it.quantity <= 0) {
+          return res.status(400).json({ error: 'Each line item must have a product name and valid quantity' });
+        }
+      }
+    }
+
+    const numShipping = Math.max(0, Number(shippingCharge) || 0);
+    const stateToUse = customerState || prevInvoice.customerState || 'Tamil Nadu';
+    const gstinToUse = customerGstin !== undefined ? customerGstin : prevInvoice.customerGstin;
+    const itemsToUse = items && items.length > 0 ? items : prevInvoice.items;
+
+    const taxResult = calculateDocumentTaxes(itemsToUse, stateToUse, gstinToUse, numShipping);
+
+    const historyEntry = {
+      action: 'EDITED',
+      timestamp: new Date(),
+      user: (req as any).user?.name || (req as any).user?.username || 'Jay Raam',
+      details: `Invoice updated. Line items: ${taxResult.items.length}, Total: ₹${taxResult.grandTotal.toLocaleString('en-IN')}`,
+    };
+
+    const updateData: any = {
+      ...req.body,
+      items: taxResult.items,
+      subtotal: taxResult.subtotal,
+      shippingCharge: taxResult.shippingCharge,
+      shippingTax: taxResult.shippingTax,
+      taxableAmount: taxResult.taxableAmount,
+      totalDiscount: taxResult.totalDiscount,
+      cgstAmount: taxResult.cgstAmount,
+      sgstAmount: taxResult.sgstAmount,
+      igstAmount: taxResult.igstAmount,
+      taxAmount: taxResult.totalTax,
+      totalAmount: taxResult.grandTotal,
+      outstandingAmount: Math.max(0, taxResult.grandTotal - (prevInvoice.paidAmount || 0)),
+      totalInWords: taxResult.totalInWords,
+      customerState: stateToUse,
+      customerGstin: gstinToUse,
+    };
+
+    if (billingAddress !== undefined) updateData.billingAddress = billingAddress;
+    if (shippingAddress !== undefined) updateData.shippingAddress = shippingAddress;
+    if (dueDate !== undefined) updateData.dueDate = dueDate;
+    if (termsAndConditions !== undefined) updateData.termsAndConditions = termsAndConditions;
+    if (bankDetails !== undefined) updateData.bankDetails = bankDetails;
+
+    const existingHistory = prevInvoice.history || [];
+    updateData.history = [...existingHistory, historyEntry];
+
+    const updated = await Invoice.findByIdAndUpdate(req.params.id, updateData, { new: true });
+    if (!updated) return res.status(404).json({ error: 'Invoice not found' });
+
+    logAuditAction(req, {
+      action: 'UPDATE',
+      entityType: 'Tax Invoice',
+      entityId: updated._id.toString(),
+      entityIdentifier: updated.invoiceNumber,
+      previousData: prevInvoice,
+      newData: updated,
+      organisationId: updated.organisationId,
+      branchId: updated.branchId,
+      financialYear: updated.financialYear,
+    });
+
+    res.json({ ...updated.toObject(), id: updated._id.toString() });
+  } catch (err: any) {
+    res.status(400).json({ error: err.message });
+  }
+});
+
 erpRouter.patch('/invoices/:id', async (req: Request, res: Response) => {
   try {
     const prevInvoice = await Invoice.findById(req.params.id);
     if (!prevInvoice) return res.status(404).json({ error: 'Invoice not found' });
 
     // Document Edit Lock: If payment recorded, reject editing
-    if (prevInvoice.paidAmount > 0) {
+    if (prevInvoice.paidAmount > 0 || prevInvoice.status === 'Paid') {
       return res.status(422).json({
         error: 'This Invoice cannot be edited because a payment has already been recorded.',
       });
@@ -2004,10 +2110,39 @@ erpRouter.post('/customers', async (req: Request, res: Response) => {
     }
     const count = (await Customer.countDocuments()) + 1;
     const code = `CUST-${String(req.body.name).slice(0, 4).toUpperCase()}-${count}`;
+    const initialAddresses: any[] = [];
+    if (req.body.billingAddress) {
+      initialAddresses.push({
+        type: 'BILLING',
+        attention: req.body.contactPerson || '',
+        addressLine1: req.body.billingAddress,
+        city: req.body.city || 'Chennai',
+        state: req.body.billingState || req.body.state || 'Tamil Nadu',
+        pincode: '600001',
+        country: 'India',
+        phone: req.body.phone || '',
+        isActive: true,
+      });
+    }
+    if (req.body.shippingAddress) {
+      initialAddresses.push({
+        type: 'SHIPPING',
+        attention: req.body.contactPerson || '',
+        addressLine1: req.body.shippingAddress,
+        city: req.body.city || 'Chennai',
+        state: req.body.shippingState || req.body.billingState || req.body.state || 'Tamil Nadu',
+        pincode: '600001',
+        country: 'India',
+        phone: req.body.phone || '',
+        isActive: true,
+      });
+    }
+
     const customer = await Customer.create({
       ...req.body,
       creditLimit: Number(creditLimit) || 10001,
       code,
+      addresses: req.body.addresses && req.body.addresses.length > 0 ? req.body.addresses : initialAddresses,
     });
 
     logAuditAction(req, {
@@ -2021,6 +2156,169 @@ erpRouter.post('/customers', async (req: Request, res: Response) => {
     });
 
     res.status(201).json({ ...customer.toObject(), id: customer._id.toString() });
+  } catch (err: any) {
+    res.status(400).json({ error: err.message });
+  }
+});
+
+erpRouter.get('/customers/:id', async (req: Request, res: Response) => {
+  try {
+    const customer = await Customer.findById(req.params.id);
+    if (!customer) return res.status(404).json({ error: 'Customer not found' });
+    res.json({ ...customer.toObject(), id: customer._id.toString() });
+  } catch (err: any) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+// Add new Address to Customer (maintains history by setting previously active of same type to false)
+erpRouter.post('/customers/:id/addresses', async (req: Request, res: Response) => {
+  try {
+    const customer = await Customer.findById(req.params.id);
+    if (!customer) return res.status(404).json({ error: 'Customer not found' });
+
+    const { type, attention, addressLine1, addressLine2, city, state, pincode, phone, country } = req.body;
+    if (!type || !addressLine1 || !city || !state || !pincode) {
+      return res.status(400).json({ error: 'Type, Address Line 1, City, State and Pincode are required.' });
+    }
+
+    if (!customer.addresses) customer.addresses = [];
+
+    // Rule: Only ONE address of this type can be active at a time!
+    customer.addresses.forEach((addr: any) => {
+      if (addr.type === type) {
+        addr.isActive = false;
+      }
+    });
+
+    const newAddr: any = {
+      type,
+      attention: attention || '',
+      addressLine1,
+      addressLine2: addressLine2 || '',
+      city,
+      state,
+      pincode,
+      country: country || 'India',
+      phone: phone || customer.phone || '',
+      isActive: true,
+      createdAt: new Date(),
+    };
+
+    customer.addresses.push(newAddr);
+
+    const fullAddrString = [addressLine1, addressLine2, `${city} - ${pincode}`, state, country || 'India']
+      .filter(Boolean)
+      .join(', ');
+    if (type === 'BILLING') {
+      customer.billingAddress = fullAddrString;
+      customer.billingState = state;
+      customer.city = city;
+      customer.state = state;
+    } else {
+      customer.shippingAddress = fullAddrString;
+      customer.shippingState = state;
+    }
+
+    await customer.save();
+    res.status(201).json({ ...customer.toObject(), id: customer._id.toString() });
+  } catch (err: any) {
+    res.status(400).json({ error: err.message });
+  }
+});
+
+// Activate an existing address from history
+erpRouter.post('/customers/:id/addresses/:addressId/activate', async (req: Request, res: Response) => {
+  try {
+    const customer = await Customer.findById(req.params.id);
+    if (!customer) return res.status(404).json({ error: 'Customer not found' });
+
+    if (!customer.addresses || customer.addresses.length === 0) {
+      return res.status(404).json({ error: 'No addresses found for customer' });
+    }
+
+    const targetAddr = (customer.addresses as any).id(req.params.addressId);
+    if (!targetAddr) return res.status(404).json({ error: 'Address record not found' });
+
+    // Set all other addresses of this type to inactive
+    customer.addresses.forEach((addr: any) => {
+      if (addr.type === targetAddr.type) {
+        addr.isActive = false;
+      }
+    });
+
+    targetAddr.isActive = true;
+
+    const fullAddrString = [
+      targetAddr.addressLine1,
+      targetAddr.addressLine2,
+      `${targetAddr.city} - ${targetAddr.pincode}`,
+      targetAddr.state,
+      targetAddr.country || 'India',
+    ]
+      .filter(Boolean)
+      .join(', ');
+
+    if (targetAddr.type === 'BILLING') {
+      customer.billingAddress = fullAddrString;
+      customer.billingState = targetAddr.state;
+      customer.city = targetAddr.city;
+      customer.state = targetAddr.state;
+    } else {
+      customer.shippingAddress = fullAddrString;
+      customer.shippingState = targetAddr.state;
+    }
+
+    await customer.save();
+    res.json({ ...customer.toObject(), id: customer._id.toString() });
+  } catch (err: any) {
+    res.status(400).json({ error: err.message });
+  }
+});
+
+// Update an existing address
+erpRouter.put('/customers/:id/addresses/:addressId', async (req: Request, res: Response) => {
+  try {
+    const customer = await Customer.findById(req.params.id);
+    if (!customer) return res.status(404).json({ error: 'Customer not found' });
+
+    const targetAddr = (customer.addresses as any).id(req.params.addressId);
+    if (!targetAddr) return res.status(404).json({ error: 'Address record not found' });
+
+    const { attention, addressLine1, addressLine2, city, state, pincode, phone, country } = req.body;
+    if (attention !== undefined) targetAddr.attention = attention;
+    if (addressLine1 !== undefined) targetAddr.addressLine1 = addressLine1;
+    if (addressLine2 !== undefined) targetAddr.addressLine2 = addressLine2;
+    if (city !== undefined) targetAddr.city = city;
+    if (state !== undefined) targetAddr.state = state;
+    if (pincode !== undefined) targetAddr.pincode = pincode;
+    if (phone !== undefined) targetAddr.phone = phone;
+    if (country !== undefined) targetAddr.country = country;
+
+    if (targetAddr.isActive) {
+      const fullAddrString = [
+        targetAddr.addressLine1,
+        targetAddr.addressLine2,
+        `${targetAddr.city} - ${targetAddr.pincode}`,
+        targetAddr.state,
+        targetAddr.country || 'India',
+      ]
+        .filter(Boolean)
+        .join(', ');
+
+      if (targetAddr.type === 'BILLING') {
+        customer.billingAddress = fullAddrString;
+        customer.billingState = targetAddr.state;
+        customer.city = targetAddr.city;
+        customer.state = targetAddr.state;
+      } else {
+        customer.shippingAddress = fullAddrString;
+        customer.shippingState = targetAddr.state;
+      }
+    }
+
+    await customer.save();
+    res.json({ ...customer.toObject(), id: customer._id.toString() });
   } catch (err: any) {
     res.status(400).json({ error: err.message });
   }
