@@ -219,7 +219,10 @@ export function App() {
   };
 
   return (
-    <div className="flex h-screen w-screen overflow-hidden bg-slate-50 dark:bg-slate-950 text-slate-900 dark:text-slate-100 antialiased font-sans">
+    <div
+      className="flex h-screen w-screen overflow-hidden antialiased font-sans transition-colors duration-200"
+      style={{ backgroundColor: 'var(--bg-app)', color: 'var(--text-main)' }}
+    >
       {/* 1. Left Fixed Sidebar (h-screen shrink-0) */}
       <Sidebar
         activeModule={activeModule}
@@ -251,7 +254,10 @@ export function App() {
         />
 
         {/* Dynamic Module Content Canvas: ONLY THIS BODY SCROLLS */}
-        <main className="flex-1 min-h-0 overflow-y-auto p-4 md:p-6 bg-slate-50 dark:bg-slate-950">
+        <main
+          className="flex-1 min-h-0 overflow-y-auto p-4 md:p-6 transition-colors duration-200"
+          style={{ backgroundColor: 'var(--bg-app)' }}
+        >
           <div className="max-w-7xl w-full mx-auto pb-12">
             {/* Dedicated Full Pages */}
             {currentPath === '/invoices/new' && <InvoiceCreatePage />}

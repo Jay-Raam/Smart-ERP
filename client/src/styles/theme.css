@@ -1,17 +1,25 @@
-/* Smart ERP - Enterprise Design System Tokens (Modeled after Tiaano ERP) */
+/* Smart ERP - Enterprise Design System Tokens
+ * Strict Rules:
+ * 1. Backgrounds MUST ONLY use pure white or neutral black/carbon shades — NO blue background tints.
+ * 2. Primary colors (blue, indigo, green, amber, purple, rose) are strictly for accents, buttons, active indicators, and focus rings.
+ * 3. All pages, sidebars, navbars, cards, tables, inputs, and drawers dynamically adhere to theme tokens.
+ */
+
 :root {
-  /* Default Primary: Blue */
+  /* Default Primary Accent: Blue */
+  --color-primary-rgb: 37, 99, 235;
   --color-primary: #2563eb;
   --color-primary-hover: #1d4ed8;
   --color-primary-light: #eff6ff;
+  --color-primary-subtle: rgba(37, 99, 235, 0.12);
 
-  /* Default Light: Slate */
+  /* Default Light: Pure White & Slate */
   --bg-app: #f8fafc;
   --bg-surface: #ffffff;
   --bg-surface-subtle: #f1f5f9;
-  --bg-sidebar: #0f172a;
-  --bg-sidebar-hover: #1e293b;
-  --bg-sidebar-active: #2563eb;
+  --bg-sidebar: #ffffff;
+  --bg-sidebar-hover: #f1f5f9;
+  --bg-sidebar-active: rgba(37, 99, 235, 0.08);
 
   --border-subtle: #e2e8f0;
   --border-strong: #cbd5e1;
@@ -31,155 +39,399 @@
   --color-info-bg: #ecfeff;
 }
 
-/* Primary Color Schemes */
+/* ==========================================================================
+   1. PRIMARY ACCENT PALETTES (Only accents/buttons change, NOT backgrounds)
+   ========================================================================== */
 [data-theme-primary="blue"] {
+  --color-primary-rgb: 37, 99, 235;
   --color-primary: #2563eb;
   --color-primary-hover: #1d4ed8;
   --color-primary-light: #eff6ff;
-  --bg-sidebar-active: #2563eb;
+  --color-primary-subtle: rgba(37, 99, 235, 0.12);
+  --bg-sidebar-active: rgba(37, 99, 235, 0.08);
 }
 
 [data-theme-primary="indigo"] {
+  --color-primary-rgb: 79, 70, 229;
   --color-primary: #4f46e5;
   --color-primary-hover: #4338ca;
   --color-primary-light: #eef2ff;
-  --bg-sidebar-active: #4f46e5;
+  --color-primary-subtle: rgba(79, 70, 229, 0.12);
+  --bg-sidebar-active: rgba(79, 70, 229, 0.08);
 }
 
 [data-theme-primary="green"] {
+  --color-primary-rgb: 22, 163, 74;
   --color-primary: #16a34a;
   --color-primary-hover: #15803d;
   --color-primary-light: #f0fdf4;
-  --bg-sidebar-active: #16a34a;
+  --color-primary-subtle: rgba(22, 163, 74, 0.12);
+  --bg-sidebar-active: rgba(22, 163, 74, 0.08);
 }
 
 [data-theme-primary="amber"] {
+  --color-primary-rgb: 217, 119, 6;
   --color-primary: #d97706;
   --color-primary-hover: #b45309;
   --color-primary-light: #fffbeb;
-  --bg-sidebar-active: #d97706;
+  --color-primary-subtle: rgba(217, 119, 6, 0.12);
+  --bg-sidebar-active: rgba(217, 119, 6, 0.08);
 }
 
 [data-theme-primary="purple"] {
+  --color-primary-rgb: 147, 51, 234;
   --color-primary: #9333ea;
   --color-primary-hover: #7e22ce;
   --color-primary-light: #faf5ff;
-  --bg-sidebar-active: #9333ea;
+  --color-primary-subtle: rgba(147, 51, 234, 0.12);
+  --bg-sidebar-active: rgba(147, 51, 234, 0.08);
 }
 
 [data-theme-primary="rose"] {
+  --color-primary-rgb: 225, 29, 72;
   --color-primary: #e11d48;
   --color-primary-hover: #be123c;
   --color-primary-light: #fff1f2;
-  --bg-sidebar-active: #e11d48;
+  --color-primary-subtle: rgba(225, 29, 72, 0.12);
+  --bg-sidebar-active: rgba(225, 29, 72, 0.08);
 }
 
-/* Light Mode Variations */
+/* ==========================================================================
+   2. LIGHT MODE SHADES (Clean White & Neutral Grays — Strictly NO Blue)
+   ========================================================================== */
 html:not(.dark)[data-theme-light="slate"] {
   --bg-app: #f8fafc;
   --bg-surface: #ffffff;
   --bg-surface-subtle: #f1f5f9;
+  --bg-sidebar: #ffffff;
+  --bg-sidebar-hover: #f1f5f9;
   --border-subtle: #e2e8f0;
   --border-strong: #cbd5e1;
   --text-main: #0f172a;
+  --text-muted: #64748b;
+  --text-subtle: #94a3b8;
 }
 
 html:not(.dark)[data-theme-light="gray"] {
   --bg-app: #f9fafb;
   --bg-surface: #ffffff;
   --bg-surface-subtle: #f3f4f6;
+  --bg-sidebar: #ffffff;
+  --bg-sidebar-hover: #f3f4f6;
   --border-subtle: #e5e7eb;
   --border-strong: #d1d5db;
   --text-main: #111827;
+  --text-muted: #6b7280;
+  --text-subtle: #9ca3af;
 }
 
 html:not(.dark)[data-theme-light="neutral"] {
   --bg-app: #fafafa;
   --bg-surface: #ffffff;
   --bg-surface-subtle: #f5f5f5;
+  --bg-sidebar: #ffffff;
+  --bg-sidebar-hover: #f5f5f5;
   --border-subtle: #e5e5e5;
   --border-strong: #d4d4d4;
   --text-main: #171717;
+  --text-muted: #737373;
+  --text-subtle: #a3a3a3;
 }
 
-/* Dark Mode Base Tokens */
+/* ==========================================================================
+   3. DARK MODE BASE TOKENS (Strictly Black & Carbon/Neutral — NO Blue)
+   ========================================================================== */
 html.dark {
   --bg-app: #0e0f11;
   --bg-surface: #15161a;
   --bg-surface-subtle: #1c1d21;
-  --bg-sidebar: #0e0f11;
+  --bg-sidebar: #111215;
   --bg-sidebar-hover: #1c1d21;
 
-  --border-subtle: #2a2c32;
-  --border-strong: #383a41;
+  --border-subtle: #26282e;
+  --border-strong: #363942;
 
   --text-main: #f8fafc;
   --text-muted: #94a3b8;
   --text-subtle: #64748b;
-
-  --color-primary-light: rgba(37, 99, 235, 0.15);
 }
 
-/* Dark Mode Color Schemes */
+/* Cinder: Balanced Carbon Dark */
 html.dark[data-theme-dark="cinder"] {
   --bg-app: #0e0f11;
   --bg-surface: #15161a;
   --bg-surface-subtle: #1c1d21;
-  --bg-sidebar: #0e0f11;
-  --border-subtle: #2a2c32;
-  --border-strong: #383a41;
+  --bg-sidebar: #111215;
+  --bg-sidebar-hover: #1c1d21;
+  --border-subtle: #26282e;
+  --border-strong: #363942;
+  --text-main: #f8fafc;
 }
 
-html.dark[data-theme-dark="navy"] {
-  --bg-app: #182030;
-  --bg-surface: #202b40;
-  --bg-surface-subtle: #24314a;
-  --bg-sidebar: #101726;
-  --border-subtle: #384766;
-  --border-strong: #465675;
-}
-
-html.dark[data-theme-dark="mirage"] {
-  --bg-app: #050a16;
-  --bg-surface: #0c1221;
-  --bg-surface-subtle: #101a2e;
-  --bg-sidebar: #040812;
-  --border-subtle: #1e2b47;
-  --border-strong: #293859;
-}
-
+/* Pitch Black: Pure OLED Zero-Light */
 html.dark[data-theme-dark="black"] {
   --bg-app: #000000;
-  --bg-surface: #0c0c0d;
-  --bg-surface-subtle: #131314;
-  --bg-sidebar: #000000;
-  --border-subtle: #242428;
+  --bg-surface: #0a0a0b;
+  --bg-surface-subtle: #141416;
+  --bg-sidebar: #050505;
+  --bg-sidebar-hover: #141416;
+  --border-subtle: #222225;
   --border-strong: #333338;
+  --text-main: #ffffff;
 }
 
+/* Charcoal Zinc: Clean Neutral Modern Dark */
+html.dark[data-theme-dark="zinc"] {
+  --bg-app: #09090b;
+  --bg-surface: #121215;
+  --bg-surface-subtle: #18181b;
+  --bg-sidebar: #0d0d10;
+  --bg-sidebar-hover: #18181b;
+  --border-subtle: #27272a;
+  --border-strong: #3f3f46;
+  --text-main: #fafafa;
+}
+
+/* Graphite Dark: Refined Smooth Matte Carbon */
+html.dark[data-theme-dark="graphite"] {
+  --bg-app: #121316;
+  --bg-surface: #181a1f;
+  --bg-surface-subtle: #20232a;
+  --bg-sidebar: #14161a;
+  --bg-sidebar-hover: #20232a;
+  --border-subtle: #2c303a;
+  --border-strong: #3e4452;
+  --text-main: #f1f5f9;
+}
+
+/* Smoky Ash: Smooth Obsidian Tone */
+html.dark[data-theme-dark="ash"] {
+  --bg-app: #111111;
+  --bg-surface: #191919;
+  --bg-surface-subtle: #222222;
+  --bg-sidebar: #141414;
+  --bg-sidebar-hover: #222222;
+  --border-subtle: #2e2e2e;
+  --border-strong: #404040;
+  --text-main: #f5f5f5;
+}
+
+/* Compatibility aliases for legacy keys */
+html.dark[data-theme-dark="navy"],
+html.dark[data-theme-dark="mirage"],
 html.dark[data-theme-dark="mint"] {
-  --bg-app: #0a1014;
-  --bg-surface: #0d161c;
-  --bg-surface-subtle: #152129;
-  --bg-sidebar: #070c0f;
-  --border-subtle: #2a3942;
-  --border-strong: #384954;
+  --bg-app: #0e0f11;
+  --bg-surface: #15161a;
+  --bg-surface-subtle: #1c1d21;
+  --bg-sidebar: #111215;
+  --border-subtle: #26282e;
+  --border-strong: #363942;
 }
 
-/* Monochrome Mode */
+/* ==========================================================================
+   4. MONOCHROME MODE (High-Focus Grayscale)
+   ========================================================================== */
+html.is-monochrome,
+html.is-monochrome body,
 body.is-monochrome {
-  filter: grayscale(100%);
+  filter: grayscale(100%) !important;
+  transition: filter 0.2s ease-in-out;
 }
 
-/* Card Skin Variations */
-[data-card-skin="shadow-sm"] .erp-card {
-  box-shadow: 0 4px 14px -2px rgba(0, 0, 0, 0.08) !important;
-  border-color: rgba(0, 0, 0, 0.04) !important;
-}
-
-html.dark[data-card-skin="shadow-sm"] .erp-card {
-  box-shadow: 0 4px 14px -2px rgba(0, 0, 0, 0.4) !important;
+/* ==========================================================================
+   5. CARD SKIN & ELEVATION
+   ========================================================================== */
+/* Bordered Skin: Crisp flat borders, clean zero shadow */
+[data-card-skin="bordered"] .erp-card,
+[data-card-skin="bordered"] .rounded-2xl.border,
+[data-card-skin="bordered"] .rounded-xl.border,
+[data-card-skin="bordered"] .shadow-xs,
+[data-card-skin="bordered"] .shadow-sm {
+  box-shadow: none !important;
+  border-width: 1px !important;
   border-color: var(--border-subtle) !important;
+}
+
+/* Shadow Skin: Subtle elevation depth in Light Mode */
+html:not(.dark)[data-card-skin="shadow-sm"] .erp-card,
+html:not(.dark)[data-card-skin="shadow-sm"] .rounded-2xl.border,
+html:not(.dark)[data-card-skin="shadow-sm"] .rounded-xl.border {
+  box-shadow: 0 4px 16px -2px rgba(0, 0, 0, 0.08), 0 2px 4px -2px rgba(0, 0, 0, 0.04) !important;
+  border-color: var(--border-subtle) !important;
+}
+
+/* Shadow Skin: Elevated depth in Dark Mode */
+html.dark[data-card-skin="shadow-sm"] .erp-card,
+html.dark[data-card-skin="shadow-sm"] .rounded-2xl.border,
+html.dark[data-card-skin="shadow-sm"] .rounded-xl.border {
+  box-shadow: 0 6px 20px -2px rgba(0, 0, 0, 0.6), 0 2px 6px -2px rgba(0, 0, 0, 0.4) !important;
+  border-color: var(--border-subtle) !important;
+}
+
+/* ==========================================================================
+   6. GLOBAL STRUCTURAL ADAPTATION (Light & Dark)
+   ========================================================================== */
+body {
+  background-color: var(--bg-app) !important;
+  color: var(--text-main) !important;
+}
+
+main {
+  background-color: var(--bg-app) !important;
+}
+
+header {
+  background-color: var(--bg-surface) !important;
+  border-color: var(--border-subtle) !important;
+}
+
+aside {
+  background-color: var(--bg-sidebar) !important;
+  border-color: var(--border-subtle) !important;
+}
+
+/* Surfaces */
+.erp-card,
+.erp-surface {
+  background-color: var(--bg-surface) !important;
+  border-color: var(--border-subtle) !important;
+}
+
+/* Light Mode Overrides */
+html:not(.dark) .bg-white {
+  background-color: var(--bg-surface) !important;
+}
+html:not(.dark) .bg-slate-50,
+html:not(.dark) .bg-slate-100 {
+  background-color: var(--bg-surface-subtle) !important;
+}
+html:not(.dark) .border-slate-200,
+html:not(.dark) .border-slate-100 {
+  border-color: var(--border-subtle) !important;
+}
+html:not(.dark) .border-slate-300 {
+  border-color: var(--border-strong) !important;
+}
+
+/* Dark Mode Overrides */
+html.dark .bg-white,
+html.dark .bg-slate-900,
+html.dark .dark\:bg-slate-900 {
+  background-color: var(--bg-surface) !important;
+}
+
+html.dark .bg-slate-950,
+html.dark .dark\:bg-slate-950 {
+  background-color: var(--bg-app) !important;
+}
+
+html.dark .bg-slate-800,
+html.dark .bg-slate-100,
+html.dark .bg-slate-50,
+html.dark .dark\:bg-slate-800,
+html.dark .dark\:bg-slate-800\/60,
+html.dark .dark\:bg-slate-800\/50,
+html.dark table thead th {
+  background-color: var(--bg-surface-subtle) !important;
+}
+
+html.dark .border-slate-200,
+html.dark .border-slate-800,
+html.dark .border-slate-100,
+html.dark .dark\:border-slate-800,
+html.dark .dark\:border-slate-700 {
+  border-color: var(--border-subtle) !important;
+}
+
+html.dark .border-slate-300,
+html.dark .dark\:border-slate-600 {
+  border-color: var(--border-strong) !important;
+}
+
+html.dark .text-slate-900,
+html.dark .text-slate-800,
+html.dark .dark\:text-white,
+html.dark .dark\:text-slate-100 {
+  color: var(--text-main) !important;
+}
+
+html.dark .text-slate-700,
+html.dark .dark\:text-slate-200,
+html.dark .dark\:text-slate-300 {
+  color: #cbd5e1 !important;
+}
+
+html.dark .text-slate-600,
+html.dark .text-slate-500,
+html.dark .dark\:text-slate-400 {
+  color: var(--text-muted) !important;
+}
+
+/* Input Fields & Dropdowns */
+html.dark input:not([type="checkbox"]):not([type="radio"]),
+html.dark select,
+html.dark textarea {
+  background-color: var(--bg-surface-subtle) !important;
+  border-color: var(--border-subtle) !important;
+  color: var(--text-main) !important;
+}
+
+/* Tables */
+table thead th {
+  background-color: var(--bg-surface-subtle) !important;
+  border-color: var(--border-subtle) !important;
+}
+table tbody td {
+  border-color: var(--border-subtle) !important;
+}
+table tbody tr:hover {
+  background-color: var(--bg-surface-subtle) !important;
+}
+
+/* ==========================================================================
+   7. DYNAMIC PRIMARY ACCENTS (Buttons, Badges, Tabs, Active States)
+   ========================================================================== */
+.bg-blue-600,
+.bg-blue-500 {
+  background-color: var(--color-primary) !important;
+}
+
+.hover\:bg-blue-700:hover,
+.hover\:bg-blue-600:hover {
+  background-color: var(--color-primary-hover) !important;
+}
+
+.text-blue-600,
+.text-blue-500,
+.text-blue-700 {
+  color: var(--color-primary) !important;
+}
+
+html.dark .text-blue-400,
+html.dark .text-blue-300 {
+  color: var(--color-primary) !important;
+}
+
+.border-blue-600,
+.border-blue-500 {
+  border-color: var(--color-primary) !important;
+}
+
+.border-blue-200,
+.border-blue-100 {
+  border-color: var(--color-primary-subtle) !important;
+}
+
+.bg-blue-50,
+.bg-blue-100 {
+  background-color: var(--color-primary-light) !important;
+}
+
+html.dark .dark\:bg-blue-950,
+html.dark .dark\:bg-blue-900,
+html.dark .dark\:bg-blue-950\/40,
+html.dark .dark\:bg-blue-900\/40 {
+  background-color: var(--color-primary-subtle) !important;
 }
 
 /* Custom Sleek ERP Scrollbars */
@@ -199,106 +451,4 @@ html.dark[data-card-skin="shadow-sm"] .erp-card {
 
 ::-webkit-scrollbar-thumb:hover {
   background: var(--text-subtle);
-}
-
-/* Universal Dark Mode Adaptive Utilities */
-html.dark body {
-  background-color: var(--bg-app);
-  color: var(--text-main);
-}
-
-html.dark header {
-  background-color: var(--bg-surface) !important;
-  border-color: var(--border-subtle) !important;
-}
-
-html.dark aside {
-  background-color: var(--bg-surface) !important;
-  border-color: var(--border-subtle) !important;
-}
-
-html.dark main {
-  background-color: var(--bg-app) !important;
-}
-
-html.dark .bg-white {
-  background-color: var(--bg-surface) !important;
-}
-
-html.dark .bg-slate-50 {
-  background-color: var(--bg-surface-subtle) !important;
-}
-
-html.dark .bg-slate-100 {
-  background-color: var(--bg-surface-subtle) !important;
-}
-
-html.dark .border-slate-200,
-html.dark .border-slate-100 {
-  border-color: var(--border-subtle) !important;
-}
-
-html.dark .border-slate-300 {
-  border-color: var(--border-strong) !important;
-}
-
-html.dark .text-slate-900,
-html.dark .text-slate-800 {
-  color: var(--text-main) !important;
-}
-
-html.dark .text-slate-700 {
-  color: #e2e8f0 !important;
-}
-
-html.dark .text-slate-600 {
-  color: #94a3b8 !important;
-}
-
-html.dark .text-slate-500 {
-  color: #64748b !important;
-}
-
-html.dark input:not([type="checkbox"]):not([type="radio"]),
-html.dark select,
-html.dark textarea {
-  background-color: var(--bg-surface) !important;
-  border-color: var(--border-subtle) !important;
-  color: var(--text-main) !important;
-}
-
-html.dark table {
-  border-color: var(--border-subtle) !important;
-}
-
-html.dark table thead th {
-  background-color: var(--bg-surface-subtle) !important;
-  color: #94a3b8 !important;
-  border-color: var(--border-subtle) !important;
-}
-
-html.dark table tbody td {
-  border-color: var(--border-subtle) !important;
-}
-
-html.dark table tbody tr:hover {
-  background-color: var(--bg-surface-subtle) !important;
-}
-
-/* Primary color mappings */
-.bg-blue-600 {
-  background-color: var(--color-primary) !important;
-}
-
-.text-blue-600,
-.text-blue-700 {
-  color: var(--color-primary) !important;
-}
-
-.hover\:bg-blue-700:hover {
-  background-color: var(--color-primary-hover) !important;
-}
-
-.border-blue-600 {
-  border-color: var(--color-primary) !important;
 }

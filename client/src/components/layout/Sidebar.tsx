@@ -221,17 +221,28 @@ export const Sidebar: React.FC<SidebarProps> = ({
 
       {/* Main Sidebar Shell (radix structure with theme support) */}
       <aside
-        className={`fixed inset-y-0 left-0 z-50 lg:static flex flex-col h-screen shrink-0 border-r border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900 transition-all duration-300 ease-in-out ${
+        className={`fixed inset-y-0 left-0 z-50 lg:static flex flex-col h-screen shrink-0 transition-all duration-300 ease-in-out ${
           isCollapsed
             ? '-translate-x-full lg:translate-x-0 lg:w-18'
             : 'translate-x-0 w-64 shadow-xl lg:shadow-none'
         } select-none overflow-hidden`}
+        style={{
+          backgroundColor: 'var(--bg-sidebar)',
+          borderColor: 'var(--border-subtle)',
+          borderRightWidth: '1px',
+        }}
       >
         {/* SidebarHeader */}
-        <div className="flex h-16 items-center justify-between border-b border-slate-200 dark:border-slate-800 px-3.5">
+        <div
+          className="flex h-16 items-center justify-between px-3.5"
+          style={{ borderColor: 'var(--border-subtle)', borderBottomWidth: '1px' }}
+        >
           {!isCollapsed ? (
             <div className="flex items-center gap-2.5 min-w-0">
-              <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-xl bg-blue-600 font-bold text-white shadow-sm ring-2 ring-blue-500/20">
+              <div
+                className="flex h-9 w-9 shrink-0 items-center justify-center rounded-xl font-bold text-white shadow-sm"
+                style={{ backgroundColor: 'var(--color-primary)' }}
+              >
                 S
               </div>
               <div className="min-w-0">
@@ -291,17 +302,22 @@ export const Sidebar: React.FC<SidebarProps> = ({
                       onClick={() => setActiveModule(item.id)}
                       className={`group relative flex w-full items-center gap-2.5 rounded-lg px-2.5 py-2 text-xs font-medium transition cursor-pointer ${
                         isActive
-                          ? 'bg-blue-50 dark:bg-blue-950/40 text-blue-700 dark:text-blue-400 font-semibold border border-blue-100 dark:border-blue-900/50 shadow-xs'
-                          : 'text-slate-600 dark:text-slate-300 hover:bg-slate-100/70 dark:hover:bg-slate-800/60 hover:text-slate-900 dark:hover:text-white'
+                          ? 'font-semibold shadow-xs'
+                          : 'hover:bg-slate-100/60 dark:hover:bg-slate-800/50'
                       } ${isCollapsed ? 'justify-center px-2' : ''}`}
+                      style={{
+                        backgroundColor: isActive ? 'var(--bg-sidebar-active)' : 'transparent',
+                        color: isActive ? 'var(--color-primary)' : 'var(--text-muted)',
+                        borderColor: isActive ? 'var(--color-primary-subtle)' : 'transparent',
+                        borderWidth: '1px',
+                      }}
                       title={isCollapsed ? item.label : undefined}
                     >
                       <Icon
-                        className={`h-4 w-4 shrink-0 transition ${
-                          isActive
-                            ? 'text-blue-600 dark:text-blue-400'
-                            : 'text-slate-400 group-hover:text-slate-700 dark:group-hover:text-slate-200'
-                        }`}
+                        className="h-4 w-4 shrink-0 transition"
+                        style={{
+                          color: isActive ? 'var(--color-primary)' : 'var(--text-subtle)',
+                        }}
                       />
 
                       {!isCollapsed && (
@@ -321,7 +337,10 @@ export const Sidebar: React.FC<SidebarProps> = ({
 
                       {/* Active Left Indicator Strip for Collapsed View */}
                       {isCollapsed && isActive && (
-                        <span className="absolute left-0 top-1.5 bottom-1.5 w-1 rounded-r bg-blue-600" />
+                        <span
+                          className="absolute left-0 top-1.5 bottom-1.5 w-1 rounded-r"
+                          style={{ backgroundColor: 'var(--color-primary)' }}
+                        />
                       )}
                     </button>
                   );
@@ -332,7 +351,14 @@ export const Sidebar: React.FC<SidebarProps> = ({
         </div>
 
         {/* SidebarFooter (User Identity + Multi-Tenant Sync Card) */}
-        <div className="border-t border-slate-200 dark:border-slate-800 p-2.5 bg-slate-50/60 dark:bg-slate-900/60">
+        <div
+          className="p-2.5"
+          style={{
+            backgroundColor: 'var(--bg-surface-subtle)',
+            borderColor: 'var(--border-subtle)',
+            borderTopWidth: '1px',
+          }}
+        >
           {!isCollapsed ? (
             <div className="rounded-xl border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-800/80 p-2.5 shadow-xs space-y-2">
               <div className="flex items-center gap-2.5">

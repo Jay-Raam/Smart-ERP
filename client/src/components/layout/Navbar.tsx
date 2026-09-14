@@ -62,7 +62,14 @@ export const Navbar: React.FC<NavbarProps> = ({
   };
 
   return (
-    <header className="h-16 shrink-0 w-full border-b border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900 px-3 sm:px-4 lg:px-6 shadow-xs flex items-center justify-between gap-3 z-30 select-none">
+    <header
+      className="h-16 shrink-0 w-full px-3 sm:px-4 lg:px-6 shadow-xs flex items-center justify-between gap-3 z-30 select-none transition-colors duration-200"
+      style={{
+        backgroundColor: 'var(--bg-surface)',
+        borderColor: 'var(--border-subtle)',
+        borderBottomWidth: '1px',
+      }}
+    >
       {/* Left Section: Mobile Menu + Clean Context Switcher Button */}
       <div className="flex items-center gap-2 min-w-0">
         {onToggleSidebar && (
@@ -85,20 +92,6 @@ export const Navbar: React.FC<NavbarProps> = ({
         >
           <div className="flex h-6 w-6 shrink-0 items-center justify-center rounded-lg bg-blue-600 text-white shadow-xs group-hover:scale-105 transition">
             <Building2 className="h-3.5 w-3.5" />
-          </div>
-
-          <div className="flex items-center gap-1.5 min-w-0">
-            <span className="font-bold text-slate-900 dark:text-slate-100 truncate hidden md:inline">
-              Smart Enterprise
-            </span>
-            <span className="text-slate-400 hidden md:inline">•</span>
-            <span className="font-semibold text-slate-800 dark:text-slate-200 truncate">
-              {activeBranch.code} · {activeBranch.name.split(' ')[0]}
-            </span>
-            <span className="text-slate-400">•</span>
-            <span className="font-mono font-medium text-blue-700 dark:text-blue-400 bg-blue-50 dark:bg-blue-950/60 border border-blue-200/80 dark:border-blue-900 px-1.5 py-0.2 rounded text-[11px] whitespace-nowrap">
-              FY {activeFinancialYear || '2026-2027'}
-            </span>
           </div>
 
           <div className="flex items-center text-slate-400 group-hover:text-blue-600 dark:group-hover:text-blue-400 transition pl-0.5 shrink-0">

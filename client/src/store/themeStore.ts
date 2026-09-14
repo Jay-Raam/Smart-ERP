@@ -2,7 +2,7 @@ import { create } from 'zustand';
 
 export type ThemeMode = 'light' | 'dark' | 'system';
 export type PrimaryColor = 'blue' | 'indigo' | 'green' | 'amber' | 'purple' | 'rose';
-export type DarkColorScheme = 'cinder' | 'navy' | 'mirage' | 'black' | 'mint';
+export type DarkColorScheme = 'cinder' | 'black' | 'zinc' | 'graphite' | 'ash';
 export type LightColorScheme = 'slate' | 'gray' | 'neutral';
 export type CardSkin = 'bordered' | 'shadow-sm';
 
@@ -45,6 +45,10 @@ function getStoredTheme(): ThemeSettings {
     const raw = localStorage.getItem('erp_theme_settings');
     if (raw) {
       const parsed = JSON.parse(raw);
+      // Clean up legacy dark schemes if present
+      if (['navy', 'mirage', 'mint'].includes(parsed.darkColorScheme)) {
+        parsed.darkColorScheme = 'cinder';
+      }
       return { ...DEFAULT_THEME, ...parsed };
     }
   } catch (e) {
@@ -123,8 +127,10 @@ export const useThemeStore = create<ThemeState>((set, get) => ({
     const root = document.documentElement;
     if (isDark) {
       root.classList.add('dark');
+      root.style.colorScheme = 'dark';
     } else {
       root.classList.remove('dark');
+      root.style.colorScheme = 'light';
     }
 
     root.dataset.themePrimary = primaryColor;
@@ -133,8 +139,10 @@ export const useThemeStore = create<ThemeState>((set, get) => ({
     root.dataset.cardSkin = cardSkin;
 
     if (isMonochrome) {
+      root.classList.add('is-monochrome');
       document.body.classList.add('is-monochrome');
     } else {
+      root.classList.remove('is-monochrome');
       document.body.classList.remove('is-monochrome');
     }
 
