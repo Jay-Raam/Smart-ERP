@@ -1,5 +1,16 @@
 import React, { useState } from 'react';
-import { Lock, User, ArrowRight, Sparkles } from 'lucide-react';
+import {
+  Lock,
+  Mail,
+  Eye,
+  EyeOff,
+  ArrowRight,
+  ShieldCheck,
+  Building2,
+  CheckCircle2,
+  AlertCircle,
+  Loader2,
+} from 'lucide-react';
 import { useAuthStore } from '../../store/authStore';
 import { useErpStore } from '../../store/erpStore';
 
@@ -9,12 +20,22 @@ export const LoginScreen: React.FC = () => {
 
   const [identifier, setIdentifier] = useState('');
   const [password, setPassword] = useState('');
+  const [showPassword, setShowPassword] = useState(false);
   const [rememberMe, setRememberMe] = useState(true);
   const [isLoading, setIsLoading] = useState(false);
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
+    if (!identifier.trim()) {
+      setErrorMessage('Please enter your email or mobile number.');
+      return;
+    }
+    if (!password) {
+      setErrorMessage('Please enter your account password.');
+      return;
+    }
+
     setIsLoading(true);
     setErrorMessage(null);
 
@@ -22,161 +43,260 @@ export const LoginScreen: React.FC = () => {
     const result = await loginWithCredentials(cleanInput, password);
 
     if (!result.success) {
-      setErrorMessage(result.error || 'Invalid credentials. Please verify your email or mobile.');
+      setErrorMessage(result.error || 'Invalid credentials. Please verify your email/mobile and password.');
       setIsLoading(false);
     } else {
-      // Successfully authenticated against MongoDB Atlas! Fetch bootstrap data
+      // Successfully authenticated against database! Fetch initial bootstrap
       await fetchBootstrap();
       setIsLoading(false);
     }
   };
 
   return (
-    <div className="flex min-h-screen w-screen bg-slate-950 text-slate-100 font-sans selection:bg-blue-600 selection:text-white">
-      {/* Left Column: Visual Brand Hero */}
-      <div className="hidden lg:flex lg:w-1/2 flex-col justify-between p-12 bg-gradient-to-br from-slate-900 via-blue-950 to-slate-950 border-r border-slate-800 relative overflow-hidden">
-        <div className="absolute -top-24 -left-24 w-96 h-96 bg-blue-500/10 rounded-full blur-3xl pointer-events-none" />
-        <div className="absolute -bottom-24 -right-24 w-96 h-96 bg-indigo-500/10 rounded-full blur-3xl pointer-events-none" />
+    <div
+      className="min-h-screen w-screen flex flex-col justify-center items-center px-4 py-12 font-sans relative overflow-hidden selection:bg-blue-600 selection:text-white transition-colors duration-300"
+      style={{ backgroundColor: 'var(--bg-app)', color: 'var(--text-main)' }}
+    >
+      {/* Subtle Ambient Background Gradients */}
+      <div className="absolute top-0 left-1/2 -translate-x-1/2 w-[1000px] h-[450px] bg-gradient-to-b from-blue-500/10 via-indigo-500/5 to-transparent rounded-full blur-3xl pointer-events-none" />
+      <div className="absolute -bottom-20 right-10 w-96 h-96 bg-emerald-500/5 rounded-full blur-3xl pointer-events-none" />
 
-        <div className="flex items-center gap-3 relative z-10">
-          <div className="flex h-11 w-11 items-center justify-center rounded-xl bg-blue-600 font-bold text-xl text-white shadow-lg shadow-blue-500/30">
+      {/* Main Minimalist Container */}
+      <div className="w-full max-w-[440px] relative z-10">
+        {/* Brand Header */}
+        <div className="flex flex-col items-center text-center mb-8">
+          <div
+            className="flex h-12 w-12 items-center justify-center rounded-2xl text-white font-bold text-2xl shadow-lg mb-4 ring-4 ring-blue-500/10 transition-transform duration-200 hover:scale-105"
+            style={{ backgroundColor: 'var(--color-primary)' }}
+          >
             S
           </div>
-          <div>
-            <h1 className="text-lg font-bold tracking-tight text-white">
-              Smart Enterprise ERP
-            </h1>
-            <p className="text-xs text-blue-400 font-medium">
-              Next-Gen Cloud Manufacturing, Sourcing & GST Billing
-            </p>
-          </div>
-        </div>
 
-        <div className="space-y-6 relative z-10 max-w-lg">
-          <div className="inline-flex items-center gap-2 rounded-full border border-blue-500/30 bg-blue-500/10 px-3 py-1 text-xs font-semibold text-blue-400">
-            <Sparkles className="h-3.5 w-3.5" />
-            <span>Secure Role-Based ERP Portal</span>
+          <div
+            className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full border text-xs font-semibold mb-3 shadow-2xs backdrop-blur-xs"
+            style={{
+              backgroundColor: 'var(--bg-surface)',
+              borderColor: 'var(--border-subtle)',
+              color: 'var(--text-muted)',
+            }}
+          >
+            <span style={{ color: 'var(--text-main)' }}>Smart Enterprise ERP</span>
+            <span style={{ color: 'var(--border-strong)' }}>•</span>
+            <span style={{ color: 'var(--color-primary)' }} className="font-mono">v2.4.0</span>
           </div>
 
-          <h2 className="text-3xl font-extrabold text-white leading-tight">
-            Seamless multi-branch operations, real-time stock & GST billing.
-          </h2>
-
-          <p className="text-sm text-slate-400 leading-relaxed">
-            Standardized with JWT cookie authentication, automatic user profile resolution,
-            multi-tenant isolation, and real-time inventory telemetry across your enterprise.
+          <h1
+            className="text-2xl sm:text-3xl font-bold tracking-tight"
+            style={{ color: 'var(--text-main)' }}
+          >
+            Sign in to your account
+          </h1>
+          <p
+            className="text-xs sm:text-sm mt-1.5 max-w-sm"
+            style={{ color: 'var(--text-muted)' }}
+          >
+            Welcome back! Enter your verified organization credentials to access your operational modules.
           </p>
-
-          <div className="grid grid-cols-2 gap-3 pt-2">
-            <div className="rounded-xl border border-slate-800 bg-slate-900/60 p-3.5 backdrop-blur-md">
-              <div className="text-xl font-bold text-white">9 Modules</div>
-              <div className="text-xs text-slate-400 mt-0.5">Sales, Billing, Store, Logistics</div>
-            </div>
-            <div className="rounded-xl border border-slate-800 bg-slate-900/60 p-3.5 backdrop-blur-md">
-              <div className="text-xl font-bold text-emerald-400">100% Isolated</div>
-              <div className="text-xs text-slate-400 mt-0.5">Postgres Row & Schema Security</div>
-            </div>
-          </div>
         </div>
 
-        <div className="flex items-center justify-between text-xs text-slate-500 border-t border-slate-800/80 pt-6 relative z-10">
-          <div className="flex items-center gap-2">
-            <span className="h-2 w-2 rounded-full bg-emerald-500 animate-pulse" />
-            <span>ERP Cluster Online (v2.4.0)</span>
-          </div>
-          <span>&copy; {new Date().getFullYear()} {organisation.name}</span>
-        </div>
-      </div>
-
-      {/* Right Column: Sign In Form */}
-      <div className="flex flex-1 flex-col justify-center items-center p-6 sm:p-12">
-        <div className="w-full max-w-md space-y-6">
-          <div>
-            <h2 className="text-2xl font-bold tracking-tight text-white">
-              Sign in to your account
-            </h2>
-            <p className="text-xs text-slate-400 mt-1">
-              Enter your registered email or mobile number to access your workspace.
-            </p>
-          </div>
-
+        {/* Minimalist Card */}
+        <div
+          className="rounded-2xl border p-6 sm:p-8 shadow-xl backdrop-blur-md transition-all duration-200"
+          style={{
+            backgroundColor: 'var(--bg-surface)',
+            borderColor: 'var(--border-subtle)',
+          }}
+        >
+          {/* Error Banner */}
           {errorMessage && (
-            <div className="p-3 rounded-xl border border-red-500/30 bg-red-500/10 text-xs text-red-400 font-medium">
-              {errorMessage}
+            <div className="mb-5 flex items-start gap-3 rounded-xl border border-rose-200 dark:border-rose-900/50 bg-rose-50/90 dark:bg-rose-950/40 p-3.5 text-xs text-rose-800 dark:text-rose-300 animate-in fade-in zoom-in-95 duration-150">
+              <AlertCircle className="h-4 w-4 shrink-0 text-rose-600 dark:text-rose-400 mt-0.5" />
+              <div className="flex-1 font-medium leading-relaxed">{errorMessage}</div>
             </div>
           )}
 
-          <form onSubmit={handleSubmit} className="space-y-4">
-            <div>
-              <label className="block text-xs font-semibold text-slate-300 mb-1">
-                Email or Mobile Number
+          <form onSubmit={handleSubmit} className="space-y-4.5">
+            {/* Field: Identifier */}
+            <div className="space-y-1.5">
+              <label
+                htmlFor="identifier"
+                className="block text-xs font-semibold tracking-wide"
+                style={{ color: 'var(--text-main)' }}
+              >
+                Email address or Mobile number
               </label>
-              <div className="relative">
+              <div
+                className="relative rounded-xl border transition focus-within:ring-2 focus-within:ring-blue-500/20"
+                style={{
+                  backgroundColor: 'var(--bg-surface-subtle)',
+                  borderColor: 'var(--border-subtle)',
+                }}
+              >
+                <div
+                  className="absolute inset-y-0 left-0 pl-3.5 flex items-center pointer-events-none"
+                  style={{ color: 'var(--text-subtle)' }}
+                >
+                  <Mail className="h-4 w-4" />
+                </div>
                 <input
+                  id="identifier"
                   type="text"
                   value={identifier}
                   onChange={(e) => setIdentifier(e.target.value)}
+                  placeholder="name@company.com or 9840199882"
+                  autoComplete="username"
                   required
-                  placeholder="e.g. name@company.com or 9840199882"
-                  className="w-full rounded-xl border border-slate-800 bg-slate-900/80 px-3.5 py-2.5 pl-9 text-xs text-slate-200 placeholder-slate-500 outline-none hover:border-slate-700 focus:border-blue-500 focus:ring-1 focus:ring-blue-500 transition"
+                  disabled={isLoading}
+                  style={{ color: 'var(--text-main)' }}
+                  className="w-full bg-transparent pl-10 pr-3.5 py-2.5 text-xs sm:text-sm placeholder:text-slate-400 focus:outline-hidden disabled:opacity-60"
                 />
-                <User className="absolute left-3 top-3 h-3.5 w-3.5 text-slate-500" />
               </div>
-              <p className="text-[11px] text-slate-500 mt-1">
-                Your role, branch, and organization are verified and loaded automatically.
-              </p>
             </div>
 
-            <div>
-              <label className="block text-xs font-semibold text-slate-300 mb-1">
-                Password
-              </label>
-              <div className="relative">
+            {/* Field: Password */}
+            <div className="space-y-1.5">
+              <div className="flex items-center justify-between">
+                <label
+                  htmlFor="password"
+                  className="block text-xs font-semibold tracking-wide"
+                  style={{ color: 'var(--text-main)' }}
+                >
+                  Password
+                </label>
+              </div>
+              <div
+                className="relative rounded-xl border transition focus-within:ring-2 focus-within:ring-blue-500/20"
+                style={{
+                  backgroundColor: 'var(--bg-surface-subtle)',
+                  borderColor: 'var(--border-subtle)',
+                }}
+              >
+                <div
+                  className="absolute inset-y-0 left-0 pl-3.5 flex items-center pointer-events-none"
+                  style={{ color: 'var(--text-subtle)' }}
+                >
+                  <Lock className="h-4 w-4" />
+                </div>
                 <input
-                  type="password"
+                  id="password"
+                  type={showPassword ? 'text' : 'password'}
                   value={password}
                   onChange={(e) => setPassword(e.target.value)}
-                  required
                   placeholder="••••••••••••"
-                  className="w-full rounded-xl border border-slate-800 bg-slate-900/80 px-3.5 py-2.5 pl-9 text-xs text-slate-200 placeholder-slate-500 outline-none hover:border-slate-700 focus:border-blue-500 focus:ring-1 focus:ring-blue-500 transition"
+                  autoComplete="current-password"
+                  required
+                  disabled={isLoading}
+                  style={{ color: 'var(--text-main)' }}
+                  className="w-full bg-transparent pl-10 pr-10 py-2.5 text-xs sm:text-sm placeholder:text-slate-400 focus:outline-hidden disabled:opacity-60 font-mono"
                 />
-                <Lock className="absolute left-3 top-3 h-3.5 w-3.5 text-slate-500" />
+                <button
+                  type="button"
+                  onClick={() => setShowPassword(!showPassword)}
+                  tabIndex={-1}
+                  className="absolute inset-y-0 right-0 pr-3 flex items-center hover:opacity-100 transition cursor-pointer"
+                  style={{ color: 'var(--text-subtle)' }}
+                  title={showPassword ? 'Hide password' : 'Show password'}
+                >
+                  {showPassword ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
+                </button>
               </div>
             </div>
 
-            <div className="flex items-center justify-between text-xs pt-1">
-              <label className="flex items-center gap-2 cursor-pointer text-slate-400 hover:text-slate-300">
+            {/* Remember Me & Help Links */}
+            <div className="flex items-center justify-between pt-1">
+              <label className="flex items-center gap-2 cursor-pointer select-none">
                 <input
                   type="checkbox"
                   checked={rememberMe}
                   onChange={(e) => setRememberMe(e.target.checked)}
-                  className="rounded border-slate-700 bg-slate-900 text-blue-600 focus:ring-0"
+                  disabled={isLoading}
+                  className="h-4 w-4 rounded border-slate-300 dark:border-slate-700 text-blue-600 focus:ring-blue-500/30 cursor-pointer"
                 />
-                <span>Remember session in cookies</span>
+                <span
+                  className="text-xs font-medium"
+                  style={{ color: 'var(--text-muted)' }}
+                >
+                  Remember session
+                </span>
               </label>
-              <a href="#reset" className="text-blue-400 hover:underline">
-                Forgot password?
-              </a>
+
+              <span
+                className="text-xs transition hover:underline cursor-pointer"
+                style={{ color: 'var(--text-subtle)' }}
+              >
+                Need access? Contact admin
+              </span>
             </div>
 
+            {/* Submit CTA Button */}
             <button
               type="submit"
               disabled={isLoading}
-              className="w-full mt-2 flex items-center justify-center gap-2 rounded-xl bg-blue-600 hover:bg-blue-500 px-4 py-2.5 text-xs font-bold text-white transition shadow-lg shadow-blue-600/20 active:scale-[0.99] disabled:opacity-50 cursor-pointer"
+              className="w-full flex items-center justify-center gap-2 rounded-xl text-white py-2.5 px-4 text-xs sm:text-sm font-semibold shadow-md transition cursor-pointer disabled:opacity-60 disabled:cursor-not-allowed mt-2 hover:opacity-95 active:scale-[0.99]"
+              style={{ backgroundColor: 'var(--color-primary)' }}
             >
               {isLoading ? (
-                <span>Authenticating & Loading Workspace...</span>
+                <>
+                  <Loader2 className="h-4 w-4 animate-spin" />
+                  <span>Verifying Credentials...</span>
+                </>
               ) : (
                 <>
-                  <span>Sign In to ERP</span>
+                  <span>Sign in to Enterprise</span>
                   <ArrowRight className="h-4 w-4" />
                 </>
               )}
             </button>
           </form>
         </div>
+
+        {/* Enterprise Trust Indicators (Minimalist Micro-Pills) */}
+        <div className="mt-8 grid grid-cols-3 gap-2 text-center">
+          <div
+            className="flex flex-col items-center justify-center p-2 rounded-xl border backdrop-blur-xs"
+            style={{
+              backgroundColor: 'var(--bg-surface)',
+              borderColor: 'var(--border-subtle)',
+            }}
+          >
+            <ShieldCheck className="h-4 w-4 text-emerald-600 dark:text-emerald-400 mb-1" />
+            <span className="text-[10px] font-semibold" style={{ color: 'var(--text-main)' }}>256-Bit SSL</span>
+            <span className="text-[9px]" style={{ color: 'var(--text-muted)' }}>Encrypted</span>
+          </div>
+
+          <div
+            className="flex flex-col items-center justify-center p-2 rounded-xl border backdrop-blur-xs"
+            style={{
+              backgroundColor: 'var(--bg-surface)',
+              borderColor: 'var(--border-subtle)',
+            }}
+          >
+            <Building2 className="h-4 w-4 text-blue-600 dark:text-blue-400 mb-1" />
+            <span className="text-[10px] font-semibold" style={{ color: 'var(--text-main)' }}>Multi-Tenant</span>
+            <span className="text-[9px]" style={{ color: 'var(--text-muted)' }}>Strict Isolated</span>
+          </div>
+
+          <div
+            className="flex flex-col items-center justify-center p-2 rounded-xl border backdrop-blur-xs"
+            style={{
+              backgroundColor: 'var(--bg-surface)',
+              borderColor: 'var(--border-subtle)',
+            }}
+          >
+            <CheckCircle2 className="h-4 w-4 text-indigo-600 dark:text-indigo-400 mb-1" />
+            <span className="text-[10px] font-semibold" style={{ color: 'var(--text-main)' }}>RBAC Guard</span>
+            <span className="text-[9px]" style={{ color: 'var(--text-muted)' }}>Role Governed</span>
+          </div>
+        </div>
+
+        {/* Copyright & Organization Identity */}
+        <div
+          className="mt-6 text-center text-xs"
+          style={{ color: 'var(--text-subtle)' }}
+        >
+          &copy; {new Date().getFullYear()} {organisation?.name || 'Smart Enterprise Industries Ltd.'}. All rights reserved.
+        </div>
       </div>
     </div>
   );
 };
-

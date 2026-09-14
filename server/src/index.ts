@@ -17,6 +17,7 @@ import { authMiddleware, generateTokens, verifyRefreshToken } from './security/a
 import { connectMongo, pool } from './config/database';
 import { recordAudit } from './models/AuditLog';
 import { erpRouter } from './routes/erpRoutes';
+import { getPolyglotHealthTelemetry, initPostgresSchema } from './services/postgresService';
 
 const app = express();
 const PORT = process.env.PORT || 4000;
@@ -114,22 +115,19 @@ app.post('/api/auth/refresh', (req: Request, res: Response) => {
   res.json({ accessToken: newTokens.accessToken });
 });
 
-// Health check endpoint with database telemetry
+// Health check endpoint with enterprise polyglot database telemetry
 app.get('/health', async (req: Request, res: Response) => {
-  let pgStatus = 'DISCONNECTED';
-  try {
-    const client = await pool.connect();
-    await client.query('SELECT 1');
-    client.release();
-    pgStatus = 'CONNECTED';
-  } catch {}
+  const polyglotTelemetry = await getPolyglotHealthTelemetry();
 
   res.json({
     status: 'HEALTHY',
     timestamp: new Date().toISOString(),
     tenantContext: req.tenant,
+    polyglot: polyglotTelemetry,
     databases: {
-      postgresql: pgStatus,
+      postgresql: polyglotTelemetry.tiers.relational_core.status,
+      mongodb: polyglotTelemetry.tiers.document_store.status,
+      redis: polyglotTelemetry.tiers.cache_layer.status,
     },
     version: '1.0.0',
   });
@@ -143,6 +141,7 @@ app.use(yoga.graphqlEndpoint, (req: Request, res: Response) => {
 // Start server and initialize databases
 async function startServer() {
   await connectMongo();
+  await initPostgresSchema();
 
   const server = app.listen(PORT, () => {
     console.log(`
