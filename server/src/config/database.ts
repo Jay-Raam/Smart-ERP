@@ -54,7 +54,13 @@ export const redisConnection = {
 // MongoDB Connect Helper
 export async function connectMongo(): Promise<boolean> {
   try {
-    await mongoose.connect(MONGO_URI, { serverSelectionTimeoutMS: 4000 });
+    if (mongoose.connection.readyState >= 1) {
+      return true;
+    }
+    await mongoose.connect(MONGO_URI, {
+      serverSelectionTimeoutMS: 5000,
+      maxPoolSize: 10,
+    });
     console.log('✔ MongoDB Atlas connected successfully');
     return true;
   } catch (error: any) {
