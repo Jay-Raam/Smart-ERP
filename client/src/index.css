@@ -1,6 +1,7 @@
 @import "tailwindcss";
 @custom-variant dark (&:where(.dark, .dark *));
 @import "./styles/theme.css";
+@import "./styles/geologicalTheme.css";
 
 @layer base {
   body {

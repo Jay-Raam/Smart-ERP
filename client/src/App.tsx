@@ -7,6 +7,12 @@ import { ProfileDrawer } from './components/layout/ProfileDrawer';
 import { ContextSwitcherDrawer } from './components/layout/ContextSwitcherDrawer';
 import { ThemeDrawer } from './components/layout/ThemeDrawer';
 import { LoginScreen } from './components/auth/LoginScreen';
+import { PublicShowcase } from './components/public/PublicShowcase';
+import { ContactPage } from './components/public/ContactPage';
+import { AboutPage } from './components/public/AboutPage';
+import { ServicesPage } from './components/public/ServicesPage';
+import { PricingPage } from './components/public/PricingPage';
+import { ReleasesPage } from './components/public/ReleasesPage';
 import { useAuthStore } from './store/authStore';
 import { useErpStore } from './store/erpStore';
 import { useThemeStore } from './store/themeStore';
@@ -184,9 +190,64 @@ export function App() {
     }
   }, [isAuthenticated, isSessionValidated, isInitialized, fetchBootstrap]);
 
-  // If not authenticated, display Enterprise Login Screen
+  // If not authenticated, route between Public Showcase, standalone pages, and Login Portal
   if (!isAuthenticated) {
-    return <LoginScreen />;
+    const handlePublicNavigate = (path: string) => {
+      window.history.pushState({}, '', path);
+      setCurrentPath(path);
+      window.scrollTo({ top: 0, behavior: 'smooth' });
+    };
+
+    if (currentPath === '/login') {
+      return <LoginScreen />;
+    }
+    if (currentPath === '/contact') {
+      return (
+        <ContactPage
+          onSignInClick={() => handlePublicNavigate('/login')}
+          onNavigate={handlePublicNavigate}
+        />
+      );
+    }
+    if (currentPath === '/about') {
+      return (
+        <AboutPage
+          onSignInClick={() => handlePublicNavigate('/login')}
+          onNavigate={handlePublicNavigate}
+        />
+      );
+    }
+    if (currentPath === '/services') {
+      return (
+        <ServicesPage
+          onSignInClick={() => handlePublicNavigate('/login')}
+          onNavigate={handlePublicNavigate}
+        />
+      );
+    }
+    if (currentPath === '/pricing') {
+      return (
+        <PricingPage
+          onSignInClick={() => handlePublicNavigate('/login')}
+          onNavigate={handlePublicNavigate}
+        />
+      );
+    }
+    if (currentPath === '/releases') {
+      return (
+        <ReleasesPage
+          onSignInClick={() => handlePublicNavigate('/login')}
+          onNavigate={handlePublicNavigate}
+        />
+      );
+    }
+
+    return (
+      <PublicShowcase
+        onSignInClick={() => handlePublicNavigate('/login')}
+        onNavigate={handlePublicNavigate}
+      />
+    );
   }
 
   // If session has not finished validating with backend /auth/me, display loading screen

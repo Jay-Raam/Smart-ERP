@@ -1,0 +1,111 @@
+/* =========================================================================
+   GEOLOGICAL DESIGN SYSTEM — SCOPED MONOCHROME THEME & BESPOKE FONTS
+   Reference: https://third-studio.vercel.app/
+   ========================================================================= */
+
+/* 1. Bespoke Self-Hosted Web Fonts */
+@font-face {
+  font-family: 'Neue Haas Grotesk Display Pro';
+  src: url('/fonts/NeueHaasDisplayRoman.woff2') format('woff2');
+  font-weight: 400;
+  font-style: normal;
+  font-display: swap;
+}
+
+@font-face {
+  font-family: 'Neue Haas Grotesk Display Pro';
+  src: url('/fonts/NeueHaasDisplayMedium.woff2') format('woff2');
+  font-weight: 500;
+  font-style: normal;
+  font-display: swap;
+}
+
+@font-face {
+  font-family: 'ABC Monument Grotesk Mono';
+  src: url('/fonts/ABCMonumentGroteskMono-Medium.woff2') format('woff2');
+  font-weight: 500;
+  font-style: normal;
+  font-display: swap;
+}
+
+/* 2. Scoped Geological Theme Variables */
+.geological-scope {
+  --geo-font-sans: 'Neue Haas Grotesk Display Pro', -apple-system, BlinkMacSystemFont, sans-serif;
+  --geo-font-mono: 'ABC Monument Grotesk Mono', monospace;
+
+  /* Smooth transitions */
+  transition: background-color 0.4s cubic-bezier(0.16, 1, 0.3, 1),
+              color 0.4s cubic-bezier(0.16, 1, 0.3, 1);
+  font-family: var(--geo-font-sans);
+}
+
+/* Light Geological Palette: Travertine / Warm Stone */
+.geological-scope[data-geo-theme='light'] {
+  --geo-bg: #eceae5;
+  --geo-bg-surface: #e4e1db;
+  --geo-bg-card: #dfdbd3;
+  --geo-fg: #28282a;
+  --geo-fg-muted: rgba(40, 40, 42, 0.65);
+  --geo-fg-subtle: rgba(40, 40, 42, 0.40);
+  --geo-border: rgba(40, 40, 42, 0.12);
+  --geo-border-strong: rgba(40, 40, 42, 0.28);
+  --geo-invert-bg: #0e0e0e;
+  --geo-invert-fg: #eceae5;
+  --geo-badge-bg: rgba(40, 40, 42, 0.06);
+}
+
+/* Dark Geological Palette: Volcanic Basalt / Obsidian */
+.geological-scope[data-geo-theme='dark'] {
+  --geo-bg: #0e0e0e;
+  --geo-bg-surface: #161616;
+  --geo-bg-card: #1c1c1c;
+  --geo-fg: #eceae5;
+  --geo-fg-muted: rgba(236, 234, 229, 0.68);
+  --geo-fg-subtle: rgba(236, 234, 229, 0.40);
+  --geo-border: rgba(236, 234, 229, 0.12);
+  --geo-border-strong: rgba(236, 234, 229, 0.28);
+  --geo-invert-bg: #eceae5;
+  --geo-invert-fg: #0e0e0e;
+  --geo-badge-bg: rgba(236, 234, 229, 0.06);
+}
+
+/* 3. Utility Classes Scoped to Public Showcase */
+.geological-scope .font-geo-sans {
+  font-family: var(--geo-font-sans);
+}
+
+.geological-scope .font-geo-mono {
+  font-family: var(--geo-font-mono);
+}
+
+.geological-scope button,
+.geological-scope a {
+  cursor: pointer;
+}
+
+/* Magnetic dot button style */
+.geo-theme-toggle {
+  position: relative;
+  width: 1.1rem;
+  height: 1.1rem;
+  border-radius: 9999px;
+  background-color: var(--geo-fg);
+  border: none;
+  cursor: pointer;
+  padding: 0;
+  transition: transform 0.3s cubic-bezier(0.16, 1, 0.3, 1);
+}
+
+.geo-theme-toggle:hover {
+  transform: scale(1.25);
+}
+
+/* Brutalist raw grid line styling */
+.geo-divider {
+  border-color: var(--geo-border);
+}
+
+/* Scroll percentage typography */
+.geo-tabular {
+  font-variant-numeric: tabular-nums;
+}

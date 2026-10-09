@@ -280,9 +280,17 @@ main {
   background-color: var(--bg-app) !important;
 }
 
+.aevion-scope main {
+  background-color: transparent !important;
+}
+
 header {
   background-color: var(--bg-surface) !important;
   border-color: var(--border-subtle) !important;
+}
+
+.aevion-scope header {
+  background-color: transparent !important;
 }
 
 aside {

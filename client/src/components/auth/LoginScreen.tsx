@@ -164,6 +164,22 @@ export const LoginScreen: React.FC = () => {
           <div className="flex flex-col justify-center px-4 sm:px-8 lg:px-12 py-6 sm:py-8 w-full max-w-md mx-auto">
             {/* Header */}
             <div className="mb-7 text-left">
+              <div className="flex items-center justify-between mb-2">
+                <button
+                  type="button"
+                  onClick={() => {
+                    window.history.pushState({}, '', '/');
+                    window.dispatchEvent(new PopStateEvent('popstate'));
+                  }}
+                  className="inline-flex items-center gap-1.5 text-xs font-semibold text-slate-500 hover:text-slate-900 dark:hover:text-white transition-colors cursor-pointer bg-transparent border-none p-0"
+                >
+                  <span>←</span>
+                  <span>Back to Showcase</span>
+                </button>
+                <span className="text-[11px] font-mono uppercase tracking-wider text-slate-400">
+                  SMART—ERP
+                </span>
+              </div>
               <h1 className="text-2xl sm:text-[28px] font-bold text-slate-900 dark:text-white tracking-tight">
                 Sign in
               </h1>

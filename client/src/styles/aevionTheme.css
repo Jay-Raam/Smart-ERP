@@ -1,0 +1,148 @@
+/* =========================================================================
+   AEVION / RIOTTERS INDUSTRIAL MINIMALIST DESIGN SYSTEM
+   Reference: https://drone.riotters.com/
+   Strictly scoped to .aevion-scope (public routes only)
+   ========================================================================= */
+
+@layer theme {
+  :root {
+    --color-ink: #24363f;
+  }
+}
+
+/* Base Aevion Scoped Variables */
+.aevion-scope {
+  --bg-canvas: #fdfdfd;
+  --bg-white: #ffffff;
+  --color-ink: #24363f;
+  --color-ink-rgb: 36, 54, 63;
+  --color-border: rgba(36, 54, 63, 0.24);
+  --color-border-subtle: rgba(36, 54, 63, 0.12);
+  --color-text-faded: #c7cccb;
+  --color-text-muted: rgba(36, 54, 63, 0.64);
+  --color-mint: #a7eed8;
+  --color-cyan: #38bdf8;
+  --font-switzer: 'Neue Haas Grotesk Display Pro', -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+  --font-proto-mono: 'ABC Monument Grotesk Mono', "SF Mono", "Fira Code", monospace;
+
+  background-color: var(--bg-canvas);
+  color: var(--color-ink);
+  font-family: var(--font-switzer);
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+}
+
+/* Dark mode variation if user toggles */
+.aevion-scope[data-theme='dark'],
+.dark .aevion-scope,
+:root.dark .aevion-scope {
+  --bg-canvas: #0a0a0a;
+  --bg-white: #111111;
+  --color-ink: #ededed;
+  --color-ink-rgb: 237, 237, 237;
+  --color-border: rgba(237, 237, 237, 0.24);
+  --color-border-subtle: rgba(237, 237, 237, 0.12);
+  --color-text-faded: #44494c;
+  --color-text-muted: rgba(237, 237, 237, 0.64);
+  --color-mint: #a7eed8;
+  --color-cyan: #38bdf8;
+}
+
+/* Typography Utilities */
+.aevion-scope .font-mono-tech {
+  font-family: var(--font-proto-mono);
+  font-weight: 400;
+  letter-spacing: 0.05em;
+}
+
+.aevion-scope .font-display {
+  font-family: var(--font-switzer);
+  font-weight: 300;
+}
+
+/* Keyframes from drone.riotters.com */
+@keyframes colon-blink {
+  0%, 49.99% {
+    opacity: 1;
+  }
+  50%, 100% {
+    opacity: 0;
+  }
+}
+
+.animate-colon {
+  animation: colon-blink 1s infinite steps(1);
+}
+
+@keyframes hero-drift {
+  0% {
+    transform: translate3d(0, 0px, 0);
+  }
+  50% {
+    transform: translate3d(0, 14px, 0);
+  }
+  100% {
+    transform: translate3d(0, 0px, 0);
+  }
+}
+
+.animate-hero-drift {
+  animation: hero-drift 7s ease-in-out infinite;
+}
+
+@keyframes hud-scanline {
+  0% {
+    transform: translateY(-100%);
+  }
+  100% {
+    transform: translateY(100%);
+  }
+}
+
+.animate-hud-scan {
+  animation: hud-scanline 4s linear infinite;
+}
+
+@keyframes pulse-ring {
+  0% {
+    transform: scale(0.95);
+    opacity: 0.8;
+  }
+  50% {
+    transform: scale(1.08);
+    opacity: 0.3;
+  }
+  100% {
+    transform: scale(0.95);
+    opacity: 0.8;
+  }
+}
+
+.animate-pulse-ring {
+  animation: pulse-ring 3s cubic-bezier(0.4, 0, 0.6, 1) infinite;
+}
+
+/* Hairline Grid and Borders */
+.border-ink-24 {
+  border-color: var(--color-border);
+}
+
+.border-ink-12 {
+  border-color: var(--color-border-subtle);
+}
+
+/* Technical Brackets */
+.tech-bracket {
+  font-family: var(--font-proto-mono);
+  font-size: 11px;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+  color: var(--color-text-muted);
+}
+
+/* Ensure 3D drone travels under/behind text without being obscured */
+.aevion-scope main {
+  background-color: transparent !important;
+  background: transparent !important;
+}
+
