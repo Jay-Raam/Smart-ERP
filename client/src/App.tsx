@@ -438,7 +438,12 @@ export function App() {
       <NotificationDrawer
         isOpen={isNotificationsOpen}
         onClose={() => setIsNotificationsOpen(false)}
-        onNavigateModule={(m: string) => setActiveModule(m as ModuleType)}
+        onNavigateModule={(m: string) => {
+          const targetModule = m === 'sales' ? 'invoices' : m;
+          setActiveModule(targetModule as ModuleType);
+          window.history.pushState(null, '', `/${targetModule}`);
+          setCurrentPath(`/${targetModule}`);
+        }}
       />
 
       {/* Slide-over Profile & Account Drawer */}

@@ -96,6 +96,7 @@ export const INITIAL_NOTIFICATIONS: NotificationItem[] = [
 
 interface NotificationState {
   notifications: NotificationItem[];
+  addNotification: (item: Omit<NotificationItem, 'id' | 'time' | 'read'> & { time?: string; id?: string; read?: boolean }) => void;
   markAsRead: (id: string) => void;
   markAsUnread: (id: string) => void;
   toggleReadStatus: (id: string) => void;
@@ -109,6 +110,18 @@ export const useNotificationStore = create<NotificationState>()(
   persist(
     (set) => ({
       notifications: INITIAL_NOTIFICATIONS,
+      addNotification: (item) =>
+        set((state) => ({
+          notifications: [
+            {
+              id: item.id || `n-${Date.now()}-${Math.random().toString(36).substring(2, 6)}`,
+              time: item.time || 'Just now',
+              read: false,
+              ...item,
+            },
+            ...state.notifications,
+          ],
+        })),
       markAsRead: (id: string) =>
         set((state) => ({
           notifications: state.notifications.map((n) =>

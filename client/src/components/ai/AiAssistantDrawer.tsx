@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useRef } from 'react';
+import React, { useState, useEffect, useRef, useMemo } from 'react';
 import {
   Sparkles,
   Bot,
@@ -16,8 +16,14 @@ import {
   Info,
   ChevronDown,
   ChevronUp,
+  History,
+  Plus,
+  Trash2,
+  MessageSquare,
+  Search,
 } from 'lucide-react';
 import { useErpStore } from '../../store/erpStore';
+import { useNotificationStore } from '../../store/notificationStore';
 
 interface AiStatus {
   configured: boolean;
@@ -32,7 +38,7 @@ interface AiStatus {
   capabilities: string[];
 }
 
-interface Message {
+export interface Message {
   id: string;
   role: 'user' | 'assistant';
   content: string;
@@ -42,12 +48,80 @@ interface Message {
   timestamp: string;
 }
 
+export interface ChatSession {
+  id: string;
+  title: string;
+  createdAt: number;
+  updatedAt: number;
+  messages: Message[];
+}
+
 interface AiAssistantDrawerProps {
   isOpen: boolean;
   onClose: () => void;
   onRefreshData?: () => void;
   onNavigateModule?: (module: string) => void;
 }
+
+const SESSIONS_STORAGE_KEY = 'smart_erp_copilot_sessions_v2';
+
+const createDefaultWelcomeMessage = (): Message => ({
+  id: `welcome_${Date.now()}`,
+  role: 'assistant',
+  content:
+    '👋 Welcome! I am your **Autonomous ERP Assistant**.\n\nYou can ask me to **create invoices**, **generate purchase orders (POs)**, **dispatch automated emails**, or **query inventory and financial telemetry**.\n\nType a request below or try one of the quick suggestions!',
+  timestamp: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
+});
+
+const loadStoredSessions = (): ChatSession[] => {
+  try {
+    const raw = localStorage.getItem(SESSIONS_STORAGE_KEY);
+    if (raw) {
+      const parsed = JSON.parse(raw);
+      if (Array.isArray(parsed) && parsed.length > 0) {
+        return parsed;
+      }
+    }
+  } catch {
+    // Storage read error fallback
+  }
+  return [
+    {
+      id: 'sess_default',
+      title: 'New Conversation',
+      createdAt: Date.now(),
+      updatedAt: Date.now(),
+      messages: [createDefaultWelcomeMessage()],
+    },
+  ];
+};
+
+const generateChatTitle = (text: string): string => {
+  const clean = text.replace(/^(create|show|send|draft|make)\s+/i, '').trim();
+  if (text.toLowerCase().includes('invoice')) {
+    const cust = text.match(/(?:for|to)\s+([A-Za-z0-9\s]+?)(?::|,|$)/i);
+    return cust ? `Invoice: ${cust[1].trim().slice(0, 22)}` : 'Tax Invoice Draft';
+  }
+  if (text.toLowerCase().includes('purchase order') || text.toLowerCase().includes('po')) {
+    const vend = text.match(/(?:for|to)\s+([A-Za-z0-9\s]+?)(?::|,|$)/i);
+    return vend ? `PO: ${vend[1].trim().slice(0, 22)}` : 'Purchase Order Draft';
+  }
+  if (text.toLowerCase().includes('stock') || text.toLowerCase().includes('inventory')) {
+    return 'Low Stock Alerts';
+  }
+  if (text.toLowerCase().includes('email') || text.toLowerCase().includes('reminder')) {
+    return 'Payment Reminder Email';
+  }
+  return clean.slice(0, 26) + (clean.length > 26 ? '...' : '');
+};
+
+const formatSessionTime = (timestamp: number) => {
+  const diff = Date.now() - timestamp;
+  if (diff < 60000) return 'Just now';
+  if (diff < 3600000) return `${Math.floor(diff / 60000)}m ago`;
+  if (diff < 86400000) return `${Math.floor(diff / 3600000)}h ago`;
+  return new Date(timestamp).toLocaleDateString([], { month: 'short', day: 'numeric' });
+};
 
 export const AiAssistantDrawer: React.FC<AiAssistantDrawerProps> = ({
   isOpen,
@@ -56,15 +130,14 @@ export const AiAssistantDrawer: React.FC<AiAssistantDrawerProps> = ({
   onNavigateModule,
 }) => {
   const { activeOrganisationId, activeBranchId, activeFinancialYear, fetchBootstrap } = useErpStore();
-  const [messages, setMessages] = useState<Message[]>([
-    {
-      id: 'welcome_1',
-      role: 'assistant',
-      content:
-        '👋 Welcome! I am your **Autonomous ERP Assistant**.\n\nYou can ask me to **create invoices**, **generate purchase orders (POs)**, **dispatch automated emails**, or **query inventory and financial telemetry**.\n\nType a request below or try one of the quick suggestions!',
-      timestamp: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
-    },
-  ]);
+  const [sessions, setSessions] = useState<ChatSession[]>(() => loadStoredSessions());
+  const [activeSessionId, setActiveSessionId] = useState<string>(() => {
+    const stored = loadStoredSessions();
+    return stored[0]?.id || 'sess_default';
+  });
+  const [isHistoryOpen, setIsHistoryOpen] = useState(false);
+  const [historySearchQuery, setHistorySearchQuery] = useState('');
+
   const [inputValue, setInputValue] = useState('');
   const [isLoading, setIsLoading] = useState(false);
   const [executingActionId, setExecutingActionId] = useState<string | null>(null);
@@ -73,6 +146,97 @@ export const AiAssistantDrawer: React.FC<AiAssistantDrawerProps> = ({
   const [copiedKeyText, setCopiedKeyText] = useState(false);
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const textareaRef = useRef<HTMLTextAreaElement>(null);
+
+  // Active session and its messages
+  const activeSession = useMemo(() => {
+    return sessions.find((s) => s.id === activeSessionId) || sessions[0] || {
+      id: 'sess_default',
+      title: 'New Conversation',
+      createdAt: Date.now(),
+      updatedAt: Date.now(),
+      messages: [createDefaultWelcomeMessage()],
+    };
+  }, [sessions, activeSessionId]);
+
+  const messages = activeSession.messages;
+
+  // Persist sessions to localStorage
+  useEffect(() => {
+    try {
+      localStorage.setItem(SESSIONS_STORAGE_KEY, JSON.stringify(sessions));
+    } catch {
+      // Storage quota or privacy fallback
+    }
+  }, [sessions]);
+
+  const updateActiveSessionMessages = (updater: (prevMessages: Message[]) => Message[]) => {
+    setSessions((prev) =>
+      prev.map((s) => {
+        if (s.id === activeSessionId) {
+          const newMessages = updater(s.messages);
+          let newTitle = s.title;
+          if (s.title === 'New Conversation' || s.title.startsWith('New Chat')) {
+            const firstUserMsg = newMessages.find((m) => m.role === 'user');
+            if (firstUserMsg) {
+              newTitle = generateChatTitle(firstUserMsg.content);
+            }
+          }
+          return {
+            ...s,
+            title: newTitle,
+            updatedAt: Date.now(),
+            messages: newMessages,
+          };
+        }
+        return s;
+      })
+    );
+  };
+
+  const handleCreateNewChat = () => {
+    const newSessionId = `sess_${Date.now()}`;
+    const newSession: ChatSession = {
+      id: newSessionId,
+      title: 'New Conversation',
+      createdAt: Date.now(),
+      updatedAt: Date.now(),
+      messages: [createDefaultWelcomeMessage()],
+    };
+    setSessions((prev) => [newSession, ...prev]);
+    setActiveSessionId(newSessionId);
+    setIsHistoryOpen(false);
+  };
+
+  const handleDeleteSession = (sessionId: string, e: React.MouseEvent) => {
+    e.stopPropagation();
+    if (sessions.length <= 1) {
+      const freshSession: ChatSession = {
+        id: `sess_${Date.now()}`,
+        title: 'New Conversation',
+        createdAt: Date.now(),
+        updatedAt: Date.now(),
+        messages: [createDefaultWelcomeMessage()],
+      };
+      setSessions([freshSession]);
+      setActiveSessionId(freshSession.id);
+      return;
+    }
+    const remaining = sessions.filter((s) => s.id !== sessionId);
+    setSessions(remaining);
+    if (activeSessionId === sessionId) {
+      setActiveSessionId(remaining[0].id);
+    }
+  };
+
+  const filteredSessions = useMemo(() => {
+    if (!historySearchQuery.trim()) return sessions;
+    const q = historySearchQuery.toLowerCase();
+    return sessions.filter(
+      (s) =>
+        s.title.toLowerCase().includes(q) ||
+        s.messages.some((m) => m.content.toLowerCase().includes(q))
+    );
+  }, [sessions, historySearchQuery]);
 
   const handleSelectSuggestion = (suggestionText: string) => {
     setInputValue(suggestionText);
@@ -118,7 +282,7 @@ export const AiAssistantDrawer: React.FC<AiAssistantDrawerProps> = ({
       timestamp: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
     };
 
-    setMessages((prev) => [...prev, userMsg]);
+    updateActiveSessionMessages((prev) => [...prev, userMsg]);
     if (!textToSend) setInputValue('');
     setIsLoading(true);
 
@@ -158,9 +322,9 @@ export const AiAssistantDrawer: React.FC<AiAssistantDrawerProps> = ({
         timestamp: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
       };
 
-      setMessages((prev) => [...prev, assistantMsg]);
+      updateActiveSessionMessages((prev) => [...prev, assistantMsg]);
     } catch (err: any) {
-      setMessages((prev) => [
+      updateActiveSessionMessages((prev) => [
         ...prev,
         {
           id: `err_${Date.now()}`,
@@ -198,7 +362,7 @@ export const AiAssistantDrawer: React.FC<AiAssistantDrawerProps> = ({
         throw new Error(result.error || 'Execution failed');
       }
 
-      setMessages((prev) =>
+      updateActiveSessionMessages((prev) =>
         prev.map((m) => {
           if (m.id === messageId) {
             return {
@@ -216,10 +380,41 @@ export const AiAssistantDrawer: React.FC<AiAssistantDrawerProps> = ({
         useErpStore.setState((state) => ({
           purchaseOrders: [result.record, ...state.purchaseOrders.filter((p) => p.id !== result.record.id)],
         }));
+        // Push notification into notification store
+        useNotificationStore.getState().addNotification({
+          category: 'order',
+          priority: 'high',
+          title: `Purchase Order #${result.recordNumber || 'New'} Approved`,
+          message: `Autonomous PO created for ${action.previewData?.vendorName || 'Supplier'} (Total: ₹${action.previewData?.totalAmount?.toLocaleString('en-IN')})`,
+          branchCode: activeBranchId || 'HQ',
+          branchName: 'Main Branch',
+          actionModule: 'purchase',
+          actionLabel: 'View in POs',
+        });
       } else if (result.type === 'INVOICE' && result.record) {
         useErpStore.setState((state) => ({
           invoices: [result.record, ...state.invoices.filter((i) => i.id !== result.record.id)],
         }));
+        // Push notification into notification store
+        useNotificationStore.getState().addNotification({
+          category: 'invoice',
+          priority: 'high',
+          title: `Tax Invoice #${result.recordNumber || 'New'} Registered`,
+          message: `Sales tax invoice issued for ${action.previewData?.customerName || 'Customer'} (Total: ₹${action.previewData?.totalAmount?.toLocaleString('en-IN')})`,
+          branchCode: activeBranchId || 'HQ',
+          branchName: 'Main Branch',
+          actionModule: 'invoices',
+          actionLabel: 'View in Invoices',
+        });
+      } else if (result.type === 'EMAIL') {
+        useNotificationStore.getState().addNotification({
+          category: 'system',
+          priority: 'success',
+          title: 'Automated Email Dispatched',
+          message: `Email notification sent to ${action.previewData?.recipientEmail}`,
+          branchCode: 'GLOBAL',
+          branchName: 'All Branches',
+        });
       }
 
       // Trigger full background bootstrap refresh
@@ -244,7 +439,7 @@ export const AiAssistantDrawer: React.FC<AiAssistantDrawerProps> = ({
   };
 
   const handleDiscardAction = (messageId: string) => {
-    setMessages((prev) =>
+    updateActiveSessionMessages((prev) =>
       prev.map((m) => {
         if (m.id === messageId) {
           return {
@@ -313,6 +508,162 @@ export const AiAssistantDrawer: React.FC<AiAssistantDrawerProps> = ({
             </button>
           </div>
         </div>
+
+        {/* Session Switcher & History Bar */}
+        <div className="px-3 py-1.5 bg-slate-100/90 dark:bg-slate-800/80 border-b border-slate-200 dark:border-slate-800 flex items-center justify-between gap-2 text-xs">
+          <div className="flex items-center gap-1.5 min-w-0">
+            <button
+              type="button"
+              onClick={() => setIsHistoryOpen(!isHistoryOpen)}
+              className={`inline-flex items-center gap-1.5 px-2 py-1 rounded-md font-medium text-[11px] transition cursor-pointer ${
+                isHistoryOpen
+                  ? 'bg-indigo-600 text-white shadow-xs'
+                  : 'bg-white dark:bg-slate-700/80 text-slate-700 dark:text-slate-200 border border-slate-200 dark:border-slate-600 hover:bg-slate-50 dark:hover:bg-slate-700'
+              }`}
+              title="View conversation history"
+            >
+              <History className="h-3 w-3" />
+              <span>History</span>
+              <span className="px-1 py-0.2 rounded-full text-[9px] bg-slate-200/80 dark:bg-slate-600 font-mono">
+                {sessions.length}
+              </span>
+            </button>
+            <span className="text-slate-400 dark:text-slate-500 text-[10px]">|</span>
+            <span
+              className="text-[11px] font-medium text-slate-600 dark:text-slate-300 truncate max-w-[170px]"
+              title={activeSession?.title || 'Current Chat'}
+            >
+              {activeSession?.title || 'Current Chat'}
+            </span>
+          </div>
+
+          <button
+            type="button"
+            onClick={handleCreateNewChat}
+            className="inline-flex items-center gap-1 px-2.5 py-1 rounded-md text-[11px] font-medium text-indigo-700 dark:text-indigo-300 bg-indigo-50 dark:bg-indigo-950/60 border border-indigo-200 dark:border-indigo-800 hover:bg-indigo-100 dark:hover:bg-indigo-900/60 transition cursor-pointer shrink-0"
+            title="Start fresh conversation"
+          >
+            <Plus className="h-3 w-3" />
+            <span>New Chat</span>
+          </button>
+        </div>
+
+        {/* History Slide-Over Panel */}
+        {isHistoryOpen && (
+          <div className="absolute inset-x-0 top-[96px] bottom-0 z-20 bg-white/95 dark:bg-slate-900/95 backdrop-blur-md flex flex-col border-b border-slate-200 dark:border-slate-800 animate-in fade-in slide-in-from-top-2 duration-150">
+            {/* History Header & Search */}
+            <div className="p-3 border-b border-slate-200 dark:border-slate-800 space-y-2 bg-slate-50/80 dark:bg-slate-950/60">
+              <div className="flex items-center justify-between">
+                <div className="flex items-center gap-1.5 font-semibold text-xs text-slate-800 dark:text-slate-100">
+                  <History className="h-3.5 w-3.5 text-indigo-500" />
+                  <span>Conversation History</span>
+                  <span className="text-[10px] text-slate-400 font-normal">
+                    ({sessions.length} sessions)
+                  </span>
+                </div>
+                <div className="flex items-center gap-1">
+                  <button
+                    type="button"
+                    onClick={handleCreateNewChat}
+                    className="inline-flex items-center gap-1 px-2 py-0.5 rounded text-[10px] font-medium text-indigo-600 dark:text-indigo-400 hover:bg-indigo-50 dark:hover:bg-indigo-950/60 transition cursor-pointer"
+                  >
+                    <Plus className="h-3 w-3" />
+                    New
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => setIsHistoryOpen(false)}
+                    className="p-1 rounded text-slate-400 hover:text-slate-600 dark:hover:text-slate-200 hover:bg-slate-200/60 dark:hover:bg-slate-800 transition"
+                  >
+                    <X className="h-3.5 w-3.5" />
+                  </button>
+                </div>
+              </div>
+
+              {/* Search Bar */}
+              <div className="relative">
+                <Search className="absolute left-2.5 top-2 h-3.5 w-3.5 text-slate-400" />
+                <input
+                  type="text"
+                  value={historySearchQuery}
+                  onChange={(e) => setHistorySearchQuery(e.target.value)}
+                  placeholder="Search previous chats..."
+                  className="w-full pl-8 pr-3 py-1.5 text-xs rounded-lg border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 text-slate-900 dark:text-white placeholder:text-slate-400 focus:outline-none focus:ring-1 focus:ring-indigo-500"
+                />
+              </div>
+            </div>
+
+            {/* Sessions List */}
+            <div className="flex-1 overflow-y-auto p-2 space-y-1">
+              {filteredSessions.length === 0 ? (
+                <div className="py-8 text-center text-xs text-slate-400">
+                  {historySearchQuery ? 'No matching conversations found' : 'No saved conversations'}
+                </div>
+              ) : (
+                filteredSessions.map((s) => {
+                  const isActive = s.id === activeSessionId;
+                  const messageCount = s.messages.filter((m) => m.role === 'user').length;
+                  return (
+                    <div
+                      key={s.id}
+                      onClick={() => {
+                        setActiveSessionId(s.id);
+                        setIsHistoryOpen(false);
+                      }}
+                      className={`group flex items-center justify-between p-2.5 rounded-lg border text-xs cursor-pointer transition ${
+                        isActive
+                          ? 'border-indigo-500/60 bg-indigo-50/80 dark:bg-indigo-950/40 text-indigo-900 dark:text-indigo-200'
+                          : 'border-slate-200/60 dark:border-slate-800 hover:bg-slate-100 dark:hover:bg-slate-800/60 text-slate-700 dark:text-slate-200'
+                      }`}
+                    >
+                      <div className="flex items-start gap-2 min-w-0 flex-1 pr-2">
+                        <MessageSquare
+                          className={`h-3.5 w-3.5 mt-0.5 shrink-0 ${
+                            isActive ? 'text-indigo-600 dark:text-indigo-400' : 'text-slate-400'
+                          }`}
+                        />
+                        <div className="min-w-0 flex-1">
+                          <p className="font-medium truncate text-xs leading-snug">
+                            {s.title}
+                          </p>
+                          <p className="text-[10px] text-slate-400 dark:text-slate-500 mt-0.5 flex items-center gap-2">
+                            <span>{formatSessionTime(s.updatedAt)}</span>
+                            <span>•</span>
+                            <span>{messageCount} {messageCount === 1 ? 'prompt' : 'prompts'}</span>
+                          </p>
+                        </div>
+                      </div>
+
+                      <button
+                        type="button"
+                        onClick={(e) => handleDeleteSession(s.id, e)}
+                        className="opacity-0 group-hover:opacity-100 p-1 rounded text-slate-400 hover:text-rose-600 hover:bg-rose-50 dark:hover:bg-rose-950/40 transition shrink-0"
+                        title="Delete conversation"
+                      >
+                        <Trash2 className="h-3.5 w-3.5" />
+                      </button>
+                    </div>
+                  );
+                })
+              )}
+            </div>
+
+            {/* Bottom Actions */}
+            <div className="p-2 border-t border-slate-200 dark:border-slate-800 bg-slate-50/50 dark:bg-slate-950/40 flex items-center justify-between">
+              <span className="text-[10px] text-slate-400">
+                Auto-saved in local storage
+              </span>
+              <button
+                type="button"
+                onClick={handleCreateNewChat}
+                className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-indigo-600 hover:bg-indigo-700 text-white text-xs font-medium transition cursor-pointer"
+              >
+                <Plus className="h-3.5 w-3.5" />
+                <span>+ Start Fresh Chat</span>
+              </button>
+            </div>
+          </div>
+        )}
 
         {/* Status / Model Connection Pill Banner */}
         <div className="px-4 py-2 bg-slate-100/70 dark:bg-slate-800/50 border-b border-slate-200 dark:border-slate-800 text-xs">
