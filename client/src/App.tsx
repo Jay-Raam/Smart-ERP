@@ -458,6 +458,11 @@ export function App() {
         isOpen={isAiAssistantOpen}
         onClose={() => setIsAiAssistantOpen(false)}
         onRefreshData={fetchBootstrap}
+        onNavigateModule={(m: string) => {
+          setActiveModule(m as ModuleType);
+          window.history.pushState(null, '', `/${m}`);
+          setCurrentPath(`/${m}`);
+        }}
       />
     </div>
   );

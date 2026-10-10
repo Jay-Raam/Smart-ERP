@@ -17,6 +17,7 @@ import {
   ChevronDown,
   ChevronUp,
 } from 'lucide-react';
+import { useErpStore } from '../../store/erpStore';
 
 interface AiStatus {
   configured: boolean;
@@ -45,13 +46,16 @@ interface AiAssistantDrawerProps {
   isOpen: boolean;
   onClose: () => void;
   onRefreshData?: () => void;
+  onNavigateModule?: (module: string) => void;
 }
 
 export const AiAssistantDrawer: React.FC<AiAssistantDrawerProps> = ({
   isOpen,
   onClose,
   onRefreshData,
+  onNavigateModule,
 }) => {
+  const { activeOrganisationId, activeBranchId, activeFinancialYear, fetchBootstrap } = useErpStore();
   const [messages, setMessages] = useState<Message[]>([
     {
       id: 'welcome_1',
@@ -112,10 +116,20 @@ export const AiAssistantDrawer: React.FC<AiAssistantDrawerProps> = ({
         content: m.content,
       }));
 
+      const tenantContext = {
+        organisationId: activeOrganisationId || localStorage.getItem('OrganizationId') || undefined,
+        branchId: activeBranchId || localStorage.getItem('Branch') || undefined,
+        financialYear: activeFinancialYear || localStorage.getItem('FinancialYear') || undefined,
+      };
+
       const res = await fetch('/api/ai/chat', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ message: text, history: historyPayload }),
+        body: JSON.stringify({
+          message: text,
+          history: historyPayload,
+          context: tenantContext,
+        }),
       });
 
       if (!res.ok) {
@@ -151,10 +165,19 @@ export const AiAssistantDrawer: React.FC<AiAssistantDrawerProps> = ({
   const handleExecuteAction = async (messageId: string, action: any) => {
     setExecutingActionId(action.id);
     try {
+      const tenantContext = {
+        organisationId: activeOrganisationId || localStorage.getItem('OrganizationId') || undefined,
+        branchId: activeBranchId || localStorage.getItem('Branch') || undefined,
+        financialYear: activeFinancialYear || localStorage.getItem('FinancialYear') || undefined,
+      };
+
       const res = await fetch('/api/ai/execute-action', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ action }),
+        body: JSON.stringify({
+          action,
+          context: tenantContext,
+        }),
       });
 
       const result = await res.json();
@@ -176,7 +199,28 @@ export const AiAssistantDrawer: React.FC<AiAssistantDrawerProps> = ({
         })
       );
 
-      // Trigger global data refresh if callback provided
+      // Immediately sync created record to in-memory store so it displays instantly in lists
+      if (result.type === 'PURCHASE_ORDER' && result.record) {
+        useErpStore.setState((state) => ({
+          purchaseOrders: [result.record, ...state.purchaseOrders.filter((p) => p.id !== result.record.id)],
+        }));
+      } else if (result.type === 'INVOICE' && result.record) {
+        useErpStore.setState((state) => ({
+          invoices: [result.record, ...state.invoices.filter((i) => i.id !== result.record.id)],
+        }));
+      }
+
+      // Trigger full background bootstrap refresh
+      try {
+        await fetchBootstrap(
+          tenantContext.organisationId,
+          tenantContext.branchId,
+          tenantContext.financialYear
+        );
+      } catch {
+        // Non-fatal if background refresh is silent
+      }
+
       if (onRefreshData) {
         onRefreshData();
       }
@@ -504,9 +548,37 @@ export const AiAssistantDrawer: React.FC<AiAssistantDrawerProps> = ({
 
                   {/* Actions Confirmation Footer */}
                   {msg.actionExecuted ? (
-                    <div className="mt-2 p-2 rounded-lg bg-emerald-50 dark:bg-emerald-950/60 border border-emerald-200 dark:border-emerald-800/80 flex items-center gap-2 text-emerald-700 dark:text-emerald-300 text-xs">
-                      <CheckCircle2 className="h-4 w-4 shrink-0" />
-                      <span>{msg.actionResult?.message || 'Action executed successfully in ERP!'}</span>
+                    <div className="mt-2 p-2.5 rounded-lg bg-emerald-50 dark:bg-emerald-950/60 border border-emerald-200 dark:border-emerald-800/80 flex flex-col sm:flex-row sm:items-center sm:justify-between gap-2 text-emerald-700 dark:text-emerald-300 text-xs">
+                      <div className="flex items-center gap-2">
+                        <CheckCircle2 className="h-4 w-4 shrink-0 text-emerald-600 dark:text-emerald-400" />
+                        <span>{msg.actionResult?.message || 'Action executed successfully in ERP!'}</span>
+                      </div>
+                      <div className="flex items-center gap-2 shrink-0">
+                        {msg.pendingAction.type === 'CREATE_PO' && onNavigateModule && (
+                          <button
+                            type="button"
+                            onClick={() => {
+                              onNavigateModule('purchase');
+                              onClose();
+                            }}
+                            className="px-2.5 py-1 text-[11px] font-semibold bg-emerald-600 hover:bg-emerald-700 active:scale-95 text-white rounded-lg transition shrink-0 cursor-pointer shadow-xs"
+                          >
+                            View in Purchase Orders →
+                          </button>
+                        )}
+                        {msg.pendingAction.type === 'CREATE_INVOICE' && onNavigateModule && (
+                          <button
+                            type="button"
+                            onClick={() => {
+                              onNavigateModule('invoices');
+                              onClose();
+                            }}
+                            className="px-2.5 py-1 text-[11px] font-semibold bg-blue-600 hover:bg-blue-700 active:scale-95 text-white rounded-lg transition shrink-0 cursor-pointer shadow-xs"
+                          >
+                            View in Invoices →
+                          </button>
+                        )}
+                      </div>
                     </div>
                   ) : (
                     <div className="mt-2.5 pt-2 border-t border-indigo-100 dark:border-slate-700/60 flex items-center justify-end gap-2">

@@ -1,5 +1,9 @@
 import axios from 'axios';
+import mongoose from 'mongoose';
 import {
+  Organisation,
+  Branch,
+  FinancialYear,
   Customer,
   Vendor,
   Product,
@@ -539,15 +543,52 @@ export class AiAgentService {
   }
 
   /**
+   * Safely resolve active organisation, branch and financial year from database
+   */
+  private static async resolveTenantContext(userContext?: any) {
+    let organisationId = userContext?.organisationId;
+    let branchId = userContext?.branchId;
+    let financialYear = userContext?.financialYear || '2026-2027';
+
+    // 1. Resolve Organization
+    if (!organisationId || organisationId === 'ORG-001' || !mongoose.isValidObjectId(organisationId)) {
+      const org = (await Organisation.findOne({ isDeleted: { $ne: true } })) || (await Organisation.findOne());
+      if (org) {
+        organisationId = org._id.toString();
+      }
+    }
+
+    // 2. Resolve Branch
+    if (!branchId || branchId === 'BR-001' || !mongoose.isValidObjectId(branchId)) {
+      const br =
+        (organisationId ? await Branch.findOne({ organisationId, isDeleted: { $ne: true } }) : null) ||
+        (await Branch.findOne({ isDeleted: { $ne: true } })) ||
+        (await Branch.findOne());
+      if (br) {
+        branchId = br._id.toString();
+      }
+    }
+
+    // 3. Resolve Financial Year
+    if (!financialYear) {
+      const fyDoc = (await FinancialYear.findOne({ isCurrent: true })) || (await FinancialYear.findOne());
+      financialYear = fyDoc?.yearName || '2026-2027';
+    }
+
+    return { organisationId, branchId, financialYear };
+  }
+
+  /**
    * Execute an approved action to persist into the database
    */
   static async executeAction(action: AgentPendingAction, userContext?: any): Promise<any> {
     const { type, payload } = action;
+    const tenantCtx = await this.resolveTenantContext(userContext);
 
     if (type === 'CREATE_INVOICE') {
       // 1. Resolve or create customer
       let customer = await Customer.findOne({
-        name: { $regex: new RegExp(`^${payload.customerName}$`, 'i') },
+        name: { $regex: new RegExp(`^${payload.customerName.trim()}$`, 'i') },
       });
 
       if (!customer) {
@@ -565,25 +606,29 @@ export class AiAgentService {
           gstin: payload.customerGstin || '33AAAAA0000A1Z5',
           outstandingBalance: 0,
           creditLimit: 500000,
-          organisationId: userContext?.organisationId || 'ORG-001',
-          branchId: userContext?.branchId || 'BR-001',
+          organisationId: tenantCtx.organisationId,
+          branchId: tenantCtx.branchId,
         });
       }
 
+      // Generate invoiceNumber if not provided
+      const count = (await Invoice.countDocuments()) + 1;
+      const invoiceNumber = payload.invoiceNumber || `INV-${new Date().getFullYear()}-${String(count).padStart(4, '0')}`;
+
       // 2. Insert Invoice
       const createdInvoice = await Invoice.create({
-        invoiceNumber: payload.invoiceNumber,
+        invoiceNumber,
         customerId: customer._id.toString(),
         customerName: customer.name,
         customerGstin: customer.gstin,
         customerState: customer.state,
         billingAddress: customer.billingAddress,
         shippingAddress: customer.shippingAddress,
-        invoiceDate: payload.invoiceDate,
-        dueDate: payload.dueDate,
-        branchId: userContext?.branchId || 'BR-001',
-        organisationId: userContext?.organisationId || 'ORG-001',
-        financialYear: '2026-2027',
+        invoiceDate: payload.invoiceDate || new Date().toISOString().split('T')[0],
+        dueDate: payload.dueDate || new Date(Date.now() + 15 * 86400000).toISOString().split('T')[0],
+        branchId: tenantCtx.branchId,
+        organisationId: tenantCtx.organisationId,
+        financialYear: tenantCtx.financialYear,
         items: payload.items,
         subtotal: payload.subtotal,
         shippingCharge: 0,
@@ -598,9 +643,9 @@ export class AiAgentService {
         paidAmount: 0,
         outstandingAmount: payload.totalAmount,
         paymentStatus: 'UNPAID',
-        totalInWords: payload.totalInWords,
+        totalInWords: payload.totalInWords || '',
         status: 'Approved',
-        termsAndConditions: payload.notes,
+        termsAndConditions: payload.notes || '',
         history: [
           {
             action: 'CREATED_VIA_AI_AGENT',
@@ -624,11 +669,17 @@ export class AiAgentService {
         newData: createdInvoice.toObject(),
       });
 
+      const invRecord = {
+        ...createdInvoice.toObject(),
+        id: createdInvoice._id.toString(),
+      };
+
       return {
         success: true,
-        recordId: createdInvoice._id,
+        recordId: createdInvoice._id.toString(),
         recordNumber: createdInvoice.invoiceNumber,
         type: 'INVOICE',
+        record: invRecord,
         message: `Successfully created and registered Tax Invoice #${createdInvoice.invoiceNumber} in the ERP database!`,
       };
     }
@@ -636,7 +687,7 @@ export class AiAgentService {
     if (type === 'CREATE_PO') {
       // 1. Resolve or create vendor
       let vendor = await Vendor.findOne({
-        name: { $regex: new RegExp(`^${payload.vendorName}$`, 'i') },
+        name: { $regex: new RegExp(`^${payload.vendorName.trim()}$`, 'i') },
       });
 
       if (!vendor) {
@@ -653,27 +704,41 @@ export class AiAgentService {
           shippingAddress: 'Vendor Park, Ambattur Industrial Estate',
           gstin: payload.vendorGstin || '33BBBBB1111B1Z2',
           outstandingBalance: 0,
-          organisationId: userContext?.organisationId || 'ORG-001',
-          branchId: userContext?.branchId || 'BR-001',
+          organisationId: tenantCtx.organisationId,
+          branchId: tenantCtx.branchId,
         });
       }
 
-      // 2. Insert Purchase Order
+      // Generate sequential standard PO number matching the ERP sequence
+      const count = (await PurchaseOrder.countDocuments()) + 44;
+      const poNumber = payload.poNumber || `PO-2026-0${count}`;
+
+      // Initialize line item quantities for conversion tracking
+      const preparedItems = (payload.items || []).map((it: any) => ({
+        ...it,
+        orderedQuantity: it.quantity,
+        billedQuantity: 0,
+        remainingQuantity: it.quantity,
+        uom: it.uom || 'Nos',
+        hsnCode: it.hsnCode || '81089010',
+      }));
+
+      // 2. Insert Purchase Order with resolved tenant scoping
       const createdPo = await PurchaseOrder.create({
-        poNumber: payload.poNumber,
+        poNumber,
         vendorId: vendor._id.toString(),
         vendorName: vendor.name,
         vendorGstin: vendor.gstin,
-        vendorAddress: vendor.billingAddress,
-        vendorState: vendor.state,
+        vendorAddress: vendor.billingAddress || vendor.address || '',
+        vendorState: vendor.state || vendor.billingState || 'Tamil Nadu',
         billingAddress: 'Main Warehouse, Smart-ERP Logistics Hub',
         shippingAddress: 'Main Warehouse, Smart-ERP Logistics Hub',
-        poDate: payload.poDate,
-        expectedDate: payload.expectedDate,
-        branchId: userContext?.branchId || 'BR-001',
-        organisationId: userContext?.organisationId || 'ORG-001',
-        financialYear: '2026-2027',
-        items: payload.items,
+        poDate: payload.poDate || new Date().toISOString().split('T')[0],
+        expectedDate: payload.expectedDate || new Date(Date.now() + 7 * 86400000).toISOString().split('T')[0],
+        branchId: tenantCtx.branchId,
+        organisationId: tenantCtx.organisationId,
+        financialYear: tenantCtx.financialYear,
+        items: preparedItems,
         subtotal: payload.subtotal,
         shippingCharge: 0,
         shippingTax: 0,
@@ -688,7 +753,8 @@ export class AiAgentService {
         outstandingAmount: payload.totalAmount,
         paymentStatus: 'UNPAID',
         status: 'APPROVED',
-        instructions: payload.instructions,
+        totalInWords: payload.totalInWords || '',
+        instructions: payload.instructions || 'Standard quality and delivery specifications apply.',
         history: [
           {
             action: 'CREATED_VIA_AI_AGENT',
@@ -712,11 +778,17 @@ export class AiAgentService {
         newData: createdPo.toObject(),
       });
 
+      const poRecord = {
+        ...createdPo.toObject(),
+        id: createdPo._id.toString(),
+      };
+
       return {
         success: true,
-        recordId: createdPo._id,
+        recordId: createdPo._id.toString(),
         recordNumber: createdPo.poNumber,
         type: 'PURCHASE_ORDER',
+        record: poRecord,
         message: `Successfully created and approved Purchase Order #${createdPo.poNumber}!`,
       };
     }

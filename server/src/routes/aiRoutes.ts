@@ -45,11 +45,13 @@ aiRouter.post('/chat', async (req: Request, res: Response) => {
     }
 
     const user = await getRequestUser(req);
+    const bodyContext = req.body.context || {};
     const context = {
       userId: user.userId,
       userName: user.userName,
-      organisationId: (req as any).organisationId || 'ORG-001',
-      branchId: (req as any).branchId || 'BR-001',
+      organisationId: bodyContext.organisationId || req.body.organisationId || (req as any).organisationId,
+      branchId: bodyContext.branchId || req.body.branchId || (req as any).branchId,
+      financialYear: bodyContext.financialYear || req.body.financialYear || (req as any).financialYear,
       user,
     };
 
@@ -77,11 +79,14 @@ aiRouter.post('/execute-action', async (req: Request, res: Response) => {
     }
 
     const user = await getRequestUser(req);
+    const bodyContext = req.body.context || {};
     const context = {
       userId: user.userId,
       userName: user.userName,
-      organisationId: (req as any).organisationId || 'ORG-001',
-      branchId: (req as any).branchId || 'BR-001',
+      organisationId: bodyContext.organisationId || req.body.organisationId || (req as any).organisationId,
+      branchId: bodyContext.branchId || req.body.branchId || (req as any).branchId,
+      financialYear: bodyContext.financialYear || req.body.financialYear || (req as any).financialYear,
+      user,
     };
 
     const result = await AiAgentService.executeAction(action, context);
