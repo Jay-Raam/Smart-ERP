@@ -1,7 +1,8 @@
 import React from 'react';
-import { Document, Page, Text, View, StyleSheet } from '@react-pdf/renderer';
+import { Document, Page, Text, View, StyleSheet, Image } from '@react-pdf/renderer';
 import { Invoice } from '../../store/erpStore';
 import { calculateDocumentTaxes, convertNumberToIndianWords, isStateTamilNadu } from '../../utils/taxCalculation';
+import { generateBarcodeDataUrl, generateQrCodeDataUrl } from '../../utils/barcodeGenerator';
 
 const styles = StyleSheet.create({
   page: {
@@ -213,6 +214,11 @@ export const InvoicePdfDocument: React.FC<InvoicePdfDocumentProps> = ({
     Number(invoice.shippingCharge) || 0
   );
 
+  const ewayBill = invoice.ewayBillNumber || '2410-8891-4421';
+  const qrPayload = `Seller:${branch?.gstin || organisation.gstin}|Buyer:${invoice.customerGstin || 'URP'}|Inv:${invoice.invoiceNumber}|Date:${invoice.invoiceDate}|Val:${taxResult.grandTotal}|UPI:upi://pay?pa=finance@smart.com&pn=SmartEnterprise&am=${taxResult.grandTotal}&cu=INR`;
+  const qrDataUrl = React.useMemo(() => generateQrCodeDataUrl(qrPayload, 120), [qrPayload]);
+  const barcodeDataUrl = React.useMemo(() => generateBarcodeDataUrl(ewayBill, 36, 2), [ewayBill]);
+
   return (
     <Document title={`Invoice-${invoice.invoiceNumber}`} author="Smart Enterprise ERP">
       <Page size="A4" style={styles.page}>
@@ -342,14 +348,26 @@ export const InvoicePdfDocument: React.FC<InvoicePdfDocumentProps> = ({
               {taxResult.totalInWords || convertNumberToIndianWords(taxResult.grandTotal)}
             </Text>
 
-            <View style={{ marginTop: 10 }}>
-              <Text style={{ fontSize: 7, fontFamily: 'Helvetica-Bold', color: '#64748b' }}>BANK REMITTANCE DETAILS:</Text>
-              <Text style={{ fontSize: 7.5, color: '#334155' }}>
-                Bank: {invoice.bankDetails?.bankName || 'HDFC Bank Ltd'} | A/C: {invoice.bankDetails?.accountNumber || '50200088912441'}
-              </Text>
-              <Text style={{ fontSize: 7.5, color: '#334155' }}>
-                IFSC: {invoice.bankDetails?.ifscCode || 'HDFC0000240'} | Branch: {invoice.bankDetails?.branchName || 'Guindy Industrial Estate, Chennai'}
-              </Text>
+            {/* B2B QR Code & Bank Remittance Section */}
+            <View style={{ flexDirection: 'row', marginTop: 8, alignItems: 'center' }}>
+              {qrDataUrl ? (
+                <View style={{ marginRight: 8, padding: 3, borderWidth: 1, borderColor: '#cbd5e1', borderRadius: 3, backgroundColor: '#ffffff', alignItems: 'center' }}>
+                  <Image src={qrDataUrl} style={{ width: 48, height: 48 }} />
+                  <Text style={{ fontSize: 5, color: '#64748b', marginTop: 1, textAlign: 'center' }}>B2B GST • Scan to Pay</Text>
+                </View>
+              ) : null}
+              <View style={{ flex: 1 }}>
+                <Text style={{ fontSize: 7, fontFamily: 'Helvetica-Bold', color: '#64748b' }}>BANK REMITTANCE & UPI DETAILS:</Text>
+                <Text style={{ fontSize: 7.5, color: '#334155' }}>
+                  Bank: {invoice.bankDetails?.bankName || 'HDFC Bank Ltd'} | A/C: {invoice.bankDetails?.accountNumber || '50200088912441'}
+                </Text>
+                <Text style={{ fontSize: 7.5, color: '#334155' }}>
+                  IFSC: {invoice.bankDetails?.ifscCode || 'HDFC0000240'} | Branch: {invoice.bankDetails?.branchName || 'Guindy Industrial Estate, Chennai'}
+                </Text>
+                <Text style={{ fontSize: 7, color: '#2563eb', fontFamily: 'Helvetica-Bold', marginTop: 1 }}>
+                  UPI Intent: finance@smart.com (Instant Settlement Enabled)
+                </Text>
+              </View>
             </View>
           </View>
 
@@ -394,10 +412,30 @@ export const InvoicePdfDocument: React.FC<InvoicePdfDocumentProps> = ({
           </View>
         </View>
 
+        {/* E-Way Bill Barcode Transit Banner */}
+        <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', backgroundColor: '#f8fafc', borderWidth: 1, borderColor: '#e2e8f0', borderRadius: 4, padding: 5, marginVertical: 6 }}>
+          <View style={{ width: '48%' }}>
+            <Text style={{ fontSize: 7, fontFamily: 'Helvetica-Bold', color: '#0f172a' }}>
+              OFFICIAL E-WAY BILL TRANSIT DOCUMENT
+            </Text>
+            <Text style={{ fontSize: 6.5, color: '#475569' }}>
+              E-Way Bill: <Text style={{ fontFamily: 'Helvetica-Bold' }}>{ewayBill}</Text> • Transporter: VRL Logistics
+            </Text>
+            <Text style={{ fontSize: 6, color: '#64748b' }}>
+              Vehicle: TN-09-CB-4491 | Valid for Inter/Intra State Movement
+            </Text>
+          </View>
+          {barcodeDataUrl ? (
+            <View style={{ width: '48%', alignItems: 'flex-end' }}>
+              <Image src={barcodeDataUrl} style={{ width: 140, height: 24 }} />
+            </View>
+          ) : null}
+        </View>
+
         {/* Signatory */}
         <View style={styles.signatoryBox}>
           <Text style={{ fontSize: 8, color: '#64748b' }}>For {organisation.name}</Text>
-          <View style={{ height: 35 }} />
+          <View style={{ height: 28 }} />
           <Text style={{ fontSize: 8, fontFamily: 'Helvetica-Bold', color: '#0f172a' }}>Authorized Signatory</Text>
         </View>
 

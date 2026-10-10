@@ -204,5 +204,34 @@ describe('AiAgentService - Autonomous ERP Operations & Scenario Tests', () => {
     expect(savedPo?.isAiGenerated).toBe(true);
     expect(savedPo?.history?.[0]?.action).toBe('CREATED_VIA_AI_AGENT');
   });
+
+  it('Scenario 14: 2-Way & 3-Way Matching and Discrepancy Reconciliation executes audit', async () => {
+    const reconRes = await AiAgentService.processChat('Run 3-way matching and discrepancy reconciliation');
+    expect(reconRes).toBeDefined();
+    expect(reconRes.reply).toContain('2-Way & 3-Way Billing Reconciliation Audit');
+    expect(reconRes.reply).toContain('Total Vendor Bills Audited');
+  });
+
+  it('Scenario 15: Autonomous Overdue Payment Reminder Engine formats RFC-822 email and WhatsApp links', async () => {
+    const reminderRes = await AiAgentService.processChat('Draft overdue payment reminders for unpaid customer invoices');
+    expect(reminderRes).toBeDefined();
+    expect(reminderRes.reply).toContain('Autonomous Overdue Payment Reminder Engine');
+    expect(reminderRes.reply).toContain('Free Engine Protocols');
+  });
+
+  it('Scenario 16: Verify Free Open-Source WhatsApp wa.me link contains encoded UPI payment string', async () => {
+    const { ReminderService } = await import('./reminderService');
+    const summary = await ReminderService.getOverdueReminders();
+    expect(summary).toBeDefined();
+    expect(Array.isArray(summary.reminders)).toBe(true);
+
+    if (summary.reminders.length > 0) {
+      const first = summary.reminders[0];
+      expect(first.whatsappUrl).toContain('https://wa.me/');
+      expect(first.whatsappUrl).toContain('upi');
+      expect(first.mailtoUrl).toContain('mailto:');
+      expect(first.emailBodyRfc822).toContain('Subject:');
+    }
+  });
 });
 

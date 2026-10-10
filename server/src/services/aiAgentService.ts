@@ -15,6 +15,8 @@ import {
 } from '../models/ErpModels';
 import { calculateDocumentTaxes } from '../utils/taxCalculation';
 import { maskSensitiveSecrets } from '../middleware/securitySanitizer';
+import { ReconciliationService } from './reconciliationService';
+import { ReminderService } from './reminderService';
 
 export interface AgentChatMessage {
   role: 'user' | 'assistant' | 'system';
@@ -331,7 +333,51 @@ export class AiAgentService {
       };
     }
 
-    // 5. Multi-turn clarification dialog for incomplete prompts
+    // 5. Direct 2-Way & 3-Way Matching and Discrepancy Reconciliation
+    if (
+      lower.includes('reconcil') ||
+      lower.includes('3-way match') ||
+      lower.includes('three-way match') ||
+      lower.includes('2-way match') ||
+      lower.includes('discrepancy') ||
+      lower.includes('billing match')
+    ) {
+      const reconSummary = await ReconciliationService.performThreeWayMatch(
+        context?.organisationId,
+        context?.branchId
+      );
+      return {
+        reply: ReconciliationService.formatReconciliationMarkdown(reconSummary),
+        provider: 'openrouter',
+        model: this.getModel(),
+        apiKeyConfigured: this.isConfigured(),
+      };
+    }
+
+    // 6. Direct Overdue Payment Reminder Engine (Free Open Source Email & WhatsApp)
+    const hasSpecificEmailTarget = /@[\w.-]+\.\w+/.test(userMessage);
+    if (
+      !hasSpecificEmailTarget &&
+      (lower.includes('overdue payment') ||
+        lower.includes('overdue reminder') ||
+        lower.includes('remind customer') ||
+        lower.includes('overdue invoice') ||
+        (lower.includes('payment reminder') && !lower.includes('email to')) ||
+        lower.includes('reminder engine'))
+    ) {
+      const reminderSummary = await ReminderService.getOverdueReminders(
+        context?.organisationId,
+        context?.branchId
+      );
+      return {
+        reply: ReminderService.formatRemindersMarkdown(reminderSummary),
+        provider: 'openrouter',
+        model: this.getModel(),
+        apiKeyConfigured: this.isConfigured(),
+      };
+    }
+
+    // 7. Multi-turn clarification dialog for incomplete prompts
     const clarification = this.checkIncompleteActionClarification(userMessage);
     if (clarification) {
       return {

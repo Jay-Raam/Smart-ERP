@@ -23,6 +23,9 @@ import {
   Search,
   Download,
   Printer,
+  Paperclip,
+  Upload,
+  Table,
 } from 'lucide-react';
 import { useErpStore } from '../../store/erpStore';
 import { useNotificationStore } from '../../store/notificationStore';
@@ -30,6 +33,7 @@ import { PdfPreviewModal } from '../pdf/PdfPreviewModal';
 import { InvoicePdfDocument } from '../pdf/InvoicePdfDocument';
 import { PurchaseOrderPdfDocument } from '../pdf/PurchaseOrderPdfDocument';
 import { playNotificationSound } from '../../utils/soundUtils';
+import { parseCsvFile, IParsedCsvResult } from '../../utils/csvParser';
 
 interface AiStatus {
   configured: boolean;
@@ -164,6 +168,62 @@ export const AiAssistantDrawer: React.FC<AiAssistantDrawerProps> = ({
     fileName: '',
     doc: null,
   });
+
+  const [stagedImport, setStagedImport] = useState<IParsedCsvResult | null>(null);
+  const [isImporting, setIsImporting] = useState(false);
+  const [isDraggingFile, setIsDraggingFile] = useState(false);
+  const fileInputRef = useRef<HTMLInputElement>(null);
+
+  const handleFileSelect = (file: File) => {
+    if (!file) return;
+    const reader = new FileReader();
+    reader.onload = (e) => {
+      const content = e.target?.result as string;
+      if (content) {
+        const parsed = parseCsvFile(content, file.name);
+        setStagedImport(parsed);
+      }
+    };
+    reader.readAsText(file);
+  };
+
+  const handleConfirmBatchImport = async () => {
+    if (!stagedImport || stagedImport.allRows.length === 0) return;
+    setIsImporting(true);
+    try {
+      const res = await fetch('/api/ai/batch-import', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          entityType: stagedImport.detectedType,
+          rows: stagedImport.allRows,
+          context: {
+            organisationId: activeOrganisationId,
+            branchId: activeBranchId,
+          },
+        }),
+      });
+      const data = await res.json();
+      if (data.success) {
+        playNotificationSound();
+        const successMsg: Message = {
+          id: `msg_${Date.now()}`,
+          role: 'assistant',
+          content: `✅ **Batch Import Successful**: Successfully imported **${data.importedCount} ${stagedImport.detectedType}** records from \`${stagedImport.fileName}\` into the ERP catalog!`,
+          timestamp: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
+        };
+        updateActiveSessionMessages((prev) => [...prev, successMsg]);
+        setStagedImport(null);
+        if (onRefreshData) onRefreshData();
+      } else {
+        alert(data.error || 'Batch import failed');
+      }
+    } catch (err: any) {
+      alert(`Error during batch import: ${err.message}`);
+    } finally {
+      setIsImporting(false);
+    }
+  };
 
   // Active session and its messages
   const activeSession = useMemo(() => {
@@ -779,7 +839,97 @@ export const AiAssistantDrawer: React.FC<AiAssistantDrawerProps> = ({
         </div>
 
         {/* Chat Message Scroll Area */}
-        <div className="flex-1 overflow-y-auto p-4 space-y-4">
+        <div
+          onDragOver={(e) => {
+            e.preventDefault();
+            setIsDraggingFile(true);
+          }}
+          onDragLeave={() => setIsDraggingFile(false)}
+          onDrop={(e) => {
+            e.preventDefault();
+            setIsDraggingFile(false);
+            if (e.dataTransfer.files && e.dataTransfer.files[0]) {
+              handleFileSelect(e.dataTransfer.files[0]);
+            }
+          }}
+          className={`flex-1 overflow-y-auto p-4 space-y-4 relative ${
+            isDraggingFile
+              ? 'bg-indigo-50/70 dark:bg-indigo-950/40 border-2 border-dashed border-indigo-400'
+              : ''
+          }`}
+        >
+          {/* Staged CSV / Excel Import Preview Card */}
+          {stagedImport && (
+            <div className="w-full rounded-xl border border-indigo-200 dark:border-indigo-900/60 bg-linear-to-b from-indigo-50/80 to-white dark:from-slate-800 dark:to-slate-800/90 p-3.5 shadow-md animate-in fade-in">
+              <div className="flex items-center justify-between pb-2 border-b border-indigo-100 dark:border-slate-700/60">
+                <div className="flex items-center gap-1.5">
+                  <Table className="h-4 w-4 text-indigo-600 dark:text-indigo-400" />
+                  <span className="text-xs font-semibold text-slate-800 dark:text-white">
+                    Smart CSV Import: {stagedImport.fileName}
+                  </span>
+                </div>
+                <span className="text-[10px] font-bold px-2 py-0.5 rounded-full bg-indigo-100 dark:bg-indigo-950 text-indigo-700 dark:text-indigo-300">
+                  Target: {stagedImport.detectedType} ({stagedImport.totalRows} rows)
+                </span>
+              </div>
+
+              {/* Data Table Preview */}
+              <div className="my-2.5 overflow-x-auto rounded border border-slate-200 dark:border-slate-700 text-[10px]">
+                <table className="w-full text-left">
+                  <thead className="bg-slate-100 dark:bg-slate-700/60 text-slate-700 dark:text-slate-300 font-semibold">
+                    <tr>
+                      {stagedImport.headers.slice(0, 5).map((h, i) => (
+                        <th key={i} className="px-2 py-1 border-b border-slate-200 dark:border-slate-700">
+                          {h}
+                        </th>
+                      ))}
+                    </tr>
+                  </thead>
+                  <tbody className="divide-y divide-slate-100 dark:divide-slate-800 text-slate-600 dark:text-slate-300">
+                    {stagedImport.previewRows.map((row, rIdx) => (
+                      <tr key={rIdx}>
+                        {Object.values(row).slice(0, 5).map((val: any, cIdx) => (
+                          <td key={cIdx} className="px-2 py-1 truncate max-w-[100px]">
+                            {String(val || '-')}
+                          </td>
+                        ))}
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+
+              <div className="flex items-center justify-end gap-2 pt-2 border-t border-indigo-100 dark:border-slate-700/60">
+                <button
+                  type="button"
+                  onClick={() => setStagedImport(null)}
+                  disabled={isImporting}
+                  className="px-2.5 py-1 text-xs text-slate-500 hover:text-slate-700 dark:hover:text-slate-300 rounded transition cursor-pointer"
+                >
+                  Cancel
+                </button>
+                <button
+                  type="button"
+                  onClick={handleConfirmBatchImport}
+                  disabled={isImporting}
+                  className="flex items-center gap-1 px-3 py-1.5 rounded-lg bg-indigo-600 hover:bg-indigo-700 text-white font-medium text-xs shadow-xs transition active:scale-95 disabled:opacity-50 cursor-pointer"
+                >
+                  {isImporting ? (
+                    <>
+                      <RefreshCw className="h-3 w-3 animate-spin" />
+                      Importing...
+                    </>
+                  ) : (
+                    <>
+                      <Check className="h-3 w-3" />
+                      Confirm & Batch Import ({stagedImport.totalRows} Records)
+                    </>
+                  )}
+                </button>
+              </div>
+            </div>
+          )}
+
           {messages.map((msg) => (
             <div
               key={msg.id}
@@ -1131,10 +1281,33 @@ export const AiAssistantDrawer: React.FC<AiAssistantDrawerProps> = ({
           >
             ⚡ Reorder Audit
           </button>
+          <button
+            type="button"
+            onClick={() => handleSelectSuggestion('Run 3-way matching and discrepancy reconciliation')}
+            title="Click to reconcile vendor bills with purchase orders and inward stock"
+            className="shrink-0 text-[11px] px-2.5 py-1 rounded-full bg-slate-100 dark:bg-slate-800 hover:bg-teal-50 dark:hover:bg-teal-950/60 hover:text-teal-600 text-slate-600 dark:text-slate-300 transition border border-slate-200/60 dark:border-slate-700 cursor-pointer"
+          >
+            🔍 3-Way Match
+          </button>
+          <button
+            type="button"
+            onClick={() => handleSelectSuggestion('Draft overdue payment reminders for unpaid customer invoices')}
+            title="Click to trigger free open-source email and WhatsApp payment reminders"
+            className="shrink-0 text-[11px] px-2.5 py-1 rounded-full bg-slate-100 dark:bg-slate-800 hover:bg-amber-50 dark:hover:bg-amber-950/60 hover:text-amber-600 text-slate-600 dark:text-slate-300 transition border border-slate-200/60 dark:border-slate-700 cursor-pointer"
+          >
+            ⏰ Overdue Reminders
+          </button>
         </div>
 
         {/* Bottom Input Field */}
         <div className="p-3 border-t border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900">
+          <input
+            type="file"
+            ref={fileInputRef}
+            accept=".csv,.tsv,.txt"
+            className="hidden"
+            onChange={(e) => e.target.files?.[0] && handleFileSelect(e.target.files[0])}
+          />
           <form
             onSubmit={(e) => {
               e.preventDefault();
@@ -1142,6 +1315,14 @@ export const AiAssistantDrawer: React.FC<AiAssistantDrawerProps> = ({
             }}
             className="flex items-end gap-2"
           >
+            <button
+              type="button"
+              onClick={() => fileInputRef.current?.click()}
+              title="Drag & drop or click to upload CSV / Excel data"
+              className="h-10 px-2.5 rounded-xl border border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-800 text-slate-500 hover:text-indigo-600 dark:hover:text-indigo-400 hover:bg-slate-100 dark:hover:bg-slate-700 transition flex items-center justify-center shrink-0 cursor-pointer"
+            >
+              <Paperclip className="h-4 w-4" />
+            </button>
             <textarea
               ref={textareaRef}
               rows={2}
@@ -1153,7 +1334,7 @@ export const AiAssistantDrawer: React.FC<AiAssistantDrawerProps> = ({
                   handleSendMessage();
                 }
               }}
-              placeholder="Click a template above to edit products/quantities, or type here... [Enter to send]"
+              placeholder="Click a template above, drag-and-drop CSV here, or type... [Enter to send]"
               className="flex-1 rounded-xl border border-slate-200 dark:border-slate-800 bg-slate-50 dark:bg-slate-800/60 px-3.5 py-2 text-xs text-slate-900 dark:text-white placeholder:text-slate-400 focus:outline-none focus:ring-2 focus:ring-indigo-500 resize-none leading-relaxed"
             />
             <button
