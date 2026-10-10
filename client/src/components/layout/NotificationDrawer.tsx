@@ -18,12 +18,15 @@ import {
   Trash2,
   AlertTriangle,
   RefreshCw,
+  Volume2,
+  VolumeX,
 } from 'lucide-react';
 
 import {
   NotificationItem,
   useNotificationStore,
 } from '../../store/notificationStore';
+import { playNotificationSound } from '../../utils/soundUtils';
 
 export type { NotificationItem };
 
@@ -47,8 +50,12 @@ export const NotificationDrawer: React.FC<NotificationDrawerProps> = ({
   const markAllAsRead = useNotificationStore((state) => state.markAllAsRead);
   const markAllAsUnread = useNotificationStore((state) => state.markAllAsUnread);
   const deleteNotification = useNotificationStore((state) => state.deleteNotification);
+  const clearReadNotifications = useNotificationStore((state) => state.clearReadNotifications);
+  const soundEnabled = useNotificationStore((state) => state.soundEnabled);
+  const toggleSound = useNotificationStore((state) => state.toggleSound);
 
   const unreadCount = notifications.filter((n) => !n.read).length;
+  const readCount = notifications.filter((n) => n.read).length;
 
   const categoryCounts = useMemo(() => {
     return {
@@ -188,6 +195,17 @@ export const NotificationDrawer: React.FC<NotificationDrawerProps> = ({
 
               {/* Header Right Actions */}
               <div className="flex items-center gap-1.5">
+                {readCount > 0 && (
+                  <button
+                    type="button"
+                    onClick={clearReadNotifications}
+                    className="flex items-center gap-1 rounded-xl border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-800 px-2.5 py-1.5 text-xs font-semibold text-slate-600 dark:text-slate-300 hover:bg-rose-50 hover:text-rose-600 hover:border-rose-200 dark:hover:bg-rose-950/40 dark:hover:text-rose-400 transition shadow-xs cursor-pointer"
+                    title="Clear read notifications"
+                  >
+                    <Trash2 className="h-3.5 w-3.5" />
+                    <span className="hidden sm:inline">Clear read</span>
+                  </button>
+                )}
                 {unreadCount > 0 ? (
                   <button
                     type="button"
@@ -220,7 +238,7 @@ export const NotificationDrawer: React.FC<NotificationDrawerProps> = ({
               </div>
             </div>
 
-            {/* Live Sync Status Pill & Test Trigger */}
+            {/* Live Sync Status Pill, Sound Toggle & Test Trigger */}
             <div className="mt-3 flex items-center justify-between rounded-xl bg-slate-100/70 dark:bg-slate-800/60 border border-slate-200/80 dark:border-slate-700/80 px-3 py-1.5 text-[11px] text-slate-600 dark:text-slate-300">
               <div className="flex items-center gap-2">
                 <span className="relative flex h-2 w-2">
@@ -229,25 +247,43 @@ export const NotificationDrawer: React.FC<NotificationDrawerProps> = ({
                 </span>
                 <span className="font-semibold text-slate-700 dark:text-slate-200">Live Event Stream</span>
               </div>
-              <button
-                type="button"
-                onClick={() => {
-                  addNotification({
-                    category: 'stock',
-                    priority: 'critical',
-                    title: 'Live Alert: Cathodic Protection Stock Low',
-                    message: 'Automatic Cathodic Protection TR Unit 50V/50A has reached reorder threshold (18 units left).',
-                    branchCode: 'BR-CHN-01',
-                    branchName: 'Chennai HQ',
-                    actionModule: 'purchase',
-                    actionLabel: 'Create PO',
-                  });
-                }}
-                className="px-2 py-0.5 rounded-full text-[10px] font-semibold bg-blue-100 dark:bg-blue-950 text-blue-700 dark:text-blue-300 hover:bg-blue-200 dark:hover:bg-blue-900 transition cursor-pointer border border-blue-200 dark:border-blue-800"
-                title="Trigger a live test notification"
-              >
-                + Test Alert
-              </button>
+              <div className="flex items-center gap-1.5">
+                <button
+                  type="button"
+                  onClick={toggleSound}
+                  className={`inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-semibold border transition cursor-pointer ${
+                    soundEnabled
+                      ? 'bg-emerald-50 dark:bg-emerald-950/60 text-emerald-700 dark:text-emerald-300 border-emerald-200 dark:border-emerald-800'
+                      : 'bg-slate-100 dark:bg-slate-800 text-slate-500 dark:text-slate-400 border-slate-200 dark:border-slate-700'
+                  }`}
+                  title={soundEnabled ? 'Notification sound enabled (click to mute)' : 'Notification sound muted (click to unmute)'}
+                >
+                  {soundEnabled ? <Volume2 className="h-3 w-3" /> : <VolumeX className="h-3 w-3" />}
+                  <span>{soundEnabled ? 'Sound On' : 'Muted'}</span>
+                </button>
+                <button
+                  type="button"
+                  onClick={() => {
+                    addNotification({
+                      category: 'stock',
+                      priority: 'critical',
+                      title: 'Live Alert: Cathodic Protection Stock Low',
+                      message: 'Automatic Cathodic Protection TR Unit 50V/50A has reached reorder threshold (18 units left).',
+                      branchCode: 'BR-CHN-01',
+                      branchName: 'Chennai HQ',
+                      actionModule: 'purchase',
+                      actionLabel: 'Create PO',
+                    });
+                    if (soundEnabled) {
+                      playNotificationSound();
+                    }
+                  }}
+                  className="px-2 py-0.5 rounded-full text-[10px] font-semibold bg-blue-100 dark:bg-blue-950 text-blue-700 dark:text-blue-300 hover:bg-blue-200 dark:hover:bg-blue-900 transition cursor-pointer border border-blue-200 dark:border-blue-800"
+                  title="Trigger a live test notification"
+                >
+                  + Test Alert
+                </button>
+              </div>
             </div>
           </div>
 

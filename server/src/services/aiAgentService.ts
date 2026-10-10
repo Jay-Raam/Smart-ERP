@@ -14,6 +14,7 @@ import {
   IPurchaseOrder,
 } from '../models/ErpModels';
 import { calculateDocumentTaxes } from '../utils/taxCalculation';
+import { maskSensitiveSecrets } from '../middleware/securitySanitizer';
 
 export interface AgentChatMessage {
   role: 'user' | 'assistant' | 'system';
@@ -277,8 +278,25 @@ export class AiAgentService {
       };
     }
 
-    // 2. Direct stock / inventory query interception
     const lower = userMessage.toLowerCase();
+
+    // 2. Autonomous auto-reorder audit interception
+    if (
+      lower.includes('auto-reorder') ||
+      lower.includes('reorder audit') ||
+      lower.includes('run reorder') ||
+      lower.includes('trigger reorder')
+    ) {
+      const auditResult = await this.checkLowStockAndAutoReorder(context);
+      return {
+        reply: auditResult.message,
+        provider: 'openrouter',
+        model: this.getModel(),
+        apiKeyConfigured: this.isConfigured(),
+      };
+    }
+
+    // 3. Direct stock / inventory query interception
     if (
       lower.includes('low stock') ||
       lower.includes('check stock') ||
@@ -294,23 +312,56 @@ export class AiAgentService {
       };
     }
 
+    // 4. Direct financial & sales analytics telemetry interception
+    if (
+      lower.includes('revenue') ||
+      lower.includes('total sales') ||
+      lower.includes('financial report') ||
+      lower.includes('financial summary') ||
+      lower.includes('sales summary') ||
+      lower.includes('unpaid invoice') ||
+      lower.includes('pending invoice')
+    ) {
+      const finTelemetry = await this.executeFinancialAnalyticsQuery(context);
+      return {
+        reply: finTelemetry,
+        provider: 'openrouter',
+        model: this.getModel(),
+        apiKeyConfigured: this.isConfigured(),
+      };
+    }
+
+    // 5. Multi-turn clarification dialog for incomplete prompts
+    const clarification = this.checkIncompleteActionClarification(userMessage);
+    if (clarification) {
+      return {
+        reply: clarification,
+        provider: 'openrouter',
+        model: this.getModel(),
+        apiKeyConfigured: this.isConfigured(),
+      };
+    }
+
     const isKeyPresent = this.isConfigured();
+    let response: AgentChatResponse;
 
     if (isKeyPresent) {
       try {
-        return await this.callOpenRouter(userMessage, history, context);
+        response = await this.callOpenRouter(userMessage, history, context);
       } catch (err: any) {
         console.error('OpenRouter call error, falling back to local agent:', err?.message || err);
-        // Fallback gracefully on API errors
-        return await this.processLocalFallback(
+        response = await this.processLocalFallback(
           userMessage,
           `OpenRouter API encountered a temporary error (${err?.response?.data?.error?.message || err.message}). Switched to local agent engine.`
         );
       }
+    } else {
+      response = await this.processLocalFallback(userMessage);
     }
 
-    // Fallback when no key is configured
-    return await this.processLocalFallback(userMessage);
+    // Strict output sanitization against data leakage
+    response.reply = maskSensitiveSecrets(response.reply);
+    return response;
   }
 
   /**
@@ -777,6 +828,8 @@ export class AiAgentService {
         totalInWords: payload.totalInWords || '',
         status: 'Approved',
         termsAndConditions: payload.notes || '',
+        isAiGenerated: true,
+        aiPrompt: payload.prompt || userContext?.prompt || 'AI Copilot natural language execution',
         history: [
           {
             action: 'CREATED_VIA_AI_AGENT',
@@ -886,6 +939,8 @@ export class AiAgentService {
         status: 'APPROVED',
         totalInWords: payload.totalInWords || '',
         instructions: payload.instructions || 'Standard quality and delivery specifications apply.',
+        isAiGenerated: true,
+        aiPrompt: payload.prompt || userContext?.prompt || 'AI Copilot natural language execution',
         history: [
           {
             action: 'CREATED_VIA_AI_AGENT',
@@ -1134,6 +1189,171 @@ export class AiAgentService {
     } catch (err: any) {
       console.error('Error executing ERP telemetry query:', err);
       return `📦 **Inventory Status**: Telemetry is currently syncing (${err?.message || 'Database query error'}).`;
+    }
+  }
+
+  /**
+   * Proactive Multi-Turn Clarification Dialogue for Incomplete Prompts
+   */
+  static checkIncompleteActionClarification(userMessage: string): string | null {
+    const text = userMessage.toLowerCase().trim();
+
+    // Check if user intends to create invoice / bill without specifying items or quantities
+    const isInvoiceIntent =
+      text.includes('create invoice') ||
+      text.includes('make invoice') ||
+      text.includes('generate invoice') ||
+      text.includes('draft invoice') ||
+      text.includes('new invoice') ||
+      text.startsWith('bill ') ||
+      text.includes('raise invoice');
+
+    if (isInvoiceIntent) {
+      const hasQuantitiesAndPrices = /(\d+)\s+([a-zA-Z0-9\s\-]+?)\s+(?:at|@|for|rate)\s+(?:₹|rs\.?|inr)?\s*([\d,]+)/i.test(text);
+      if (!hasQuantitiesAndPrices) {
+        const custMatch = userMessage.match(/(?:for|to|customer)\s+([A-Za-z0-9\s&]+?)(?::|,|with|\d|$)/i);
+        const target = custMatch && custMatch[1].trim().length > 1 ? custMatch[1].trim() : 'the customer';
+        return (
+          `📋 **Clarification Needed: Invoice Line Items**\n\n` +
+          `I am ready to draft an invoice for **${target}**! Before generating the draft preview card, please specify the item names, quantities, and rates.\n\n` +
+          `**Example Format:**\n` +
+          `> *"Create invoice for ${target}: 5 Workstations at 45,000 INR and 5 Monitors at 12,000 INR"*\n\n` +
+          `Please provide the item details and I will immediately assemble the formal draft for your confirmation.`
+        );
+      }
+    }
+
+    // Check if user intends to create PO without specifying items or quantities
+    const isPoIntent =
+      text.includes('create po') ||
+      text.includes('create purchase order') ||
+      text.includes('make po') ||
+      text.includes('new po') ||
+      text.includes('draft po') ||
+      text.includes('procure for') ||
+      text.includes('order from');
+
+    if (isPoIntent) {
+      const hasQuantitiesAndPrices = /(\d+)\s+([a-zA-Z0-9\s\-]+?)\s+(?:at|@|for|rate)\s+(?:₹|rs\.?|inr)?\s*([\d,]+)/i.test(text);
+      if (!hasQuantitiesAndPrices) {
+        const vendMatch = userMessage.match(/(?:for|to|from|vendor|supplier)\s+([A-Za-z0-9\s&]+?)(?::|,|with|\d|$)/i);
+        const target = vendMatch && vendMatch[1].trim().length > 1 ? vendMatch[1].trim() : 'the vendor';
+        return (
+          `📦 **Clarification Needed: Purchase Order Items**\n\n` +
+          `I am ready to draft a Purchase Order for **${target}**! Please specify the products, order quantities, and agreed purchase price.\n\n` +
+          `**Example Format:**\n` +
+          `> *"Create purchase order for ${target}: 50 Titanium Rods at 1,200 INR"*\n\n` +
+          `Once you reply with the quantities and rates, I will compute taxes and generate the approval card.`
+        );
+      }
+    }
+
+    return null;
+  }
+
+  /**
+   * Real-Time Financial & Sales Analytics Telemetry
+   */
+  static async executeFinancialAnalyticsQuery(context?: any): Promise<string> {
+    try {
+      const tenantCtx = await this.resolveTenantContext(context);
+      const orgFilter: any = { isDeleted: { $ne: true } };
+      if (tenantCtx.organisationId && mongoose.isValidObjectId(tenantCtx.organisationId)) {
+        orgFilter.organisationId = tenantCtx.organisationId;
+      }
+
+      const invoices = await Invoice.find(orgFilter).select('totalAmount paidAmount outstandingAmount paymentStatus status invoiceDate');
+      const totalRevenue = invoices.reduce((sum, inv) => sum + (inv.totalAmount || 0), 0);
+      const paidRevenue = invoices.reduce((sum, inv) => sum + (inv.paidAmount || 0), 0);
+      const unpaidRevenue = invoices.reduce((sum, inv) => sum + (inv.outstandingAmount || 0), 0);
+      const unpaidCount = invoices.filter((inv) => inv.paymentStatus !== 'PAID' && (inv.outstandingAmount || 0) > 0).length;
+
+      const pos = await PurchaseOrder.find(orgFilter).select('totalAmount status');
+      const totalProcurement = pos.reduce((sum, p) => sum + (p.totalAmount || 0), 0);
+      const activePoCount = pos.filter((p) => p.status === 'APPROVED' || p.status === 'PENDING_APPROVAL').length;
+
+      const fmt = (n: number) =>
+        new Intl.NumberFormat('en-IN', { style: 'currency', currency: 'INR', maximumFractionDigits: 0 }).format(n);
+
+      return (
+        `### 📊 Enterprise Financial & Sales Telemetry\n\n` +
+        `| Key ERP Metric | Value | Operational Context |\n` +
+        `| :--- | :--- | :--- |\n` +
+        `| **Total Revenue Invoiced** | **${fmt(totalRevenue)}** | ${invoices.length} Registered Invoices |\n` +
+        `| **Collections Realized** | **${fmt(paidRevenue)}** | ${((paidRevenue / (totalRevenue || 1)) * 100).toFixed(1)}% Realization Rate |\n` +
+        `| **Pending Receivables** | **${fmt(unpaidRevenue)}** | ⚠️ ${unpaidCount} Invoices Pending Payment |\n` +
+        `| **Procurement Spend** | **${fmt(totalProcurement)}** | ${pos.length} Purchase Orders Issued |\n` +
+        `| **Active Open Orders** | **${activePoCount} Orders** | Awaiting Inward Verification |\n\n` +
+        `*Tenant Scoping: Organisation \`${tenantCtx.organisationId || 'Primary'}\` • Financial Year \`${tenantCtx.financialYear}\`.*`
+      );
+    } catch (err: any) {
+      console.error('Financial telemetry query error:', err);
+      return `📊 **Financial Telemetry**: Unable to compute real-time metrics (${err.message}).`;
+    }
+  }
+
+  /**
+   * Autonomous Auto-Reorder Audit Agent
+   */
+  static async checkLowStockAndAutoReorder(context?: any): Promise<{
+    message: string;
+    lowStockItems: any[];
+    draftPos: any[];
+  }> {
+    try {
+      const tenantCtx = await this.resolveTenantContext(context);
+      const orgFilter: any = { isDeleted: { $ne: true } };
+      if (tenantCtx.organisationId && mongoose.isValidObjectId(tenantCtx.organisationId)) {
+        orgFilter.organisationId = tenantCtx.organisationId;
+      }
+
+      const products = await Product.find(orgFilter).select('name sku currentStock minReorderLevel purchaseCost');
+      const lowStock = products.filter((p) => (p.currentStock ?? 0) <= (p.minReorderLevel ?? 10));
+
+      if (lowStock.length === 0) {
+        return {
+          message: `✅ **All Inventory Healthy**: All catalog items are currently above safety reorder thresholds. No replenishment POs needed!`,
+          lowStockItems: [],
+          draftPos: [],
+        };
+      }
+
+      const items = lowStock.map((p) => {
+        const reorderQty = Math.max(25, (p.minReorderLevel ?? 10) - (p.currentStock ?? 0) + 20);
+        const cost = p.purchaseCost || 1200;
+        return {
+          name: p.name,
+          sku: p.sku || 'SKU-GEN',
+          currentStock: p.currentStock ?? 0,
+          minReorderLevel: p.minReorderLevel ?? 10,
+          reorderQty,
+          cost,
+          estimatedTotal: reorderQty * cost * 1.18,
+        };
+      });
+
+      const listStr = items
+        .map(
+          (it) =>
+            `• **${it.name}** (\`${it.sku}\`): **${it.currentStock} units left** (Min: ${it.minReorderLevel}) → *Recommended PO:* **${it.reorderQty} units** @ ₹${it.cost} (~₹${Math.round(it.estimatedTotal).toLocaleString('en-IN')} with GST)`
+        )
+        .join('\n');
+
+      return {
+        message:
+          `### ⚠️ Autonomous Auto-Reorder Audit: ${items.length} Items Below Threshold\n\n` +
+          `${listStr}\n\n` +
+          `💡 *Click '+ New PO (Steel Direct)' below to immediately generate and confirm procurement.*`,
+        lowStockItems: items,
+        draftPos: items,
+      };
+    } catch (err: any) {
+      console.error('Auto-reorder audit error:', err);
+      return {
+        message: `⚠️ Auto-reorder audit encountered an issue: ${err.message}`,
+        lowStockItems: [],
+        draftPos: [],
+      };
     }
   }
 }

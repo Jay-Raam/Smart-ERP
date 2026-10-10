@@ -18,6 +18,7 @@ import { connectMongo, pool } from './config/database';
 import { recordAudit } from './models/AuditLog';
 import { erpRouter } from './routes/erpRoutes';
 import { aiRouter } from './routes/aiRoutes';
+import { noSqlSanitizerMiddleware } from './middleware/securitySanitizer';
 import { getPolyglotHealthTelemetry, initPostgresSchema } from './services/postgresService';
 import {
   GENERIC_AUTH_ERROR,
@@ -51,6 +52,9 @@ app.use(
 app.use(express.json());
 app.use(cookieParser());
 
+// Deep NoSQL & Prototype Pollution Sanitizer (Protects all incoming request payloads)
+app.use(noSqlSanitizerMiddleware);
+
 // Request ID Tracing
 app.use((req: Request, res: Response, next) => {
   const requestId = req.headers['x-request-id'] || `req_${Date.now()}_${Math.random().toString(36).slice(2, 7)}`;
@@ -58,10 +62,11 @@ app.use((req: Request, res: Response, next) => {
   next();
 });
 
-// Mount Real ERP Database Endpoints
+// AI & ERP Rate Limiter (Protects AI endpoints against bot abuse and DoS)
+const apiRateLimiter = createSlidingWindowRateLimiter({ windowSeconds: 60, maxRequests: 120 });
+app.use('/api/ai', apiRateLimiter, aiRouter);
+app.use('/api/erp/ai', apiRateLimiter, aiRouter);
 app.use('/api/erp', erpRouter);
-app.use('/api/ai', aiRouter);
-app.use('/api/erp/ai', aiRouter);
 
 // Tenant Resolution & Rate Limiting
 app.use(tenantResolverMiddleware);

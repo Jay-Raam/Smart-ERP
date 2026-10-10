@@ -21,9 +21,15 @@ import {
   Trash2,
   MessageSquare,
   Search,
+  Download,
+  Printer,
 } from 'lucide-react';
 import { useErpStore } from '../../store/erpStore';
 import { useNotificationStore } from '../../store/notificationStore';
+import { PdfPreviewModal } from '../pdf/PdfPreviewModal';
+import { InvoicePdfDocument } from '../pdf/InvoicePdfDocument';
+import { PurchaseOrderPdfDocument } from '../pdf/PurchaseOrderPdfDocument';
+import { playNotificationSound } from '../../utils/soundUtils';
 
 interface AiStatus {
   configured: boolean;
@@ -147,6 +153,18 @@ export const AiAssistantDrawer: React.FC<AiAssistantDrawerProps> = ({
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const textareaRef = useRef<HTMLTextAreaElement>(null);
 
+  const [pdfModal, setPdfModal] = useState<{
+    isOpen: boolean;
+    title: string;
+    fileName: string;
+    doc: React.ReactElement | null;
+  }>({
+    isOpen: false,
+    title: '',
+    fileName: '',
+    doc: null,
+  });
+
   // Active session and its messages
   const activeSession = useMemo(() => {
     return sessions.find((s) => s.id === activeSessionId) || sessions[0] || {
@@ -247,6 +265,44 @@ export const AiAssistantDrawer: React.FC<AiAssistantDrawerProps> = ({
         textareaRef.current.selectionEnd = textareaRef.current.value.length;
       }
     }, 50);
+  };
+
+  const handleOpenPdfPreview = (action: any, resultRecord?: any) => {
+    const data = resultRecord?.record || action?.previewData || {};
+    if (action.type === 'CREATE_INVOICE') {
+      const invData = {
+        ...data,
+        invoiceNumber: data.invoiceNumber || data.recordNumber || 'INV-AI-2026',
+        invoiceDate: data.invoiceDate || new Date().toISOString().split('T')[0],
+        dueDate: data.dueDate || new Date(Date.now() + 15 * 86400000).toISOString().split('T')[0],
+        items: data.items || [],
+        subtotal: data.subtotal || 0,
+        taxAmount: data.taxAmount || 0,
+        totalAmount: data.totalAmount || 0,
+      };
+      setPdfModal({
+        isOpen: true,
+        title: `Tax Invoice Preview #${invData.invoiceNumber}`,
+        fileName: `${invData.invoiceNumber}.pdf`,
+        doc: <InvoicePdfDocument invoice={invData as any} />,
+      });
+    } else if (action.type === 'CREATE_PO') {
+      const poData = {
+        ...data,
+        poNumber: data.poNumber || data.recordNumber || 'PO-AI-2026',
+        poDate: data.poDate || new Date().toISOString().split('T')[0],
+        expectedDate: data.expectedDate || new Date(Date.now() + 7 * 86400000).toISOString().split('T')[0],
+        items: data.items || [],
+        subtotal: data.subtotal || 0,
+        totalAmount: data.totalAmount || 0,
+      };
+      setPdfModal({
+        isOpen: true,
+        title: `Purchase Order Preview #${poData.poNumber}`,
+        fileName: `${poData.poNumber}.pdf`,
+        doc: <PurchaseOrderPdfDocument po={poData as any} />,
+      });
+    }
   };
 
   const fetchStatus = async () => {
@@ -919,6 +975,17 @@ export const AiAssistantDrawer: React.FC<AiAssistantDrawerProps> = ({
                         <span>{msg.actionResult?.message || 'Action executed successfully in ERP!'}</span>
                       </div>
                       <div className="flex items-center gap-2 shrink-0">
+                        {(msg.pendingAction.type === 'CREATE_INVOICE' || msg.pendingAction.type === 'CREATE_PO') && (
+                          <button
+                            type="button"
+                            onClick={() => handleOpenPdfPreview(msg.pendingAction, msg.actionResult)}
+                            className="inline-flex items-center gap-1 px-2.5 py-1 text-[11px] font-semibold bg-white dark:bg-slate-800 border border-slate-300 dark:border-slate-600 text-slate-700 dark:text-slate-200 hover:bg-slate-50 dark:hover:bg-slate-700 rounded-lg transition shrink-0 cursor-pointer shadow-xs"
+                            title="Preview and download official vector PDF"
+                          >
+                            <Download className="h-3 w-3 text-indigo-500" />
+                            <span>Download PDF</span>
+                          </button>
+                        )}
                         {msg.pendingAction.type === 'CREATE_PO' && onNavigateModule && (
                           <button
                             type="button"
@@ -947,6 +1014,17 @@ export const AiAssistantDrawer: React.FC<AiAssistantDrawerProps> = ({
                     </div>
                   ) : (
                     <div className="mt-2.5 pt-2 border-t border-indigo-100 dark:border-slate-700/60 flex items-center justify-end gap-2">
+                      {(msg.pendingAction.type === 'CREATE_INVOICE' || msg.pendingAction.type === 'CREATE_PO') && (
+                        <button
+                          type="button"
+                          onClick={() => handleOpenPdfPreview(msg.pendingAction)}
+                          className="inline-flex items-center gap-1 px-2.5 py-1.5 text-xs text-indigo-600 dark:text-indigo-400 hover:bg-indigo-50 dark:hover:bg-indigo-950/60 rounded-lg transition cursor-pointer"
+                          title="Preview draft vector PDF"
+                        >
+                          <FileText className="h-3.5 w-3.5" />
+                          <span>PDF Draft</span>
+                        </button>
+                      )}
                       <button
                         onClick={() => handleDiscardAction(msg.id)}
                         disabled={executingActionId === msg.pendingAction.id}
@@ -1037,6 +1115,22 @@ export const AiAssistantDrawer: React.FC<AiAssistantDrawerProps> = ({
           >
             📦 Check Stock
           </button>
+          <button
+            type="button"
+            onClick={() => handleSelectSuggestion('Show revenue summary and financial report')}
+            title="Click to query real-time enterprise revenue and financial telemetry"
+            className="shrink-0 text-[11px] px-2.5 py-1 rounded-full bg-slate-100 dark:bg-slate-800 hover:bg-indigo-50 dark:hover:bg-indigo-950/60 hover:text-indigo-600 text-slate-600 dark:text-slate-300 transition border border-slate-200/60 dark:border-slate-700 cursor-pointer"
+          >
+            📊 Revenue Summary
+          </button>
+          <button
+            type="button"
+            onClick={() => handleSelectSuggestion('run auto-reorder audit for low stock')}
+            title="Click to run autonomous stock depletion and replenishment audit"
+            className="shrink-0 text-[11px] px-2.5 py-1 rounded-full bg-slate-100 dark:bg-slate-800 hover:bg-rose-50 dark:hover:bg-rose-950/60 hover:text-rose-600 text-slate-600 dark:text-slate-300 transition border border-slate-200/60 dark:border-slate-700 cursor-pointer"
+          >
+            ⚡ Reorder Audit
+          </button>
         </div>
 
         {/* Bottom Input Field */}
@@ -1077,6 +1171,17 @@ export const AiAssistantDrawer: React.FC<AiAssistantDrawerProps> = ({
           </div>
         </div>
       </div>
+
+      {/* Vector PDF Preview & Download Modal */}
+      {pdfModal.isOpen && pdfModal.doc && (
+        <PdfPreviewModal
+          isOpen={pdfModal.isOpen}
+          onClose={() => setPdfModal({ isOpen: false, title: '', fileName: '', doc: null })}
+          title={pdfModal.title}
+          fileName={pdfModal.fileName}
+          document={pdfModal.doc}
+        />
+      )}
     </div>
   );
 };

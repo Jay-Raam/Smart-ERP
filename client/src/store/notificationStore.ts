@@ -96,6 +96,8 @@ export const INITIAL_NOTIFICATIONS: NotificationItem[] = [
 
 interface NotificationState {
   notifications: NotificationItem[];
+  soundEnabled: boolean;
+  toggleSound: () => void;
   addNotification: (item: Omit<NotificationItem, 'id' | 'time' | 'read'> & { time?: string; id?: string; read?: boolean }) => void;
   markAsRead: (id: string) => void;
   markAsUnread: (id: string) => void;
@@ -103,14 +105,17 @@ interface NotificationState {
   markAllAsRead: () => void;
   markAllAsUnread: () => void;
   deleteNotification: (id: string) => void;
+  clearReadNotifications: () => void;
   resetNotifications: () => void;
 }
 
 export const useNotificationStore = create<NotificationState>()(
   persist(
-    (set) => ({
+    (set, get) => ({
       notifications: INITIAL_NOTIFICATIONS,
-      addNotification: (item) =>
+      soundEnabled: true,
+      toggleSound: () => set((state) => ({ soundEnabled: !state.soundEnabled })),
+      addNotification: (item) => {
         set((state) => ({
           notifications: [
             {
@@ -121,7 +126,8 @@ export const useNotificationStore = create<NotificationState>()(
             },
             ...state.notifications,
           ],
-        })),
+        }));
+      },
       markAsRead: (id: string) =>
         set((state) => ({
           notifications: state.notifications.map((n) =>
@@ -151,6 +157,10 @@ export const useNotificationStore = create<NotificationState>()(
       deleteNotification: (id: string) =>
         set((state) => ({
           notifications: state.notifications.filter((n) => n.id !== id),
+        })),
+      clearReadNotifications: () =>
+        set((state) => ({
+          notifications: state.notifications.filter((n) => !n.read),
         })),
       resetNotifications: () => set({ notifications: INITIAL_NOTIFICATIONS }),
     }),

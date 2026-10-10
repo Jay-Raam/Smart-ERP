@@ -351,6 +351,8 @@ export interface IInvoice extends Document {
   ewayBillNumber?: string;
   ewayBillDate?: string;
   einvoiceStatus?: 'PENDING' | 'GENERATED' | 'FAILED' | 'CANCELLED';
+  isAiGenerated?: boolean;
+  aiPrompt?: string;
   history?: IInvoiceHistoryItem[];
 }
 
@@ -409,6 +411,8 @@ const InvoiceSchema = new Schema<IInvoice>(
       enum: ['PENDING', 'GENERATED', 'FAILED', 'CANCELLED'],
       default: 'PENDING',
     },
+    isAiGenerated: { type: Boolean, default: false },
+    aiPrompt: { type: String, default: '' },
     history: [InvoiceHistorySchema],
   },
   { timestamps: true }
@@ -529,6 +533,8 @@ export interface IPurchaseOrder extends Document {
   instructions?: string;
   qualityTerms?: string;
   termsAndConditions?: string;
+  isAiGenerated?: boolean;
+  aiPrompt?: string;
   history?: IInvoiceHistoryItem[];
 }
 
@@ -574,6 +580,8 @@ const PurchaseOrderSchema = new Schema<IPurchaseOrder>(
     qualityTerms: { type: String, default: '' },
     termsAndConditions: { type: String, default: '' },
     isAutoReorder: { type: Boolean, default: false },
+    isAiGenerated: { type: Boolean, default: false },
+    aiPrompt: { type: String, default: '' },
     history: [InvoiceHistorySchema],
   },
   { timestamps: true }

@@ -156,4 +156,53 @@ describe('AiAgentService - Autonomous ERP Operations & Scenario Tests', () => {
     expect(stockRes.reply.length).toBeGreaterThan(10);
     expect(stockRes.reply).toMatch(/Low Stock|Inventory/);
   }, 15000);
+
+  it('Scenario 10: Proactive Multi-Turn Clarification when items/quantities are omitted', async () => {
+    const incompleteInv = await AiAgentService.processChat('create invoice for Acme Technologies');
+    expect(incompleteInv.reply).toContain('Clarification Needed');
+    expect(incompleteInv.reply).toContain('specify the item names, quantities, and rates');
+    expect(incompleteInv.pendingAction).toBeUndefined();
+
+    const incompletePo = await AiAgentService.processChat('create purchase order for Steel Direct');
+    expect(incompletePo.reply).toContain('Clarification Needed');
+    expect(incompletePo.reply).toContain('specify the products, order quantities');
+    expect(incompletePo.pendingAction).toBeUndefined();
+  });
+
+  it('Scenario 11: Real-time Financial & Sales Telemetry accurately computes totals', async () => {
+    const finRes = await AiAgentService.processChat('Show revenue summary and financial report');
+    expect(finRes.reply).toContain('Financial & Sales Telemetry');
+    expect(finRes.reply).toContain('Total Revenue Invoiced');
+    expect(finRes.reply).toContain('Collections Realized');
+  });
+
+  it('Scenario 12: Autonomous Auto-Reorder Audit returns low stock procurement recommendations', async () => {
+    const reorderRes = await AiAgentService.processChat('run auto-reorder audit for low stock');
+    expect(reorderRes.reply).toMatch(/Auto-Reorder Audit|All Inventory Healthy/);
+  });
+
+  it('Scenario 13: Created Invoices and Purchase Orders are tagged with isAiGenerated and audit trace', async () => {
+    const poAction = {
+      id: 'test_ai_tag_po',
+      type: 'CREATE_PO' as const,
+      title: 'PO: Tagging Test',
+      summary: 'PO with AI tag',
+      payload: {
+        vendorName: 'Audit Test Vendor',
+        items: [{ productName: 'Shielded Cables', quantity: 10, unitPrice: 200, taxRate: 18, totalAmount: 2360 }],
+        subtotal: 2000,
+        taxAmount: 360,
+        totalAmount: 2360,
+      },
+      previewData: {},
+    };
+
+    const result = await AiAgentService.executeAction(poAction, { userName: 'Test QA Agent' });
+    expect(result.success).toBe(true);
+
+    const savedPo = await PurchaseOrder.findById(result.recordId);
+    expect(savedPo?.isAiGenerated).toBe(true);
+    expect(savedPo?.history?.[0]?.action).toBe('CREATED_VIA_AI_AGENT');
+  });
 });
+
