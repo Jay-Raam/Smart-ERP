@@ -26,6 +26,7 @@ interface NavbarProps {
   onOpenProfile: () => void;
   onOpenContextSwitcher: () => void;
   onOpenThemeCustomizer?: () => void;
+  onOpenAiAssistant?: () => void;
   onToggleSidebar?: () => void;
 }
 
@@ -36,6 +37,7 @@ export const Navbar: React.FC<NavbarProps> = ({
   onOpenProfile,
   onOpenContextSwitcher,
   onOpenThemeCustomizer,
+  onOpenAiAssistant,
   onToggleSidebar,
 }) => {
   const { branches, activeBranchId, activeFinancialYear } = useErpStore();
@@ -112,6 +114,19 @@ export const Navbar: React.FC<NavbarProps> = ({
         >
           <Search className="h-4 w-4" />
         </button>
+
+        {/* Autonomous AI Copilot Trigger */}
+        {onOpenAiAssistant && (
+          <button
+            type="button"
+            onClick={onOpenAiAssistant}
+            className="flex items-center justify-center gap-1.5 rounded-xl bg-linear-to-r from-indigo-600 via-indigo-700 to-purple-600 px-2.5 py-1.5 sm:px-3 text-xs font-semibold text-white hover:opacity-95 active:scale-[0.98] transition shadow-xs cursor-pointer shrink-0 border border-indigo-400/30"
+            title="Open Autonomous AI Copilot (Ctrl+J)"
+          >
+            <Sparkles className="h-3.5 w-3.5 shrink-0 text-amber-300 animate-pulse" />
+            <span className="hidden sm:inline">AI Copilot</span>
+          </button>
+        )}
 
         {/* Quick Add Menu */}
         <div className="relative shrink-0">

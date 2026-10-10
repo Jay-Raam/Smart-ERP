@@ -6,6 +6,7 @@ import { NotificationDrawer } from './components/layout/NotificationDrawer';
 import { ProfileDrawer } from './components/layout/ProfileDrawer';
 import { ContextSwitcherDrawer } from './components/layout/ContextSwitcherDrawer';
 import { ThemeDrawer } from './components/layout/ThemeDrawer';
+import { AiAssistantDrawer } from './components/ai/AiAssistantDrawer';
 import { LoginScreen } from './components/auth/LoginScreen';
 import { PublicShowcase } from './components/public/PublicShowcase';
 import { ContactPage } from './components/public/ContactPage';
@@ -95,7 +96,20 @@ export function App() {
   const [isNotificationsOpen, setIsNotificationsOpen] = useState(false);
   const [isProfileOpen, setIsProfileOpen] = useState(false);
   const [isContextSwitcherOpen, setIsContextSwitcherOpen] = useState(false);
+  const [isAiAssistantOpen, setIsAiAssistantOpen] = useState(false);
   const [quickAddType, setQuickAddType] = useState<string | null>(null);
+
+  // Global keyboard shortcut for AI Assistant (Ctrl+J / Cmd+J)
+  useEffect(() => {
+    const handleKeyDown = (e: KeyboardEvent) => {
+      if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === 'j') {
+        e.preventDefault();
+        setIsAiAssistantOpen((prev) => !prev);
+      }
+    };
+    window.addEventListener('keydown', handleKeyDown);
+    return () => window.removeEventListener('keydown', handleKeyDown);
+  }, []);
 
   useEffect(() => {
     const handleResize = () => {
@@ -337,6 +351,7 @@ export function App() {
           onOpenProfile={() => setIsProfileOpen(true)}
           onOpenContextSwitcher={() => setIsContextSwitcherOpen(true)}
           onOpenThemeCustomizer={() => setIsThemeDrawerOpen(true)}
+          onOpenAiAssistant={() => setIsAiAssistantOpen(true)}
           onToggleSidebar={() => setIsSidebarCollapsed(!isSidebarCollapsed)}
         />
 
@@ -436,6 +451,13 @@ export function App() {
       <ThemeDrawer
         isOpen={isThemeDrawerOpen}
         onClose={() => setIsThemeDrawerOpen(false)}
+      />
+
+      {/* Autonomous AI Copilot Drawer */}
+      <AiAssistantDrawer
+        isOpen={isAiAssistantOpen}
+        onClose={() => setIsAiAssistantOpen(false)}
+        onRefreshData={fetchBootstrap}
       />
     </div>
   );

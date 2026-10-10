@@ -17,6 +17,7 @@ import { authMiddleware, generateTokens, verifyRefreshToken } from './security/a
 import { connectMongo, pool } from './config/database';
 import { recordAudit } from './models/AuditLog';
 import { erpRouter } from './routes/erpRoutes';
+import { aiRouter } from './routes/aiRoutes';
 import { getPolyglotHealthTelemetry, initPostgresSchema } from './services/postgresService';
 import {
   GENERIC_AUTH_ERROR,
@@ -59,6 +60,8 @@ app.use((req: Request, res: Response, next) => {
 
 // Mount Real ERP Database Endpoints
 app.use('/api/erp', erpRouter);
+app.use('/api/ai', aiRouter);
+app.use('/api/erp/ai', aiRouter);
 
 // Tenant Resolution & Rate Limiting
 app.use(tenantResolverMiddleware);
