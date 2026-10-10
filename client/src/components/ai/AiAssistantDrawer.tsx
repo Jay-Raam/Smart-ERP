@@ -380,22 +380,24 @@ export const AiAssistantDrawer: React.FC<AiAssistantDrawerProps> = ({
                 msg.role === 'user' ? 'items-end' : 'items-start'
               }`}
             >
-              <div
-                className={`max-w-[90%] rounded-2xl px-3.5 py-2.5 text-xs shadow-xs leading-relaxed ${
-                  msg.role === 'user'
-                    ? 'bg-blue-600 text-white rounded-tr-none'
-                    : 'bg-slate-100 dark:bg-slate-800 text-slate-800 dark:text-slate-100 rounded-tl-none border border-slate-200/60 dark:border-slate-700/60'
-                }`}
-              >
-                <div className="whitespace-pre-wrap">{msg.content}</div>
+              {Boolean(msg.content && msg.content.trim()) && (
                 <div
-                  className={`mt-1 text-[9px] text-right ${
-                    msg.role === 'user' ? 'text-blue-100' : 'text-slate-400'
+                  className={`max-w-[90%] rounded-2xl px-3.5 py-2.5 text-xs shadow-xs leading-relaxed ${
+                    msg.role === 'user'
+                      ? 'bg-blue-600 text-white rounded-tr-none'
+                      : 'bg-slate-100 dark:bg-slate-800 text-slate-800 dark:text-slate-100 rounded-tl-none border border-slate-200/60 dark:border-slate-700/60'
                   }`}
                 >
-                  {msg.timestamp}
+                  <div className="whitespace-pre-wrap">{msg.content}</div>
+                  <div
+                    className={`mt-1 text-[9px] text-right ${
+                      msg.role === 'user' ? 'text-blue-100' : 'text-slate-400'
+                    }`}
+                  >
+                    {msg.timestamp}
+                  </div>
                 </div>
-              </div>
+              )}
 
               {/* Render Pending Action Approval Card if generated */}
               {msg.pendingAction && (

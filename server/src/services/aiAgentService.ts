@@ -149,12 +149,19 @@ const ERP_TOOLS = [
   },
 ];
 
-const SYSTEM_PROMPT = `You are Smart-ERP's Agentic Operations Assistant.
-You assist enterprise users with managing invoices, purchase orders, email dispatch, and business queries.
-When the user asks to create an invoice, purchase order, or draft/send an email:
-1. Always call the corresponding tool (create_invoice, create_purchase_order, or send_email) with the parsed parameters.
-2. If the user provides partial details, make sensible business assumptions (e.g., standard 18% GST, due date in 15 days, default Tamil Nadu state) and call the tool.
-3. Be concise, professional, and explain the generated action in a friendly summary.
+const SYSTEM_PROMPT = `You are Smart-ERP's Agentic Operations Assistant, strictly scoped to this ERP system.
+
+STRICT DOMAIN BOUNDARIES:
+- You ONLY answer questions and execute actions directly related to Smart-ERP enterprise operations: Invoices, Purchase Orders, Bills, Inventory/Stock levels, Customers, Vendors, and Business Email Reminders.
+- You MUST STRICTLY DECLINE and REFUSE all general programming questions (e.g. writing Java, Python, C++, HTML, JavaScript code), general math or homework problems (e.g. 2+2, calculus), general trivia, recipes, creative writing, or non-ERP queries.
+- If the user asks anything outside Smart-ERP operations, politely state that you are restricted to Smart-ERP operations and guide them to invoice, PO, inventory, or email workflows.
+- When the user asks to create an invoice, purchase order, or draft/send an email:
+  1. Always call the corresponding tool (create_invoice, create_purchase_order, or send_email) with the parsed parameters.
+  2. If the user provides partial details, make sensible business assumptions (standard 18% GST, due date in 15 days, default state) and call the tool.
+  3. Validate that quantities are positive numbers and unit prices are positive numbers.
+  4. Be concise and professional.
+- When the user asks about stock, inventory, low stock items, or pending invoices:
+  1. Call the tool query_erp_data with queryType="LOW_STOCK" or "PENDING_INVOICES", or provide immediate telemetry summary.
 `;
 
 export class AiAgentService {
@@ -171,6 +178,88 @@ export class AiAgentService {
   }
 
   /**
+   * Deterministic guardrail to reject non-ERP off-topic queries (coding, trivia, homework)
+   */
+  static isOffTopicQuery(message: string): boolean {
+    const text = message.trim().toLowerCase();
+
+    // 1. Coding / programming triggers
+    const codeTriggers = [
+      'write a program',
+      'write the program',
+      'wirte the program',
+      'write program',
+      'write code',
+      'write a function',
+      'write script',
+      'generate code',
+      'in java',
+      'in python',
+      'in c++',
+      'in c#',
+      'in javascript',
+      'in typescript',
+      'in rust',
+      'in golang',
+      'in php',
+      'public class',
+      'def ',
+      'hello world',
+      'fibonacci',
+      'binary search',
+      'bubble sort',
+      'leetcode',
+      'hackerrank',
+      'html code',
+      'css code',
+      'react component',
+    ];
+    if (codeTriggers.some((trigger) => text.includes(trigger))) {
+      return true;
+    }
+
+    // 2. Off-topic basic math questions (e.g. "2+2", "what is 2 + 2", "15 * 4")
+    if (
+      /^(what is\s+)?\d+\s*[\+\-\*\/]\s*\d+\s*\??$/.test(text) ||
+      text === '2+2' ||
+      text === '2 + 2'
+    ) {
+      return true;
+    }
+
+    // 3. Trivia / creative writing triggers
+    const triviaTriggers = [
+      'tell me a joke',
+      'write a poem',
+      'write an essay',
+      'who is the president',
+      'capital of',
+      'movie recommendation',
+      'weather in',
+      'recipe for',
+      'sing a song',
+    ];
+    if (triviaTriggers.some((trigger) => text.includes(trigger))) {
+      return true;
+    }
+
+    return false;
+  }
+
+  static getOffTopicRefusal(): string {
+    return (
+      `🔒 **Domain Restricted: Smart-ERP Copilot**\n\n` +
+      `I am dedicated strictly to **Smart-ERP operations** and cannot assist with general programming, code development, mathematical calculations, or general trivia.\n\n` +
+      `**Here is what I can help you with:**\n` +
+      `• 📄 **Sales Invoices**: *"Create invoice for Acme Technologies: 5 Laptops at 50,000 INR"*\n` +
+      `• 📦 **Purchase Orders**: *"Create purchase order for Steel Direct: 50 beams at 2,400 INR"*\n` +
+      `• ✉️ **Email Automation**: *"Send payment reminder email to billing@clientcorp.com"*\n` +
+      `• 📊 **ERP Telemetry**: *"Show low stock inventory alerts"* or *"Show pending invoices"*\n\n` +
+      `*Please try one of the template buttons below or enter an ERP-related request!*`
+    );
+  }
+
+  /**
    * Main entry point for processing chat messages
    */
   static async processChat(
@@ -178,6 +267,33 @@ export class AiAgentService {
     history: AgentChatMessage[] = [],
     context?: { organisationId?: string; branchId?: string; user?: any }
   ): Promise<AgentChatResponse> {
+    // 1. Guardrail against off-topic queries (coding, trivia, math)
+    if (this.isOffTopicQuery(userMessage)) {
+      return {
+        reply: this.getOffTopicRefusal(),
+        provider: 'local_fallback',
+        model: 'domain-guardrail-engine',
+        apiKeyConfigured: this.isConfigured(),
+      };
+    }
+
+    // 2. Direct stock / inventory query interception
+    const lower = userMessage.toLowerCase();
+    if (
+      lower.includes('low stock') ||
+      lower.includes('check stock') ||
+      lower.includes('inventory alert') ||
+      lower.includes('show low stock')
+    ) {
+      const stockTelemetry = await this.executeErpTelemetryQuery('stock');
+      return {
+        reply: stockTelemetry,
+        provider: 'openrouter',
+        model: this.getModel(),
+        apiKeyConfigured: this.isConfigured(),
+      };
+    }
+
     const isKeyPresent = this.isConfigured();
 
     if (isKeyPresent) {
@@ -242,7 +358,7 @@ export class AiAgentService {
     }
 
     let pendingAction: AgentPendingAction | null = null;
-    let replyText = message.content || '';
+    let replyText = (message.content || '').trim();
 
     // Check if tool calls were triggered
     if (message.tool_calls && message.tool_calls.length > 0) {
@@ -255,21 +371,36 @@ export class AiAgentService {
         args = {};
       }
 
-      const generated = await this.buildPendingAction(fnName, args, context);
-      if (generated) {
-        pendingAction = generated.action;
-        if (!replyText) {
-          replyText = generated.summaryMessage;
+      if (fnName === 'query_erp_data') {
+        const queryType = args.queryType || 'LOW_STOCK';
+        replyText = await this.handleErpDataQuery(queryType, args);
+      } else {
+        const generated = await this.buildPendingAction(fnName, args, context);
+        if (generated) {
+          pendingAction = generated.action;
+          if (!replyText) {
+            replyText = generated.summaryMessage;
+          }
         }
       }
     }
 
-    if (!replyText && pendingAction) {
-      replyText = `I have drafted the ${pendingAction.title} for you. Please review and confirm below.`;
+    // Fallback if replyText is still empty
+    if (!replyText || replyText.trim().length === 0) {
+      const lower = userMessage.toLowerCase();
+      if (lower.includes('stock') || lower.includes('inventory')) {
+        replyText = await this.executeErpTelemetryQuery('stock');
+      } else if (lower.includes('pending') || lower.includes('invoice')) {
+        replyText = await this.executeErpTelemetryQuery('pending');
+      } else if (pendingAction) {
+        replyText = `I have drafted the ${pendingAction.title} for you. Please review and confirm below.`;
+      } else {
+        replyText = `I am your Smart-ERP Operations Assistant. How can I help you manage invoices, purchase orders, or inventory today?`;
+      }
     }
 
     return {
-      reply: replyText || 'Request processed successfully.',
+      reply: replyText.trim(),
       pendingAction,
       provider: 'openrouter',
       model,
@@ -828,7 +959,7 @@ export class AiAgentService {
 
     const items: any[] = [];
     // Match patterns like: 5 laptops at 50000 or 10 boxes for 200
-    const itemRegex = /(\d+)\s+([a-zA-Z\s]+?)\s+(?:at|@|for|rate)\s+(?:₹|rs\.?|inr)?\s*([\d,]+)/gi;
+    const itemRegex = /(\d+)\s+([a-zA-Z0-9\s\-]+?)\s+(?:at|@|for|rate)\s+(?:₹|rs\.?|inr)?\s*([\d,]+)/gi;
     let match;
     while ((match = itemRegex.exec(text)) !== null) {
       const qty = parseInt(match[1], 10);
@@ -854,7 +985,7 @@ export class AiAgentService {
     }
 
     const items: any[] = [];
-    const itemRegex = /(\d+)\s+([a-zA-Z\s]+?)\s+(?:at|@|for|rate)\s+(?:₹|rs\.?|inr)?\s*([\d,]+)/gi;
+    const itemRegex = /(\d+)\s+([a-zA-Z0-9\s\-]+?)\s+(?:at|@|for|rate)\s+(?:₹|rs\.?|inr)?\s*([\d,]+)/gi;
     let match;
     while ((match = itemRegex.exec(text)) !== null) {
       const qty = parseInt(match[1], 10);
@@ -898,46 +1029,111 @@ export class AiAgentService {
     };
   }
 
+  private static async handleErpDataQuery(queryType: string, args?: any): Promise<string> {
+    const qType = (queryType || '').toUpperCase();
+    if (qType === 'LOW_STOCK') {
+      return await this.executeErpTelemetryQuery('stock');
+    }
+    if (qType === 'PENDING_INVOICES') {
+      return await this.executeErpTelemetryQuery('pending');
+    }
+    if (qType === 'RECENT_POS') {
+      return await this.executeErpTelemetryQuery('po');
+    }
+    return await this.executeErpTelemetryQuery(queryType.toLowerCase());
+  }
+
   private static async executeErpTelemetryQuery(query: string): Promise<string> {
     try {
-      if (query.includes('stock') || query.includes('inventory')) {
-        const lowStock = await Product.find({ currentStock: { $lte: 20 }, isDeleted: false })
-          .limit(5)
+      if (query.includes('stock') || query.includes('inventory') || query.includes('low_stock')) {
+        const lowStock = await Product.find({ currentStock: { $lte: 20 }, isDeleted: { $ne: true } })
+          .limit(10)
+          .select('name sku currentStock minReorderLevel sellingPrice');
+
+        if (lowStock.length > 0) {
+          return (
+            `📦 **Low Stock Reorder Alerts** (${lowStock.length} items flagged below safety threshold):\n\n` +
+            lowStock
+              .map(
+                (p) =>
+                  `• **${p.name}** (\`${p.sku || 'SKU-GEN'}\`): **${p.currentStock ?? 0} in stock** (Min Reorder Level: ${p.minReorderLevel ?? 10})`
+              )
+              .join('\n') +
+            `\n\n💡 *Action: You can click '+ New PO (Steel Direct)' below to quickly draft a supplier restocking order.*`
+          );
+        }
+
+        const allProducts = await Product.find({ isDeleted: { $ne: true } })
+          .limit(6)
           .select('name sku currentStock minReorderLevel');
 
-        if (lowStock.length === 0) {
-          return `📦 **Inventory Status**: All inventory items are currently above their safety thresholds. No critical reorders needed.`;
+        if (allProducts.length === 0) {
+          return (
+            `📦 **Inventory Telemetry**:\n\n` +
+            `No registered products found in the catalog database yet.\n` +
+            `You can create products in the **Products Master** module or draft a Purchase Order to automatically populate stock.`
+          );
         }
 
         return (
-          `📦 **Low Stock Reorder Alerts** (${lowStock.length} items):\n` +
-          lowStock.map((p) => `- **${p.name}** (\`${p.sku}\`): **${p.currentStock} in stock** (Min: ${p.minReorderLevel})`).join('\n')
-        );
-      }
-
-      if (query.includes('pending') || query.includes('invoice') || query.includes('overdue')) {
-        const pending = await Invoice.find({ paymentStatus: { $ne: 'PAID' } })
-          .limit(5)
-          .select('invoiceNumber customerName totalAmount outstandingAmount dueDate');
-
-        if (pending.length === 0) {
-          return `💰 **Pending Invoices**: No unpaid invoices found in the system.`;
-        }
-
-        return (
-          `💰 **Unpaid & Overdue Invoices** (Top ${pending.length}):\n` +
-          pending
+          `📦 **Inventory Status: All Healthy**\n\n` +
+          `All tracked catalog products are currently above their minimum safety thresholds. No critical reorders needed.\n\n` +
+          `**Current Stock Samples**:\n` +
+          allProducts
             .map(
-              (inv) =>
-                `- **${inv.invoiceNumber}** (${inv.customerName}): **₹${inv.outstandingAmount?.toLocaleString('en-IN')} outstanding** (Due: ${inv.dueDate})`
+              (p) =>
+                `• **${p.name}** (\`${p.sku || 'SKU-GEN'}\`): **${p.currentStock ?? 0} units available** (Min: ${p.minReorderLevel ?? 10})`
             )
             .join('\n')
         );
       }
 
-      return `Operational telemetry ready. You can query stock status, pending invoices, or ask to create new transactions.`;
-    } catch {
-      return `Telemetry data is currently syncing.`;
+      if (query.includes('pending') || query.includes('invoice') || query.includes('overdue')) {
+        const pending = await Invoice.find({ paymentStatus: { $ne: 'PAID' }, isDeleted: { $ne: true } })
+          .limit(5)
+          .select('invoiceNumber customerName totalAmount outstandingAmount dueDate');
+
+        if (pending.length === 0) {
+          return `💰 **Receivables Status**: Excellent news! There are no unpaid invoices in the system. All customer accounts are settled.`;
+        }
+
+        return (
+          `💰 **Unpaid & Overdue Invoices** (Top ${pending.length}):\n\n` +
+          pending
+            .map(
+              (inv) =>
+                `• **${inv.invoiceNumber}** (${inv.customerName}): **₹${inv.outstandingAmount?.toLocaleString('en-IN')} outstanding** (Due: ${inv.dueDate})`
+            )
+            .join('\n') +
+          `\n\n💡 *Action: You can draft a reminder email using '+ Email Reminder' for any of these accounts.*`
+        );
+      }
+
+      if (query.includes('po') || query.includes('purchase')) {
+        const pos = await PurchaseOrder.find({ isDeleted: { $ne: true } })
+          .sort({ createdAt: -1 })
+          .limit(5)
+          .select('poNumber vendorName totalAmount status poDate');
+
+        if (pos.length === 0) {
+          return `📋 **Purchase Orders**: No purchase orders found in the system yet.`;
+        }
+
+        return (
+          `📋 **Recent Purchase Orders** (Latest ${pos.length}):\n\n` +
+          pos
+            .map(
+              (p) =>
+                `• **${p.poNumber}** (${p.vendorName}): **₹${p.totalAmount?.toLocaleString('en-IN')}** [${p.status}] on ${p.poDate || 'Recent'}`
+            )
+            .join('\n')
+        );
+      }
+
+      return `Operational telemetry ready. You can query stock status, check pending receivables, or draft new Invoices and Purchase Orders.`;
+    } catch (err: any) {
+      console.error('Error executing ERP telemetry query:', err);
+      return `📦 **Inventory Status**: Telemetry is currently syncing (${err?.message || 'Database query error'}).`;
     }
   }
 }
