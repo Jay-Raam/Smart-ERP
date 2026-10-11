@@ -95,9 +95,10 @@ export class ReconciliationService {
       let hasQtyMismatch = false;
 
       for (const billItem of bill.items || []) {
+        const billProductName = (billItem as any).productName || (billItem as any).name || '';
         const matchingPoItem = (po.items || []).find(
           (pi: any) =>
-            pi.name?.toLowerCase().trim() === billItem.name?.toLowerCase().trim() ||
+            (pi.productName || pi.name)?.toLowerCase().trim() === billProductName.toLowerCase().trim() ||
             (pi.productId && pi.productId === billItem.productId)
         );
 
@@ -108,7 +109,7 @@ export class ReconciliationService {
 
         // Inward received check: query store inventory linked to this bill/PO
         const storeRecord = await StoreItem.findOne({
-          productName: new RegExp(`^${billItem.name}$`, 'i'),
+          productName: new RegExp(`^${billProductName}$`, 'i'),
         }).lean();
         const receivedQty = storeRecord ? Math.min(storeRecord.availableStock, billQty) : billQty;
 
@@ -129,7 +130,7 @@ export class ReconciliationService {
         }
 
         variances.push({
-          itemName: billItem.name,
+          itemName: billProductName,
           poQty,
           billQty,
           receivedQty,
@@ -215,7 +216,7 @@ export class ReconciliationService {
             ? '🚨 OVERBILLED'
             : m.overallStatus === 'PRICE_DISCREPANCY'
             ? '⚠️ RATE MISMATCH'
-            : m.overallStatus === 'QTY_MISMATCH'
+            : m.overallStatus === 'QTY_DISCREPANCY'
             ? '⚠️ QTY MISMATCH'
             : 'ℹ️ DIRECT BILL';
 
