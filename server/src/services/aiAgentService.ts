@@ -794,6 +794,8 @@ export class AiAgentService {
         (await Branch.findOne());
       if (br) {
         branchId = br._id.toString();
+      } else {
+        branchId = branchId || '';
       }
     }
 

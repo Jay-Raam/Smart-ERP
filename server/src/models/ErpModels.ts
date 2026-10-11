@@ -550,7 +550,7 @@ const PurchaseOrderSchema = new Schema<IPurchaseOrder>(
     shippingAddress: { type: String, default: '' },
     poDate: { type: String, required: true },
     expectedDate: { type: String, required: true },
-    branchId: { type: String, required: true },
+    branchId: { type: String, default: '' },
     organisationId: { type: String, default: '' },
     financialYear: { type: String, default: '2026-2027' },
     items: [DocumentItemSchema],
