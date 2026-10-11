@@ -5,7 +5,8 @@
   "description": "Multi-Tenant Enterprise B2B SaaS Orchestrator & Ultra-Premium Design System",
   "workspaces": [
     "client",
-    "server"
+    "server",
+    "packages/*"
   ],
   "scripts": {
     "dev": "npm run dev --workspace=client",

@@ -1,0 +1,28 @@
+{
+  "name": "@smart-erp/gst-engine",
+  "version": "1.0.0",
+  "description": "Production Indian GST computation engine with HSN/SAC code catalog, inter/intra-state bifurcation, and half-up precision rounding",
+  "main": "dist/index.js",
+  "types": "dist/index.d.ts",
+  "scripts": {
+    "build": "tsc",
+    "test": "vitest run"
+  },
+  "keywords": [
+    "gst",
+    "india-gst",
+    "cgst",
+    "sgst",
+    "igst",
+    "tax-calculator",
+    "hsn",
+    "sac",
+    "e-invoicing"
+  ],
+  "author": "Jay Raam",
+  "license": "MIT",
+  "devDependencies": {
+    "typescript": "^5.3.3",
+    "vitest": "^3.0.0"
+  }
+}

@@ -1,10 +1,31 @@
-# Smart ERP
+# Smart ERP 🇮🇳
 
-A full-stack multi-tenant ERP application built with React 19, Node.js, Express, TypeScript, and MongoDB.
+[![CI](https://github.com/Jay-Raam/Smart-ERP/actions/workflows/ci.yml/badge.svg)](https://github.com/Jay-Raam/Smart-ERP/actions/workflows/ci.yml)
+[![GST Engine](https://img.shields.io/badge/@smart--erp/gst--engine-v1.0.0-green.svg)](packages/gst-engine)
+[![Tests Passing](https://img.shields.io/badge/tests-20%20passing-brightgreen.svg)](server/src)
+[![License: MIT](https://img.shields.io/badge/License-MIT-blue.svg)](LICENSE)
+[![Architecture: Multi-Tenant](https://img.shields.io/badge/Architecture-3D%20Tenant%20Scoping-orange.svg)](#overview)
+
+A full-stack multi-tenant ERP platform built with React 19, Node.js, Express, TypeScript, and MongoDB. Engineered specifically for Indian manufacturing, assembly, and distribution businesses with statutory GST compliance.
 
 <p align="center">
   <img src="docs/images/smart_erp_pipeline.svg" alt="Smart ERP Architecture Pipeline" width="100%" />
 </p>
+
+---
+
+## Start Here (5-Minute Code Review)
+
+If you are evaluating this repository for technical depth, code hygiene, and architectural design, inspect these core files:
+
+| Area | Location | What to Inspect |
+| :--- | :--- | :--- |
+| **Statutory GST Engine** | [`packages/gst-engine`](packages/gst-engine) | Zero-dependency India GST package with HSN catalog, UTGST rules, and Section 170 round-off |
+| **3D Tenant Scoping** | [`server/src/middleware/tenantMiddleware.ts`](server/src/middleware/tenantMiddleware.ts) | Strict 3-dimensional multi-tenancy (`orgId`, `branchId`, `financialYearId`) isolation |
+| **Reconciliation Engine** | [`server/src/services/reconciliationService.ts`](server/src/services/reconciliationService.ts) | 2-Way & 3-Way matching algorithms reconciling POs, Goods Receipts, and Invoices |
+| **Autonomous AI Copilot** | [`server/src/services/aiAgentService.ts`](server/src/services/aiAgentService.ts) | Natural language ERP assistant executing verified transactional workflows |
+| **Vector PDF Engine** | [`client/src/components/documents/TaxInvoiceDocument.tsx`](client/src/components/documents/TaxInvoiceDocument.tsx) | High-precision vector tax invoices with B2B QR Code and E-Way Bill Barcode |
+| **Sample Invoice Output** | [`docs/samples/sample_tax_invoice.md`](docs/samples/sample_tax_invoice.md) | Statutory invoice sample with HSN/SAC summary breakdown |
 
 ---
 
@@ -269,6 +290,18 @@ Core Mongoose models defined in `server/src/models/ErpModels.ts`:
 ### System Backups (SuperAdmin Only)
 - `POST /api/erp/system/backup` — Creates compressed full database snapshot (`.json.gz`).
 - `GET /api/erp/system/backups` — Lists existing backups and sizes with retention tracking.
+
+---
+
+## Key Engineering Decisions & Trade-Offs
+
+| Decision | Why It Was Made | Alternative Considered & Why Rejected |
+| :--- | :--- | :--- |
+| **Modular GST Package (`@smart-erp/gst-engine`)** | Decouples statutory tax logic into a zero-dependency monorepo workspace package with dedicated unit tests. Reusable across backend services, mobile apps, and edge workers. | Hardcoding GST math inside Mongoose models or Express handlers. Rejected because tax rules change frequently and embedding them hurts testability and auditability. |
+| **Section 170 Half-Up Rounding & Delta Round-Off** | JavaScript floating point math (`0.1 + 0.2 = 0.30000000000000004`) causes rupee fractional mismatches on multi-item bills. Statutory `(value + Number.EPSILON)` half-up rounding computes clean paise with an explicit `roundOff` delta. | Standard `Math.round()` on final total. Rejected because it drops audit tracking of rounding adjustments mandated by Indian accounting standards. |
+| **Strict 3D Tenant Scoping (`orgId`, `branchId`, `financialYearId`)** | Prevents cross-branch inventory leakage and enforces closed fiscal year book immutability across multi-entity operations. | Simple multi-tenancy (`orgId` only). Rejected because manufacturing businesses operate discrete plants and must close past fiscal years without mutating historic ledgers. |
+| **Soft Deletes + Reversal Transactions vs Hard Deletion** | Posted invoices, bills, and payments cannot be deleted once finalized. Corrections require offsetting reversal transactions to guarantee double-entry accounting integrity. | Direct SQL/Mongo `deleteOne()` with cascading deletes. Rejected because it destroys statutory audit trails required for GST reconciliation. |
+| **URL Parameter Query Syncing** | Search filters, pagination, date ranges, and sorting are synchronized directly to browser query parameters (`?page=1&status=ACTIVE...`). | Keeping filter state solely in component React state. Rejected because warehouse staff and accountants need to share and bookmark exact filtered views over chat or email. |
 
 ---
 
