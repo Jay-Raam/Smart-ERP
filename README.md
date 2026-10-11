@@ -14,6 +14,33 @@ A full-stack multi-tenant ERP platform built with React 19, Node.js, Express, Ty
 
 ---
 
+## 📸 Visual Product Tour
+
+<table>
+  <tr>
+    <td width="50%">
+      <p align="center"><b>Executive Operations & Telemetry Dashboard</b></p>
+      <img src="docs/images/02_executive_dashboard.png" alt="Executive Operations Dashboard" width="100%" />
+    </td>
+    <td width="50%">
+      <p align="center"><b>Scoped Multi-Branch Sales Orders</b></p>
+      <img src="docs/images/03_sales_orders_chennai.png" alt="Multi-Branch Sales Orders" width="100%" />
+    </td>
+  </tr>
+  <tr>
+    <td width="50%">
+      <p align="center"><b>3-Dimensional Branch & Fiscal Year Switcher</b></p>
+      <img src="docs/images/06_header_switchers_dropdown.png" alt="Branch Switchers Dropdown" width="100%" />
+    </td>
+    <td width="50%">
+      <p align="center"><b>Real-Time Operational Notification Drawer</b></p>
+      <img src="docs/images/07_notifications_drawer.png" alt="Operational Notification Drawer" width="100%" />
+    </td>
+  </tr>
+</table>
+
+---
+
 ## Start Here (5-Minute Code Review)
 
 If you are evaluating this repository for technical depth, code hygiene, and architectural design, inspect these core files:
@@ -98,11 +125,11 @@ The user interface keeps search terms, filters, sorting, and pagination synced w
 - Master entities (`Customer`, `Vendor`, `Product`, `Organisation`, `Branch`, `StoreItem`) use soft deletion with `isDeleted` flags and `deletedAt` timestamps.
 - **Strict Financial Immutability**: Financial documents (`Invoice`, `Bill`, `FinancialTransaction`) with recorded payments or ledger postings cannot be hard deleted. Adjustments require offsetting reversal transactions to preserve complete accounting audit trails.
 
-### 9. Indian GST E-Invoicing & E-Way Bill Generation (NIC Standard)
-- Integrated 100% free statutory GST e-Invoicing engine compliant with Schema `INV-01`.
-- Single-click generation of the 64-character SHA-256 Invoice Reference Number (IRN), 15-digit Acknowledgement Number, Ack Date, and Signed QR Code payload.
-- Automatically generates 12-digit statutory E-Way Bill numbers for consignment values over ₹50,000.
-- E-Invoice headers and QR badges render directly into the generated vector PDF tax invoices.
+### 9. Indian GST E-Invoicing & E-Way Bill Generation (Schema INV-01 Simulation)
+- **Offline Statutory Schema Simulation**: Implements an offline statutory calculation engine adhering to official National Informatics Centre (NIC) **Schema `INV-01`** standards.
+- **Simulated IRN & B2B QR Code Payload**: Generates deterministic 64-character SHA-256 Invoice Reference Numbers (IRN) computed via `Supplier GSTIN + Doc Type + Doc Number + Financial Year`, alongside 15-digit Acknowledgement Numbers and signed B2B QR code payload structures. This enables full e-invoicing workflow testing without requiring paid third-party GSP/ASP aggregator subscriptions (ClearTax, Karza, Masters India) for staging environments.
+- **E-Way Bill Generation**: Automatically computes statutory 12-digit E-Way Bill transit numbers and transit barcodes for consignment values exceeding ₹50,000.
+- **Vector PDF Badging**: Renders the generated statutory IRN metadata, B2B QR code, and E-Way Bill barcode strips directly onto generated vector PDF tax invoices.
 
 ### 10. Automated Database Backups & Compaction
 - SuperAdmin endpoint to trigger on-demand and recurring compressed JSON backups (`.json.gz`) across all database collections.
