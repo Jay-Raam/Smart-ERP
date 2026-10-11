@@ -119,7 +119,7 @@ export const AevionSolutions: React.FC = () => {
 
         {/* Split Layout: Narrative & Metrics Grid vs Visual Showcase */}
         <div className="grid grid-cols-12 gap-8 lg:gap-16 items-start">
-          <div className="col-span-12 lg:col-span-6 flex flex-col justify-between">
+          <div className="col-span-12 lg:col-span-6 flex flex-col justify-between p-6 sm:p-8 rounded-3xl bg-white/85 dark:bg-zinc-900/85 backdrop-blur-md border border-slate-200/70 dark:border-zinc-800/70 shadow-sm">
             <div>
               <span className="text-xs font-semibold text-emerald-600 dark:text-emerald-400 uppercase tracking-wider mb-2 block">
                 Domain Architecture

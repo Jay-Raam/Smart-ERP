@@ -59,7 +59,7 @@ export const AevionTelemetryGrid: React.FC = () => {
         </div>
 
         {/* 3-Column Statistical Cards */}
-        <div className="grid grid-cols-1 md:grid-cols-3 border-y border-slate-200 dark:border-zinc-800 mt-8 divide-y md:divide-y-0 md:divide-x divide-slate-200 dark:divide-zinc-800">
+        <div className="grid grid-cols-1 md:grid-cols-3 border-y border-slate-200 dark:border-zinc-800 mt-8 divide-y md:divide-y-0 md:divide-x divide-slate-200 dark:divide-zinc-800 bg-white/75 dark:bg-zinc-900/75 backdrop-blur-md rounded-2xl overflow-hidden shadow-xs">
           {/* Metric 1 */}
           <div className="p-8 flex flex-col justify-between">
             <div className="text-xs font-medium uppercase tracking-wider text-slate-400 dark:text-zinc-500 mb-6">

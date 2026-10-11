@@ -100,7 +100,7 @@ export const AevionReleases: React.FC = () => {
 
         <div className="grid grid-cols-12 gap-8 lg:gap-16 items-start">
           {/* Left Column: Heading */}
-          <div className="col-span-12 lg:col-span-5">
+          <div className="col-span-12 lg:col-span-5 p-6 sm:p-8 rounded-3xl bg-white/85 dark:bg-zinc-900/85 backdrop-blur-md border border-slate-200/70 dark:border-zinc-800/70 shadow-sm">
             <span className="text-xs font-semibold text-emerald-600 dark:text-emerald-400 uppercase tracking-wider mb-2 block">
               Continuous Progress
             </span>
@@ -111,7 +111,7 @@ export const AevionReleases: React.FC = () => {
               Our engineering releases ensure your business stays ahead of changing GST compliance, tax laws, and enterprise security requirements without unexpected disruptions.
             </p>
 
-            <div className="p-6 rounded-2xl border border-slate-200 dark:border-zinc-800 bg-white dark:bg-zinc-900/50 shadow-sm text-xs">
+            <div className="p-5 rounded-2xl border border-slate-200/80 dark:border-zinc-800 bg-slate-50/80 dark:bg-zinc-950/60 text-xs">
               <span className="text-slate-400 dark:text-zinc-500 block mb-1">Release Philosophy</span>
               <p className="text-slate-700 dark:text-zinc-300 leading-relaxed">
                 Zero breaking migrations. All ledger entries, journal vouchers, and historical invoices remain cryptographically preserved.

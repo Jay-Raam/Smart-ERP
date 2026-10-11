@@ -18,13 +18,13 @@ export const AevionIntro: React.FC = () => {
 
         {/* 2-Column Split: Mission Statement vs Value Narrative */}
         <div className="grid grid-cols-12 gap-8 lg:gap-16 items-start">
-          <div className="col-span-12 lg:col-span-7">
+          <div className="col-span-12 lg:col-span-7 p-6 sm:p-8 rounded-3xl bg-white/85 dark:bg-zinc-900/85 backdrop-blur-md border border-slate-200/70 dark:border-zinc-800/70 shadow-sm">
             <h2 className="text-2xl sm:text-4xl lg:text-5xl font-light tracking-tight text-slate-900 dark:text-white leading-[1.2]">
               Preventing accounting mistakes, tax non-compliance, and stock shortages before they impact your business.
             </h2>
           </div>
 
-          <div className="col-span-12 lg:col-span-5 flex flex-col space-y-5 pt-2 text-sm text-slate-600 dark:text-zinc-400 leading-relaxed">
+          <div className="col-span-12 lg:col-span-5 flex flex-col space-y-5 p-6 sm:p-8 rounded-3xl bg-white/85 dark:bg-zinc-900/85 backdrop-blur-md border border-slate-200/70 dark:border-zinc-800/70 shadow-sm text-sm text-slate-600 dark:text-zinc-400 leading-relaxed">
             <p>
               Traditional enterprise ERPs are burdened by outdated interfaces, slow database synchronization, and fragile tax logic that breaks when regulations evolve.
             </p>

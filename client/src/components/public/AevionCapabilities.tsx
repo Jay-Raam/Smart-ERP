@@ -109,7 +109,7 @@ export const AevionCapabilities: React.FC = () => {
             </div>
 
             {/* Active Capability Summary */}
-            <div className="space-y-3 pt-6 border-t border-slate-200 dark:border-zinc-800">
+            <div className="space-y-3 p-6 rounded-3xl bg-white/85 dark:bg-zinc-900/85 backdrop-blur-md border border-slate-200/70 dark:border-zinc-800/70 shadow-sm mt-4">
               <span className="inline-block px-2.5 py-0.5 rounded-full text-[10px] font-semibold bg-emerald-100 dark:bg-emerald-950/60 text-emerald-700 dark:text-emerald-400 uppercase">
                 {current.badge}
               </span>

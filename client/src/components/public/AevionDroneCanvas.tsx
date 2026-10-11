@@ -241,82 +241,101 @@ function DroneModel({ scrollProgress, mode = 'scroll' }: DroneModelProps) {
       targetRotY = Math.PI - 0.25;
       targetRotZ = -0.04;
       targetScale = 1.15 * scaleFactor;
-    } else if (p < 0.20) {
-      // Stage 0: Hero Section - Stand in one place in the screen center, responsive scale
+    } else if (p < 0.15) {
+      // Stage 0: Hero Section - Framed inside the circular radar reticle stage
       targetX = 0;
-      targetY = 0;
-      targetZ = 0;
+      targetY = 0.02;
+      targetZ = -0.1;
       targetRotX = -0.04;
       targetRotY = Math.PI;
       targetRotZ = 0;
-      targetScale = 1.75 * scaleFactor;
-    } else if (p < 0.26) {
-      // Smooth Transition from Hero towards Calculation Engine
-      const local = (p - 0.20) / 0.06;
-      targetX = 0;
-      targetY = THREE.MathUtils.lerp(0.0, isMobile ? 0.08 : 0.14, local);
-      targetZ = THREE.MathUtils.lerp(0.0, 0.15, local);
-      targetRotX = THREE.MathUtils.lerp(-0.04, -0.06, local);
-      targetRotY = Math.PI;
-      targetRotZ = 0;
-      targetScale = THREE.MathUtils.lerp(1.75 * scaleFactor, 1.60 * scaleFactor, local);
-    } else if (p < 0.42) {
-      // Stage 1: Calculation Engine / Telemetry Reticle Dome - Centered
-      targetX = 0;
-      targetY = isMobile ? 0.08 : 0.14;
-      targetZ = 0.15;
-      targetRotX = -0.06;
-      targetRotY = Math.PI;
-      targetRotZ = 0;
-      targetScale = 1.60 * scaleFactor;
-    } else if (p < 0.48) {
-      // Transition from Calculation Engine to Core Capabilities right side
-      const local = (p - 0.42) / 0.06;
+      targetScale = 1.65 * scaleFactor;
+    } else if (p < 0.22) {
+      // Transition from Hero to Philosophy (Move cleanly to the RIGHT lane away from headline text)
+      const local = (p - 0.15) / 0.07;
       targetX = THREE.MathUtils.lerp(0, rightAlignX, local);
-      targetY = THREE.MathUtils.lerp(isMobile ? 0.08 : 0.14, 0.0, local);
-      targetZ = THREE.MathUtils.lerp(0.15, 0.20, local);
-      targetRotX = THREE.MathUtils.lerp(-0.06, 0.08, local);
-      targetRotY = THREE.MathUtils.lerp(Math.PI, isMobile ? Math.PI : Math.PI - 0.35, local);
-      targetRotZ = THREE.MathUtils.lerp(0, isMobile ? 0 : -0.05, local);
-      targetScale = THREE.MathUtils.lerp(1.60 * scaleFactor, 1.15 * scaleFactor, local);
-    } else if (p < 0.70) {
-      // Stages 2 & 3: Core Capabilities & Enterprise Operational Domains - Aligned to right on desktop, centered on mobile
+      targetY = THREE.MathUtils.lerp(0.02, -0.04, local);
+      targetZ = THREE.MathUtils.lerp(-0.1, -0.2, local);
+      targetRotX = THREE.MathUtils.lerp(-0.04, 0.05, local);
+      targetRotY = THREE.MathUtils.lerp(Math.PI, isMobile ? Math.PI : Math.PI - 0.28, local);
+      targetRotZ = THREE.MathUtils.lerp(0, isMobile ? 0 : -0.04, local);
+      targetScale = THREE.MathUtils.lerp(1.65 * scaleFactor, 1.15 * scaleFactor, local);
+    } else if (p < 0.36) {
+      // Stage 1: Philosophy & Mission - Stably positioned on the right visual column, leaving left 7 columns 100% unobstructed
       targetX = rightAlignX;
-      targetY = 0.0;
-      targetZ = 0.20;
-      targetRotX = 0.08;
-      targetRotY = isMobile ? Math.PI : Math.PI - 0.32;
+      targetY = -0.04;
+      targetZ = -0.2;
+      targetRotX = 0.05;
+      targetRotY = isMobile ? Math.PI : Math.PI - 0.28;
       targetRotZ = isMobile ? 0 : -0.04;
       targetScale = 1.15 * scaleFactor;
-    } else if (p < 0.78) {
-      // Transition from Operational Domains back to CENTER for Continuous Progress
-      const local = (p - 0.70) / 0.08;
+    } else if (p < 0.44) {
+      // Transition towards Telemetry Benchmark Arch
+      const local = (p - 0.36) / 0.08;
       targetX = THREE.MathUtils.lerp(rightAlignX, 0, local);
-      targetY = THREE.MathUtils.lerp(0.0, 0.05, local);
-      targetZ = THREE.MathUtils.lerp(0.20, 0.0, local);
-      targetRotX = THREE.MathUtils.lerp(0.08, -0.06, local);
-      targetRotY = THREE.MathUtils.lerp(isMobile ? Math.PI : Math.PI - 0.32, Math.PI, local);
+      targetY = THREE.MathUtils.lerp(-0.04, isMobile ? 0.06 : 0.12, local);
+      targetZ = THREE.MathUtils.lerp(-0.2, -0.1, local);
+      targetRotX = THREE.MathUtils.lerp(0.05, -0.06, local);
+      targetRotY = THREE.MathUtils.lerp(isMobile ? Math.PI : Math.PI - 0.28, Math.PI, local);
       targetRotZ = THREE.MathUtils.lerp(isMobile ? 0 : -0.04, 0, local);
       targetScale = THREE.MathUtils.lerp(1.15 * scaleFactor, 1.35 * scaleFactor, local);
-    } else if (p < 0.94) {
-      // Stage 4: Continuous Progress / Product Releases - Centered
+    } else if (p < 0.54) {
+      // Stage 2: Telemetry Benchmarks - Framed neatly in the upper dome aperture
       targetX = 0;
-      targetY = 0.05;
-      targetZ = 0.0;
+      targetY = isMobile ? 0.06 : 0.12;
+      targetZ = -0.1;
       targetRotX = -0.06;
       targetRotY = Math.PI;
       targetRotZ = 0;
       targetScale = 1.35 * scaleFactor;
+    } else if (p < 0.60) {
+      // Transition from Telemetry to Core Capabilities Right Showcase
+      const local = (p - 0.54) / 0.06;
+      targetX = THREE.MathUtils.lerp(0, rightAlignX, local);
+      targetY = THREE.MathUtils.lerp(isMobile ? 0.06 : 0.12, 0.0, local);
+      targetZ = THREE.MathUtils.lerp(-0.1, -0.15, local);
+      targetRotX = THREE.MathUtils.lerp(-0.06, 0.08, local);
+      targetRotY = THREE.MathUtils.lerp(Math.PI, isMobile ? Math.PI : Math.PI - 0.35, local);
+      targetRotZ = THREE.MathUtils.lerp(0, isMobile ? 0 : -0.05, local);
+      targetScale = THREE.MathUtils.lerp(1.35 * scaleFactor, 1.10 * scaleFactor, local);
+    } else if (p < 0.78) {
+      // Stages 3 & 4: Core Capabilities & Operational Domains - Dedicated right visual bay
+      targetX = rightAlignX;
+      targetY = 0.0;
+      targetZ = -0.15;
+      targetRotX = 0.08;
+      targetRotY = isMobile ? Math.PI : Math.PI - 0.32;
+      targetRotZ = isMobile ? 0 : -0.04;
+      targetScale = 1.10 * scaleFactor;
+    } else if (p < 0.86) {
+      // Transition towards Changelog Releases (Smooth Centered Hover)
+      const local = (p - 0.78) / 0.08;
+      targetX = THREE.MathUtils.lerp(rightAlignX, 0, local);
+      targetY = THREE.MathUtils.lerp(0.0, 0.04, local);
+      targetZ = THREE.MathUtils.lerp(-0.15, -0.25, local);
+      targetRotX = THREE.MathUtils.lerp(0.08, -0.06, local);
+      targetRotY = THREE.MathUtils.lerp(isMobile ? Math.PI : Math.PI - 0.32, Math.PI, local);
+      targetRotZ = THREE.MathUtils.lerp(isMobile ? 0 : -0.04, 0, local);
+      targetScale = THREE.MathUtils.lerp(1.10 * scaleFactor, 1.25 * scaleFactor, local);
+    } else if (p < 0.94) {
+      // Stage 5: Product Releases & Evolution
+      targetX = 0;
+      targetY = 0.04;
+      targetZ = -0.25;
+      targetRotX = -0.06;
+      targetRotY = Math.PI;
+      targetRotZ = 0;
+      targetScale = 1.25 * scaleFactor;
     } else {
-      // Stage 5: Approaching Footer - Calm centered descent
+      // Stage 6: Approaching Footer - Gentle descent into negative space
       const local = (p - 0.94) / 0.06;
       targetX = 0;
-      targetY = THREE.MathUtils.lerp(0.05, -0.25, local);
-      targetZ = THREE.MathUtils.lerp(0.0, -0.2, local);
+      targetY = THREE.MathUtils.lerp(0.04, -0.28, local);
+      targetZ = THREE.MathUtils.lerp(-0.25, -0.35, local);
       targetRotX = THREE.MathUtils.lerp(-0.06, -0.15, local);
       targetRotY = Math.PI;
       targetRotZ = 0;
-      targetScale = THREE.MathUtils.lerp(1.35 * scaleFactor, 0.95 * scaleFactor, local);
+      targetScale = THREE.MathUtils.lerp(1.25 * scaleFactor, 0.90 * scaleFactor, local);
     }
 
     // Aerodynamic flight sway (hover turbulences)

@@ -74,7 +74,7 @@ export const AevionHero: React.FC<AevionHeroProps> = ({
 
       {/* Bottom Display Headline & Action Buttons */}
       <div className="relative z-10 grid grid-cols-12 gap-6 items-end pt-6 border-t border-slate-200/80 dark:border-zinc-800/80">
-        <div className="col-span-12 md:col-span-8">
+        <div className="col-span-12 md:col-span-8 p-4 sm:p-6 rounded-3xl bg-white/60 dark:bg-zinc-950/60 backdrop-blur-md border border-slate-200/40 dark:border-zinc-800/40">
           <h1 className="text-3xl sm:text-5xl lg:text-6xl font-light tracking-tight text-slate-900 dark:text-white leading-[1.1]">
             Intelligent business management. <br />
             <span className="font-semibold text-emerald-600 dark:text-emerald-400">
