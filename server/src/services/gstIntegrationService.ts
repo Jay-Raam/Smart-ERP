@@ -1,4 +1,5 @@
 import crypto from 'crypto';
+import axios from 'axios';
 import { IInvoice } from '../models/ErpModels';
 
 export interface EInvoicePayload {
@@ -11,11 +12,88 @@ export interface EInvoicePayload {
   status: 'GENERATED';
 }
 
+export interface GstEInvoiceProvider {
+  submit(invoice: IInvoice, supplierGstin: string): Promise<EInvoicePayload>;
+}
+
+class SimulatedGstProvider implements GstEInvoiceProvider {
+  async submit(invoice: IInvoice, supplierGstin: string): Promise<EInvoicePayload> {
+    return GstIntegrationService.processEInvoice(invoice, supplierGstin);
+  }
+}
+
+class HttpGstProvider implements GstEInvoiceProvider {
+  constructor(
+    private readonly endpoint: string,
+    private readonly apiKey: string,
+  ) {}
+
+  async submit(invoice: IInvoice, supplierGstin: string): Promise<EInvoicePayload> {
+    const response = await axios.post(
+      this.endpoint,
+      { invoice: invoice.toObject(), supplierGstin },
+      {
+        headers: {
+          Authorization: `Bearer ${this.apiKey}`,
+          'Content-Type': 'application/json',
+        },
+        timeout: 15_000,
+      },
+    );
+
+    const payload = response.data?.data || response.data;
+    if (
+      !payload ||
+      typeof payload.irn !== 'string' ||
+      typeof payload.ackNo !== 'string' ||
+      typeof payload.ackDate !== 'string' ||
+      typeof payload.signedQrCode !== 'string'
+    ) {
+      throw new Error('GST provider returned an invalid e-invoice response.');
+    }
+
+    return {
+      irn: payload.irn,
+      ackNo: payload.ackNo,
+      ackDate: payload.ackDate,
+      signedQrCode: payload.signedQrCode,
+      ewayBillNumber: payload.ewayBillNumber,
+      ewayBillDate: payload.ewayBillDate,
+      status: 'GENERATED',
+    };
+  }
+}
+
 /**
  * Standard Indian GST E-Invoicing Engine (NIC INV-01 Compliant)
  * Generates 100% free statutory IRN, Acknowledgement, QR Code Payload, and E-Way Bill.
  */
 export class GstIntegrationService {
+  public static getProvider(): GstEInvoiceProvider {
+    const provider = (process.env.GST_EINVOICE_PROVIDER || 'simulation').trim().toLowerCase();
+    if (provider === 'simulation') {
+      if (process.env.NODE_ENV === 'production') {
+        throw new Error('GST simulation is disabled in production. Configure GST_EINVOICE_PROVIDER=http.');
+      }
+      return new SimulatedGstProvider();
+    }
+
+    if (provider !== 'http') {
+      throw new Error(`Unsupported GST_EINVOICE_PROVIDER "${provider}". Use "http" or "simulation".`);
+    }
+
+    const endpoint = process.env.GST_EINVOICE_PROVIDER_URL?.trim();
+    const apiKey = process.env.GST_EINVOICE_PROVIDER_API_KEY?.trim();
+    if (!endpoint || !apiKey) {
+      throw new Error('GST provider URL and API key must be configured before live e-invoicing is enabled.');
+    }
+    return new HttpGstProvider(endpoint, apiKey);
+  }
+
+  public static async submitEInvoice(invoice: IInvoice, supplierGstin: string): Promise<EInvoicePayload> {
+    return GstIntegrationService.getProvider().submit(invoice, supplierGstin);
+  }
+
   /**
    * Generates a 64-character statutory SHA-256 IRN according to GST Rules
    * Formula: SHA-256(SupplierGSTIN + FinancialYear + DocType + DocNo)
