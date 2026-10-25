@@ -1,4 +1,5 @@
 import { Router, Request, Response } from 'express';
+import { getDemoRoleHeader } from '../security/auth';
 import { escapeRegex } from '../utils/regex';
 import mongoose from 'mongoose';
 import {
@@ -14,7 +15,7 @@ export const bankingRouter = Router();
  * Helper to extract user info
  */
 function getUserContext(req: Request) {
-  const role = req.user?.role || (req.headers['x-demo-role'] as string) || 'Admin';
+  const role = req.user?.role || getDemoRoleHeader(req) || (process.env.NODE_ENV === 'production' ? '' : 'Admin');
   const userId = req.user?.userId || '00000000-0000-0000-0000-000000000001';
   const email = req.user?.email || 'admin@smarterp.com';
   const name = (req.user as any)?.name || 'Admin User';
