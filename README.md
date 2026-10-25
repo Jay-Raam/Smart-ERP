@@ -136,6 +136,7 @@ The user interface keeps search terms, filters, sorting, and pagination synced w
 - **Simulated IRN & B2B QR Code Payload**: Generates deterministic 64-character SHA-256 Invoice Reference Numbers (IRN) computed via `Supplier GSTIN + Doc Type + Doc Number + Financial Year`, alongside 15-digit Acknowledgement Numbers and signed B2B QR code payload structures. This enables full e-invoicing workflow testing without requiring paid third-party GSP/ASP aggregator subscriptions (ClearTax, Karza, Masters India) for staging environments.
 - **E-Way Bill Generation**: Automatically computes statutory 12-digit E-Way Bill transit numbers and transit barcodes for consignment values exceeding ₹50,000.
 - **Vector PDF Badging**: Renders the generated statutory IRN metadata, B2B QR code, and E-Way Bill barcode strips directly onto generated vector PDF tax invoices.
+- **Provider-Neutral Live Adapter**: Production rejects the simulator and requires a configured HTTP GSP/ASP adapter through `GST_EINVOICE_PROVIDER_URL` and `GST_EINVOICE_PROVIDER_API_KEY`. The provider response is validated before statutory identifiers are stored.
 
 ### 11. Automated Database Backups & Compaction
 - SuperAdmin endpoint to trigger on-demand and recurring compressed JSON backups (`.json.gz`) across all database collections.

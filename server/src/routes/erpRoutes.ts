@@ -1877,7 +1877,7 @@ erpRouter.post('/invoices/:id/generate-irn', requirePermission('invoices', 'edit
       supplierGstin = anyOrg?.gstin || '33AAACS0123M1Z2';
     }
 
-    const einvData = await GstIntegrationService.processEInvoice(invoice, supplierGstin);
+    const einvData = await GstIntegrationService.submitEInvoice(invoice, supplierGstin);
 
     // 2. Ensure generated IRN does not conflict with any other invoice
     const duplicateInvoice = await Invoice.findOne({ irn: einvData.irn, _id: { $ne: invoice._id } });
