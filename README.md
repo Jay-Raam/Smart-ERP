@@ -327,6 +327,10 @@ Core Mongoose models defined in `server/src/models/ErpModels.ts`:
 - `POST /api/erp/production/work-orders/:id/consume-materials` — Deducts required materials from store stock.
 - `POST /api/erp/production/work-orders/:id/receive-output` — Receives finished goods into store stock.
 
+### Cash & Credit Insights
+- `GET /api/erp/finance/aging` — Returns customer receivables and vendor payables grouped into current, 1–30, 31–60, 61–90, and over-90-day buckets.
+- `GET /api/erp/finance/cash-flow` — Projects due-date inflows, outflows, net flow, and closing cash for the next 30–365 days.
+
 ### Payments & Banking Ledger
 - `POST /api/erp/payments` — Records customer or vendor payment and creates immutable ledger transaction.
 - `GET /api/erp/transactions` — Queries financial ledger with type, bank, date range, and search filters.

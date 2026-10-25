@@ -19,6 +19,7 @@ import {
   ArrowLeftRight,
   Layers,
   Factory,
+  CircleDollarSign,
 } from 'lucide-react';
 import { useErpStore } from '../../store/erpStore';
 import { useAuthStore } from '../../store/authStore';
@@ -32,6 +33,7 @@ export type ModuleType =
   | 'store'
   | 'products'
   | 'production'
+  | 'finance-insights'
   | 'delivery'
   | 'organisations'
   | 'branches'
@@ -177,6 +179,12 @@ export const Sidebar: React.FC<SidebarProps> = ({
         id: 'transactions' as ModuleType,
         label: 'Transaction',
         icon: ArrowLeftRight,
+        badge: null,
+      },
+      {
+        id: 'finance-insights' as ModuleType,
+        label: 'Cash & Credit Insights',
+        icon: CircleDollarSign,
         badge: null,
       },
       {

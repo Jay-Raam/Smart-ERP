@@ -40,6 +40,7 @@ const BankModule = React.lazy(() => import('./components/modules/banking/BankMod
 const TransactionModule = React.lazy(() => import('./components/modules/banking/TransactionModule').then((m) => ({ default: m.TransactionModule })));
 const UsersModule = React.lazy(() => import('./components/modules/admin/UsersModule').then((m) => ({ default: m.UsersModule })));
 const ProductionModule = React.lazy(() => import('./components/modules/ProductionModule').then((m) => ({ default: m.ProductionModule })));
+const FinanceInsightsModule = React.lazy(() => import('./components/modules/FinanceInsightsModule').then((m) => ({ default: m.FinanceInsightsModule })));
 
 const ModuleLoadingSkeleton: React.FC = () => (
   <div className="space-y-6 animate-pulse p-2">
@@ -83,6 +84,7 @@ export function App() {
       if (p === '/transactions') return 'transactions';
       if (p === '/users') return 'users';
       if (p === '/production') return 'production';
+      if (p === '/finance-insights') return 'finance-insights';
       if (p === '/organisations') return 'organisations';
       if (p === '/branches') return 'branches';
     }
@@ -139,6 +141,7 @@ export function App() {
       else if (path === '/transactions') setActiveModule('transactions');
       else if (path === '/users') setActiveModule('users');
       else if (path === '/production') setActiveModule('production');
+      else if (path === '/finance-insights') setActiveModule('finance-insights');
       else if (path === '/organisations') setActiveModule('organisations');
       else if (path === '/branches') setActiveModule('branches');
     };
@@ -418,6 +421,7 @@ export function App() {
                   {activeModule === 'reports' && <ReportsModule />}
                   {activeModule === 'users' && <UsersModule />}
                   {activeModule === 'production' && <ProductionModule />}
+                  {activeModule === 'finance-insights' && <FinanceInsightsModule />}
                 </>
               )}
             </React.Suspense>
