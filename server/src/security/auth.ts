@@ -50,6 +50,11 @@ export function verifyRefreshToken(token: string): { userId: string; tenantId: s
   }
 }
 
+export function getDemoRoleHeader(req: Request): string | undefined {
+  if (process.env.NODE_ENV === 'production') return undefined;
+  return req.headers['x-demo-role'] as string | undefined;
+}
+
 export function authMiddleware(req: Request, res: Response, next: NextFunction) {
   const authHeader = req.headers.authorization;
   if (authHeader && authHeader.startsWith('Bearer ')) {
@@ -60,9 +65,9 @@ export function authMiddleware(req: Request, res: Response, next: NextFunction) 
     }
   }
 
-  // Default demo user context if none is supplied so users can test immediately
-  if (!req.user && req.tenant) {
-    const roleHeader = (req.headers['x-demo-role'] as string) || 'owner';
+  // Default demo user context is for non-production use only
+  if (!req.user && req.tenant && process.env.NODE_ENV !== 'production') {
+    const roleHeader = getDemoRoleHeader(req) || 'owner';
     req.user = {
       userId: '00000000-0000-0000-0000-000000000001',
       email: 'alex.mercer@saascore.io',

@@ -11,11 +11,12 @@ import {
   AuditHistory,
 } from '../models/ErpModels';
 import { logAuditAction } from '../utils/auditLogger';
+import { getDemoRoleHeader } from '../security/auth';
 
 export const paymentRouter = Router();
 
 function getUserContext(req: Request) {
-  const role = req.user?.role || (req.headers['x-demo-role'] as string) || 'Admin';
+  const role = req.user?.role || getDemoRoleHeader(req) || (process.env.NODE_ENV === 'production' ? '' : 'Admin');
   const userId = req.user?.userId || '00000000-0000-0000-0000-000000000001';
   const email = req.user?.email || 'admin@smarterp.com';
   const name = (req.user as any)?.name || 'Admin User';

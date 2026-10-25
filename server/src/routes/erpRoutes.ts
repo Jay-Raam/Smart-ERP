@@ -24,7 +24,7 @@ import {
   ScrapRecord,
   LoginLockout,
 } from '../models/ErpModels';
-import { generateTokens, verifyAccessToken } from '../security/auth';
+import { generateTokens, verifyAccessToken, getDemoRoleHeader } from '../security/auth';
 import { requirePermission, requireSuperAdmin } from '../middleware/rbacMiddleware';
 import { GstIntegrationService } from '../services/gstIntegrationService';
 import { BackupService } from '../services/backupService';
@@ -2229,7 +2229,7 @@ erpRouter.put('/purchase-orders/:id', requirePermission('purchase', 'edit'), asy
  */
 erpRouter.post('/purchase-orders/:id/approve-reorder', requirePermission('purchase', 'approve'), async (req: Request, res: Response) => {
   try {
-    const userRole = (req.user?.role || (req.headers['x-demo-role'] as string) || '').toLowerCase();
+    const userRole = (req.user?.role || getDemoRoleHeader(req) || '').toLowerCase();
     if (!userRole.includes('superadmin') && !userRole.includes('owner')) {
       return res.status(403).json({ error: 'Only Super Admin can approve automatic reorder Purchase Orders.' });
     }
