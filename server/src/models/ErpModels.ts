@@ -1381,6 +1381,42 @@ const LoginLockoutSchema = new Schema<ILoginLockout>(
 
 LoginLockoutSchema.index({ lockedUntil: 1 });
 
+export interface ICollectionActivity extends Document {
+  documentType: 'INVOICE' | 'BILL';
+  documentId: string;
+  documentNumber: string;
+  partyName: string;
+  actionType: 'CALL' | 'EMAIL' | 'MESSAGE' | 'PROMISE_TO_PAY' | 'NOTE';
+  notes: string;
+  nextFollowUpDate?: string;
+  status: 'OPEN' | 'COMPLETED';
+  organisationId: string;
+  branchId: string;
+  financialYear: string;
+  createdBy: string;
+}
+
+const CollectionActivitySchema = new Schema<ICollectionActivity>(
+  {
+    documentType: { type: String, enum: ['INVOICE', 'BILL'], required: true },
+    documentId: { type: String, required: true },
+    documentNumber: { type: String, required: true },
+    partyName: { type: String, required: true },
+    actionType: { type: String, enum: ['CALL', 'EMAIL', 'MESSAGE', 'PROMISE_TO_PAY', 'NOTE'], required: true },
+    notes: { type: String, required: true, trim: true },
+    nextFollowUpDate: { type: String, default: '' },
+    status: { type: String, enum: ['OPEN', 'COMPLETED'], default: 'OPEN' },
+    organisationId: { type: String, default: '' },
+    branchId: { type: String, default: '' },
+    financialYear: { type: String, default: '2026-2027' },
+    createdBy: { type: String, default: '' },
+  },
+  { timestamps: true }
+);
+
+CollectionActivitySchema.index({ organisationId: 1, branchId: 1, status: 1, nextFollowUpDate: 1 });
+CollectionActivitySchema.index({ documentId: 1, createdAt: -1 });
+
 // Export Models
 export const Organisation = mongoose.model<IOrganisation>('Organisation', OrganisationSchema);
 export const Branch = mongoose.model<IBranch>('Branch', BranchSchema);
@@ -1402,3 +1438,4 @@ export const ItemCategory = mongoose.model<IItemCategory>('ItemCategory', ItemCa
 export const GstRateMaster = mongoose.model<IGstRateMaster>('GstRateMaster', GstRateMasterSchema);
 export const ScrapRecord = mongoose.model<IScrapRecord>('ScrapRecord', ScrapRecordSchema);
 export const LoginLockout = mongoose.model<ILoginLockout>('LoginLockout', LoginLockoutSchema);
+export const CollectionActivity = mongoose.model<ICollectionActivity>('CollectionActivity', CollectionActivitySchema);
