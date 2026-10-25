@@ -2,8 +2,20 @@ import { Router, Request, Response } from 'express';
 import { Bill, BankAccount, CollectionActivity, Invoice } from '../models/ErpModels';
 import { requirePermission } from '../middleware/rbacMiddleware';
 import { ReconciliationService } from '../services/reconciliationService';
+import { ReminderService } from '../services/reminderService';
 
 export const financeRouter = Router();
+
+financeRouter.get('/finance/reminders', requirePermission('reports', 'view'), async (req: Request, res: Response) => {
+  try {
+    const { organisationId, branchId } = req.query as Record<string, string>;
+    const minOverdueDays = Math.max(0, Math.min(365, Number(req.query.minOverdueDays) || 0));
+    const summary = await ReminderService.getOverdueReminders(organisationId, branchId, minOverdueDays);
+    return res.json(summary);
+  } catch (err: any) {
+    return res.status(500).json({ error: err.message });
+  }
+});
 
 financeRouter.get('/finance/reconciliation', requirePermission('reports', 'view'), async (req: Request, res: Response) => {
   try {

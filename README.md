@@ -348,6 +348,10 @@ Core Mongoose models defined in `server/src/models/ErpModels.ts`:
 - `GET /api/erp/finance/reconciliation` — Compares scoped vendor bills with purchase orders and inward stock, reporting price, quantity, and linkage discrepancies.
 - The Reconciliation workspace is available at `/reconciliation` for finance users with Reports `view` permission.
 
+### Payment Reminder Center
+- `GET /api/erp/finance/reminders` — Generates scoped overdue-invoice reminder links with an optional minimum overdue-day filter.
+- The Payment Reminder Center is available at `/reminders` and opens email or WhatsApp-ready customer reminders without silently sending messages.
+
 ### Payments & Banking Ledger
 - `POST /api/erp/payments` — Records customer or vendor payment and creates immutable ledger transaction.
 - `GET /api/erp/transactions` — Queries financial ledger with type, bank, date range, and search filters.
