@@ -3,6 +3,7 @@ import crypto from 'crypto';
 import axios from 'axios';
 import { redisConnection, redisClient } from '../config/database';
 import { recordAudit } from '../models/AuditLog';
+import { assertSafeOutboundUrl } from '../utils/urlSafety';
 
 export interface WebhookJobData {
   targetUrl: string;
@@ -57,7 +58,9 @@ export async function processWebhookJob(data: WebhookJobData) {
     .digest('hex');
 
   try {
+    await assertSafeOutboundUrl(targetUrl);
     const response = await axios.post(targetUrl, payload, {
+      maxRedirects: 0,
       headers: {
         'Content-Type': 'application/json',
         'X-SaaS-Signature': `t=${timestamp},v1=${signature}`,
