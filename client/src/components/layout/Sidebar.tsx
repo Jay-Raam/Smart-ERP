@@ -20,6 +20,7 @@ import {
   Layers,
   Factory,
   CircleDollarSign,
+  Send,
 } from 'lucide-react';
 import { useErpStore } from '../../store/erpStore';
 import { useAuthStore } from '../../store/authStore';
@@ -36,6 +37,7 @@ export type ModuleType =
   | 'finance-insights'
   | 'approvals'
   | 'reconciliation'
+  | 'reminders'
   | 'delivery'
   | 'organisations'
   | 'branches'
@@ -142,6 +144,7 @@ export const Sidebar: React.FC<SidebarProps> = ({
         { id: 'production' as ModuleType, label: 'Production Planning', icon: Factory, badge: null },
         { id: 'approvals' as ModuleType, label: 'Approval Center', icon: ShieldCheck, badge: null },
         { id: 'reconciliation' as ModuleType, label: 'Three-way Reconciliation', icon: FileCheck, badge: null },
+        { id: 'reminders' as ModuleType, label: 'Payment Reminders', icon: Send, badge: null },
       ],
     },
     {
@@ -219,6 +222,9 @@ export const Sidebar: React.FC<SidebarProps> = ({
           return Boolean(userPerms.products?.approve === true || userPerms.purchase?.approve === true);
         }
         if (item.id === 'reconciliation') {
+          return Boolean(userPerms.reports?.view === true);
+        }
+        if (item.id === 'reminders') {
           return Boolean(userPerms.reports?.view === true);
         }
         const modPerm = userPerms[item.id];

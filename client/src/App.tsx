@@ -43,6 +43,7 @@ const ProductionModule = React.lazy(() => import('./components/modules/Productio
 const FinanceInsightsModule = React.lazy(() => import('./components/modules/FinanceInsightsModule').then((m) => ({ default: m.FinanceInsightsModule })));
 const ApprovalCenterModule = React.lazy(() => import('./components/modules/ApprovalCenterModule').then((m) => ({ default: m.ApprovalCenterModule })));
 const ReconciliationModule = React.lazy(() => import('./components/modules/ReconciliationModule').then((m) => ({ default: m.ReconciliationModule })));
+const ReminderCenterModule = React.lazy(() => import('./components/modules/ReminderCenterModule').then((m) => ({ default: m.ReminderCenterModule })));
 
 const ModuleLoadingSkeleton: React.FC = () => (
   <div className="space-y-6 animate-pulse p-2">
@@ -89,6 +90,7 @@ export function App() {
       if (p === '/finance-insights') return 'finance-insights';
       if (p === '/approvals') return 'approvals';
       if (p === '/reconciliation') return 'reconciliation';
+      if (p === '/reminders') return 'reminders';
       if (p === '/organisations') return 'organisations';
       if (p === '/branches') return 'branches';
     }
@@ -148,6 +150,7 @@ export function App() {
       else if (path === '/finance-insights') setActiveModule('finance-insights');
       else if (path === '/approvals') setActiveModule('approvals');
       else if (path === '/reconciliation') setActiveModule('reconciliation');
+      else if (path === '/reminders') setActiveModule('reminders');
       else if (path === '/organisations') setActiveModule('organisations');
       else if (path === '/branches') setActiveModule('branches');
     };
@@ -430,6 +433,7 @@ export function App() {
                   {activeModule === 'finance-insights' && <FinanceInsightsModule />}
                   {activeModule === 'approvals' && <ApprovalCenterModule />}
                   {activeModule === 'reconciliation' && <ReconciliationModule />}
+                  {activeModule === 'reminders' && <ReminderCenterModule />}
                 </>
               )}
             </React.Suspense>
