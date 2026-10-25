@@ -335,6 +335,10 @@ Core Mongoose models defined in `server/src/models/ErpModels.ts`:
 - `GET /api/erp/store/scan/:barcode` — Finds scoped inventory by SKU or batch barcode for USB-scanner workflows.
 - The Store module supports scanning a SKU or batch code to locate the warehouse, bin, batch, expiry, and available quantity before opening stock lineage.
 
+### Approval Center
+- The Approval Center consolidates pending product master requests and automated reorder purchase orders.
+- Existing module-level `approve` permissions remain enforced for each action, while approvers can review and act from `/approvals`.
+
 ### Payments & Banking Ledger
 - `POST /api/erp/payments` — Records customer or vendor payment and creates immutable ledger transaction.
 - `GET /api/erp/transactions` — Queries financial ledger with type, bank, date range, and search filters.
