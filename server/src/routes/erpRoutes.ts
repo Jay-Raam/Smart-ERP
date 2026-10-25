@@ -62,11 +62,10 @@ erpRouter.use(userRouter);
 // ==========================================
 erpRouter.post('/auth/login', async (req: Request, res: Response) => {
   const clientIp = extractClientIp(req);
-  let clean = '';
 
   try {
     const { identifier, password } = req.body;
-    clean = normalizeIdentifier(identifier);
+    const clean = normalizeIdentifier(identifier);
 
     if (!clean || !password) {
       return res.status(400).json({ error: GENERIC_AUTH_ERROR });
@@ -835,7 +834,7 @@ const DEFAULT_GST_RATES = [
  */
 erpRouter.get('/item-categories', async (req: Request, res: Response) => {
   try {
-    let count = await ItemCategory.countDocuments({});
+    const count = await ItemCategory.countDocuments({});
     if (count === 0) {
       await ItemCategory.insertMany(
         DEFAULT_CATEGORIES.map((c) => ({
@@ -926,7 +925,7 @@ erpRouter.post('/item-categories', async (req: Request, res: Response) => {
  */
 erpRouter.get('/tax-rates', async (req: Request, res: Response) => {
   try {
-    let count = await GstRateMaster.countDocuments({});
+    const count = await GstRateMaster.countDocuments({});
     if (count === 0) {
       await GstRateMaster.insertMany(DEFAULT_GST_RATES.map((r) => ({ ...r, isActive: true })));
     }
