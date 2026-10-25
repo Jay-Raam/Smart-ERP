@@ -344,6 +344,10 @@ Core Mongoose models defined in `server/src/models/ErpModels.ts`:
 - `POST /api/erp/finance/collection-activities` — Records calls, messages, promises to pay, and next follow-up dates against outstanding invoices.
 - Cash & Credit Insights includes an overdue invoice follow-up workspace protected by the Reports `edit` permission.
 
+### Three-way Reconciliation
+- `GET /api/erp/finance/reconciliation` — Compares scoped vendor bills with purchase orders and inward stock, reporting price, quantity, and linkage discrepancies.
+- The Reconciliation workspace is available at `/reconciliation` for finance users with Reports `view` permission.
+
 ### Payments & Banking Ledger
 - `POST /api/erp/payments` — Records customer or vendor payment and creates immutable ledger transaction.
 - `GET /api/erp/transactions` — Queries financial ledger with type, bank, date range, and search filters.
