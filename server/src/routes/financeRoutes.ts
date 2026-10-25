@@ -1,8 +1,19 @@
 import { Router, Request, Response } from 'express';
 import { Bill, BankAccount, CollectionActivity, Invoice } from '../models/ErpModels';
 import { requirePermission } from '../middleware/rbacMiddleware';
+import { ReconciliationService } from '../services/reconciliationService';
 
 export const financeRouter = Router();
+
+financeRouter.get('/finance/reconciliation', requirePermission('reports', 'view'), async (req: Request, res: Response) => {
+  try {
+    const { organisationId, branchId } = req.query as Record<string, string>;
+    const summary = await ReconciliationService.performThreeWayMatch(organisationId, branchId);
+    return res.json(summary);
+  } catch (err: any) {
+    return res.status(500).json({ error: err.message });
+  }
+});
 
 const agingBuckets = [
   { key: 'current', label: 'Current', min: -Infinity, max: 0 },
