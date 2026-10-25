@@ -34,6 +34,7 @@ export type ModuleType =
   | 'products'
   | 'production'
   | 'finance-insights'
+  | 'approvals'
   | 'delivery'
   | 'organisations'
   | 'branches'
@@ -138,6 +139,7 @@ export const Sidebar: React.FC<SidebarProps> = ({
         },
         { id: 'products' as ModuleType, label: 'Products Master', icon: Package, badge: products.length },
         { id: 'production' as ModuleType, label: 'Production Planning', icon: Factory, badge: null },
+        { id: 'approvals' as ModuleType, label: 'Approval Center', icon: ShieldCheck, badge: null },
       ],
     },
     {
@@ -211,6 +213,9 @@ export const Sidebar: React.FC<SidebarProps> = ({
         if (isSuperAdmin) return true;
         const userPerms = (user as any)?.userPermissions || (user as any)?.permissions;
         if (!userPerms) return false;
+        if (item.id === 'approvals') {
+          return Boolean(userPerms.products?.approve === true || userPerms.purchase?.approve === true);
+        }
         const modPerm = userPerms[item.id];
         return Boolean(modPerm?.view === true);
       }),
