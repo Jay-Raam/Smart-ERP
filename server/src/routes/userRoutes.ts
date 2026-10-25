@@ -6,6 +6,32 @@ import { logAuditAction } from '../utils/auditLogger';
 
 export const userRouter = Router();
 
+function callerIsSuperAdmin(req: Request): boolean {
+  return !!req.user?.permissions?.includes('*');
+}
+
+function isSuperAdminValue(role?: unknown, userType?: unknown): boolean {
+  return role === 'SuperAdmin' || userType === 'SUPER_ADMIN';
+}
+
+/**
+ * Blocks write requests from view-only callers and stops non-SuperAdmins from granting SuperAdmin.
+ */
+function guardUserWrite(req: Request, res: Response, target?: { role?: string; userType?: string }): boolean {
+  if (!res.locals.callerCanWrite) {
+    res.status(403).json({ error: 'Access denied. You do not have permission to modify users.' });
+    return false;
+  }
+  if (callerIsSuperAdmin(req)) return true;
+  const grantsSuper = isSuperAdminValue(req.body?.role, req.body?.userType);
+  const targetIsSuper = target ? isSuperAdminValue(target.role, target.userType) : false;
+  if (grantsSuper || targetIsSuper) {
+    res.status(403).json({ error: 'Only a Super Admin can assign or modify Super Admin accounts.' });
+    return false;
+  }
+  return true;
+}
+
 /**
  * Middleware: Ensure caller is authenticated and is SuperAdmin or has users:* permission
  */
@@ -68,6 +94,8 @@ async function requireSuperAdminOrUserPerm(req: Request, res: Response, next: ()
       role: caller.role,
       permissions: isSuperAdmin ? ['*'] : [],
     };
+    res.locals.callerCanWrite =
+      isSuperAdmin || caller.role === 'Admin' || !!caller.permissions?.users?.add || !!caller.permissions?.users?.edit;
 
     next();
   } catch (err: any) {
@@ -152,6 +180,7 @@ userRouter.get('/users', requireSuperAdminOrUserPerm, async (req: Request, res: 
  */
 userRouter.post('/users', requireSuperAdminOrUserPerm, async (req: Request, res: Response) => {
   try {
+    if (!guardUserWrite(req, res)) return;
     const {
       name,
       email,
@@ -277,6 +306,7 @@ userRouter.patch('/users/:id', requireSuperAdminOrUserPerm, async (req: Request,
     if (!user) {
       return res.status(404).json({ error: 'User account not found.' });
     }
+    if (!guardUserWrite(req, res, user)) return;
 
     const {
       name,
@@ -378,6 +408,7 @@ userRouter.patch('/users/:id/status', requireSuperAdminOrUserPerm, async (req: R
     if (!user) {
       return res.status(404).json({ error: 'User account not found.' });
     }
+    if (!guardUserWrite(req, res, user)) return;
 
     // Safety checks: Cannot deactivate the primary Super Admin or own logged-in account
     if (['admin@smarterp.com', 'jay.raam@smart.com'].includes(user.email) && status === 'INACTIVE') {
