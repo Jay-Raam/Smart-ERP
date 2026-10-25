@@ -11,6 +11,7 @@ import {
   ScrapRecord,
 } from '../models/ErpModels';
 import { verifyAccessToken } from '../security/auth';
+import { escapeRegex } from '../utils/regex';
 
 export const reportsRouter = Router();
 
@@ -65,7 +66,8 @@ reportsRouter.use(requireSuperAdmin);
 // =========================================================================
 reportsRouter.get('/customer-balance', async (req: Request, res: Response) => {
   try {
-    const { organisationId, branchId, fromDate, toDate, status, search } = req.query as Record<string, string>;
+    const { organisationId, branchId, fromDate, toDate, status, search: rawSearch } = req.query as Record<string, string>;
+    const search = rawSearch ? escapeRegex(rawSearch) : rawSearch;
 
     const custQuery: any = {};
     if (organisationId) custQuery.organisationId = organisationId;
@@ -177,7 +179,8 @@ reportsRouter.get('/customer-balance', async (req: Request, res: Response) => {
 // =========================================================================
 reportsRouter.get('/vendor-balance', async (req: Request, res: Response) => {
   try {
-    const { organisationId, branchId, fromDate, toDate, status, search } = req.query as Record<string, string>;
+    const { organisationId, branchId, fromDate, toDate, status, search: rawSearch } = req.query as Record<string, string>;
+    const search = rawSearch ? escapeRegex(rawSearch) : rawSearch;
 
     const vendorQuery: any = {};
     if (organisationId) vendorQuery.organisationId = organisationId;
@@ -361,7 +364,8 @@ reportsRouter.get('/sales-tax-invoice', async (req: Request, res: Response) => {
 // =========================================================================
 reportsRouter.get('/products', async (req: Request, res: Response) => {
   try {
-    const { organisationId, category, approvalStatus, search } = req.query as Record<string, string>;
+    const { organisationId, category, approvalStatus, search: rawSearch } = req.query as Record<string, string>;
+    const search = rawSearch ? escapeRegex(rawSearch) : rawSearch;
 
     const query: any = {};
     if (organisationId) query.organisationId = organisationId;
@@ -791,7 +795,8 @@ reportsRouter.get('/balance-sheet', async (req: Request, res: Response) => {
 // =========================================================================
 reportsRouter.get('/scrap-wastage', async (req: Request, res: Response) => {
   try {
-    const { organisationId, branchId, fromDate, toDate, search, reason } = req.query as Record<string, string>;
+    const { organisationId, branchId, fromDate, toDate, search: rawSearch, reason } = req.query as Record<string, string>;
+    const search = rawSearch ? escapeRegex(rawSearch) : rawSearch;
 
     const query: any = {};
     if (organisationId) query.organisationId = organisationId;

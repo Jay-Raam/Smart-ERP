@@ -1,4 +1,5 @@
 import axios from 'axios';
+import { escapeRegex } from '../utils/regex';
 import mongoose from 'mongoose';
 import {
   Organisation,
@@ -818,7 +819,7 @@ export class AiAgentService {
     if (type === 'CREATE_INVOICE') {
       // 1. Resolve or create customer
       let customer = await Customer.findOne({
-        name: { $regex: new RegExp(`^${payload.customerName.trim()}$`, 'i') },
+        name: { $regex: new RegExp(`^${escapeRegex(payload.customerName.trim())}$`, 'i') },
       });
 
       if (!customer) {
@@ -919,7 +920,7 @@ export class AiAgentService {
     if (type === 'CREATE_PO') {
       // 1. Resolve or create vendor
       let vendor = await Vendor.findOne({
-        name: { $regex: new RegExp(`^${payload.vendorName.trim()}$`, 'i') },
+        name: { $regex: new RegExp(`^${escapeRegex(payload.vendorName.trim())}$`, 'i') },
       });
 
       if (!vendor) {

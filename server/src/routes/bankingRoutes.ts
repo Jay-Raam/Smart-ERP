@@ -1,4 +1,5 @@
 import { Router, Request, Response } from 'express';
+import { escapeRegex } from '../utils/regex';
 import mongoose from 'mongoose';
 import {
   BankAccount,
@@ -287,7 +288,7 @@ bankingRouter.get('/transactions', async (req: Request, res: Response) => {
 
     // Search query
     if (req.query.search) {
-      const s = String(req.query.search).trim();
+      const s = escapeRegex(String(req.query.search).trim());
       query.$or = [
         { transactionNumber: { $regex: s, $options: 'i' } },
         { partyName: { $regex: s, $options: 'i' } },
