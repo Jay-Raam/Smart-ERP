@@ -49,6 +49,7 @@ If you are evaluating this repository for technical depth, code hygiene, and arc
 | :--- | :--- | :--- |
 | **Statutory GST Engine** | [`packages/gst-engine`](packages/gst-engine) | Zero-dependency India GST package with HSN catalog, UTGST rules, and Section 170 round-off |
 | **GSTR-1 & GSTR-2B ITC Engine** | [`server/src/services/gstr1Service.ts`](server/src/services/gstr1Service.ts) | Automated GSTN portal JSON generator and GSTR-2B Input Tax Credit leak reconciliation |
+| **Bank Statement Reconciliation** | [`server/src/services/bankStatementService.ts`](server/src/services/bankStatementService.ts) | Multi-bank CSV / MT940 statement parser with fuzzy UTR matching and batch ledger settlement |
 | **3D Tenant Scoping** | [`server/src/middleware/tenantMiddleware.ts`](server/src/middleware/tenantMiddleware.ts) | Strict 3-dimensional multi-tenancy (`orgId`, `branchId`, `financialYearId`) isolation |
 | **Reconciliation Engine** | [`server/src/services/reconciliationService.ts`](server/src/services/reconciliationService.ts) | 2-Way & 3-Way matching algorithms reconciling POs, Goods Receipts, and Invoices |
 | **Autonomous AI Copilot** | [`server/src/services/aiAgentService.ts`](server/src/services/aiAgentService.ts) | Natural language ERP assistant executing verified transactional workflows |
@@ -107,6 +108,10 @@ The user interface keeps search terms, filters, sorting, and pagination synced w
   - Status indicators with color-coded status dots (`POSTED`, `REVERSED`).
   - Table pagination footer with record counter, configurable page sizes (`10`, `25`, `50`, `100 / page`), and previous/next page navigation.
 - Slide-over transaction drawer detailing party name, reference/UTR number, posting timestamp, and reversal action with mandatory reason logging.
+- **Automated Bank Statement Reconciliation (CSV & MT940)**:
+  - Ingests bank statements from Indian commercial banks (HDFC, ICICI, SBI, Axis) or SWIFT MT940 electronic statements.
+  - Multi-factor fuzzy matching engine (exact UTR, exact party name + amount, date tolerance) scores match confidence (75%–100%).
+  - 1-click batch settlement updating invoice/bill payment statuses and auto-posting offsetting double-entry ledger transactions (`POST /api/erp/banking/reconciliation/settle-batch`).
 
 ### 5. Procurement & Inventory Pipeline
 - **Purchase Order → Vendor Bill Conversion**: Tracks remaining open quantities per line item to prevent over-billing across split deliveries.

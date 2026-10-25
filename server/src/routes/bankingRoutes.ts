@@ -7,6 +7,8 @@ import {
   FinancialTransaction,
   AuditHistory,
 } from '../models/ErpModels';
+import { Invoice, Bill } from '../models/ErpModels';
+import { BankStatementService, BankStatementLine } from '../services/bankStatementService';
 import { logAuditAction } from '../utils/auditLogger';
 
 export const bankingRouter = Router();
@@ -460,6 +462,207 @@ bankingRouter.post('/transactions/:id/reverse', async (req: Request, res: Respon
     return res.json({
       message: 'Transaction successfully reversed with offsetting ledger entry.',
       data: { original: originalTx, reversal: reversalTx },
+    });
+  } catch (err: any) {
+    await session.abortTransaction();
+    session.endSession();
+    return res.status(500).json({ error: err.message });
+  }
+});
+
+
+// ==========================================
+// 4. AUTOMATED BANK STATEMENT RECONCILIATION
+// ==========================================
+
+/**
+ * POST /api/erp/banking/reconciliation/parse-statement
+ * Parses uploaded CSV or MT940 bank statement text
+ */
+bankingRouter.post('/banking/reconciliation/parse-statement', async (req: Request, res: Response) => {
+  try {
+    const { content, format = 'CSV' } = req.body;
+    if (!content || typeof content !== 'string') {
+      return res.status(400).json({ error: 'Statement content string is required.' });
+    }
+
+    let parsedLines: BankStatementLine[] = [];
+    if (format.toUpperCase() === 'MT940') {
+      parsedLines = BankStatementService.parseMt940Statement(content);
+    } else {
+      parsedLines = BankStatementService.parseCsvStatement(content);
+    }
+
+    return res.json({
+      message: 'success',
+      format: format.toUpperCase(),
+      count: parsedLines.length,
+      data: parsedLines
+    });
+  } catch (err: any) {
+    return res.status(500).json({ error: err.message });
+  }
+});
+
+/**
+ * POST /api/erp/banking/reconciliation/auto-match
+ * Executes multi-factor fuzzy matching between statement lines and open Invoices/Bills
+ */
+bankingRouter.post('/banking/reconciliation/auto-match', async (req: Request, res: Response) => {
+  try {
+    const { statementLines } = req.body;
+    if (!Array.isArray(statementLines) || statementLines.length === 0) {
+      return res.status(400).json({ error: 'statementLines array is required.' });
+    }
+
+    const orgId = (req.query.organisationId as string) || req.tenant?.id || '';
+    const branchId = req.headers['x-branch-id'] as string;
+
+    const query: any = { isDeleted: { $ne: true }, paymentStatus: { $ne: 'PAID' } };
+    if (orgId) query.organisationId = orgId;
+    if (branchId) query.branchId = branchId;
+
+    const [openInvoices, openBills] = await Promise.all([
+      Invoice.find(query).lean(),
+      Bill.find(query).lean()
+    ]);
+
+    const reconciliation = BankStatementService.reconcile(
+      statementLines,
+      openInvoices as any,
+      openBills as any
+    );
+
+    return res.json({
+      message: 'success',
+      data: reconciliation
+    });
+  } catch (err: any) {
+    return res.status(500).json({ error: err.message });
+  }
+});
+
+/**
+ * POST /api/erp/banking/reconciliation/settle-batch
+ * Batch clears recommended matches and generates double-entry FinancialTransaction records
+ */
+bankingRouter.post('/banking/reconciliation/settle-batch', async (req: Request, res: Response) => {
+  const session = await mongoose.startSession();
+  session.startTransaction();
+  try {
+    const user = getUserContext(req);
+    const { accountId, matches } = req.body;
+
+    if (!accountId || !Array.isArray(matches) || matches.length === 0) {
+      await session.abortTransaction();
+      session.endSession();
+      return res.status(400).json({ error: 'accountId and matches array are required.' });
+    }
+
+    const bank = await BankAccount.findById(accountId).session(session);
+    if (!bank) {
+      await session.abortTransaction();
+      session.endSession();
+      return res.status(404).json({ error: 'Bank account not found.' });
+    }
+
+    const settledRecords: any[] = [];
+
+    for (const match of matches) {
+      if (!match.isSettlementRecommended || !match.matchedEntityId) continue;
+
+      const amt = match.statementLine.amount;
+      const refNo = match.statementLine.referenceNumber || `RECON_${Date.now()}`;
+
+      if (match.matchedEntityType === 'INVOICE') {
+        const inv = await Invoice.findById(match.matchedEntityId).session(session);
+        if (inv) {
+          const currentPaid = inv.paidAmount || 0;
+          const newPaid = Math.min(inv.totalAmount, currentPaid + amt);
+          inv.paidAmount = newPaid;
+          inv.outstandingAmount = Math.max(0, inv.totalAmount - newPaid);
+          inv.paymentStatus = inv.outstandingAmount <= 0 ? 'PAID' : 'PARTIALLY_PAID';
+          await inv.save({ session });
+
+          // Create double-entry ledger entry (Customer Inflow)
+          const txNumber = `TX-REC-${Date.now()}-${Math.floor(Math.random() * 1000)}`;
+          const tx = new FinancialTransaction({
+            transactionNumber: txNumber,
+            date: match.statementLine.date,
+            type: 'CUSTOMER_PAYMENT',
+            accountId: bank._id,
+            accountName: bank.accountName,
+            partyType: 'CUSTOMER',
+            partyId: inv.customerId,
+            partyName: match.partyName || (inv as any).customerName,
+            debit: 0,
+            credit: amt,
+            runningBalance: bank.balance + amt,
+            referenceNumber: refNo,
+            paymentMode: 'NEFT',
+            notes: `Auto-reconciled from bank statement. ${match.matchReason}`,
+            status: 'POSTED',
+            organisationId: inv.organisationId,
+            branchId: inv.branchId,
+            financialYear: inv.financialYear,
+            createdBy: user.name,
+          });
+
+          await tx.save({ session });
+          bank.balance += amt;
+          settledRecords.push({ type: 'INVOICE', id: inv._id, number: inv.invoiceNumber, amount: amt });
+        }
+      } else if (match.matchedEntityType === 'BILL') {
+        const bill = await Bill.findById(match.matchedEntityId).session(session);
+        if (bill) {
+          const currentPaid = bill.paidAmount || 0;
+          const newPaid = Math.min(bill.totalAmount, currentPaid + amt);
+          bill.paidAmount = newPaid;
+          bill.outstandingAmount = Math.max(0, bill.totalAmount - newPaid);
+          bill.paymentStatus = bill.outstandingAmount <= 0 ? 'PAID' : 'PARTIALLY_PAID';
+          await bill.save({ session });
+
+          // Create double-entry ledger entry (Vendor Outflow)
+          const txNumber = `TX-REC-${Date.now()}-${Math.floor(Math.random() * 1000)}`;
+          const tx = new FinancialTransaction({
+            transactionNumber: txNumber,
+            date: match.statementLine.date,
+            type: 'VENDOR_PAYMENT',
+            accountId: bank._id,
+            accountName: bank.accountName,
+            partyType: 'VENDOR',
+            partyId: bill.vendorId,
+            partyName: match.partyName || (bill as any).vendorName,
+            debit: amt,
+            credit: 0,
+            runningBalance: bank.balance - amt,
+            referenceNumber: refNo,
+            paymentMode: 'NEFT',
+            notes: `Auto-reconciled from bank statement. ${match.matchReason}`,
+            status: 'POSTED',
+            organisationId: bill.organisationId,
+            branchId: bill.branchId,
+            financialYear: bill.financialYear,
+            createdBy: user.name,
+          });
+
+          await tx.save({ session });
+          bank.balance -= amt;
+          settledRecords.push({ type: 'BILL', id: bill._id, number: bill.billNumber, amount: amt });
+        }
+      }
+    }
+
+    bank.updatedBy = user.name;
+    await bank.save({ session });
+
+    await session.commitTransaction();
+    session.endSession();
+
+    return res.json({
+      message: 'Batch settlement executed successfully.',
+      settledCount: settledRecords.length,
+      data: settledRecords
     });
   } catch (err: any) {
     await session.abortTransaction();
