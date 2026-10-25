@@ -91,6 +91,7 @@ app.post('/api/auth/login', async (req: Request, res: Response) => {
 
   // Verify demo credentials safely
   const isDemoValid =
+    process.env.NODE_ENV !== 'production' &&
     (clean === 'alex.mercer@saascore.io' || clean === 'admin@smarterp.com' || clean === 'jay.raam@smart.com') &&
     password === 'password123';
 
