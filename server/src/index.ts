@@ -42,9 +42,19 @@ app.use(
   })
 );
 
+const allowedOrigins = (process.env.CORS_ORIGINS || '')
+  .split(',')
+  .map((o) => o.trim())
+  .filter(Boolean);
+
 app.use(
   cors({
-    origin: true,
+    origin: (origin, callback) => {
+      if (!origin || process.env.NODE_ENV !== 'production' || allowedOrigins.includes(origin)) {
+        return callback(null, true);
+      }
+      return callback(null, false);
+    },
     credentials: true,
   })
 );
