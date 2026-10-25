@@ -11,7 +11,6 @@ import {
   ScrapRecord,
 } from '../models/ErpModels';
 import { verifyAccessToken } from '../security/auth';
-import jwt from 'jsonwebtoken';
 
 export const reportsRouter = Router();
 
@@ -20,33 +19,19 @@ export const reportsRouter = Router();
  */
 export async function requireSuperAdmin(req: Request, res: Response, next: NextFunction) {
   try {
-    let role = req.user?.role || '';
-    let userId = req.user?.userId || '';
+    let role = '';
+    let userId = '';
 
-    if (!role) {
-      const token =
-        req.cookies?.authToken ||
-        (req.headers.authorization?.startsWith('Bearer ')
-          ? req.headers.authorization.substring(7)
-          : null);
+    const token =
+      req.cookies?.authToken ||
+      (req.headers.authorization?.startsWith('Bearer ')
+        ? req.headers.authorization.substring(7)
+        : null);
 
-      if (token) {
-        const decoded = verifyAccessToken(token);
-        if (decoded) {
-          role = decoded.role;
-          userId = decoded.userId;
-        } else {
-          try {
-            const raw = jwt.decode(token) as any;
-            if (raw) {
-              if (raw.role) role = raw.role;
-              if (raw.userId) userId = raw.userId;
-            }
-          } catch {
-            // Ignore
-          }
-        }
-      }
+    const decoded = token ? verifyAccessToken(token) : null;
+    if (decoded) {
+      role = decoded.role;
+      userId = decoded.userId;
     }
 
     if (userId && !role) {
@@ -56,10 +41,6 @@ export async function requireSuperAdmin(req: Request, res: Response, next: NextF
       } catch {
         // Ignore
       }
-    }
-
-    if (!role && (req.headers['x-demo-role'] || req.headers['x-user-role'])) {
-      role = (req.headers['x-demo-role'] || req.headers['x-user-role']) as string;
     }
 
     const cleanRole = (role || '').toLowerCase().replace(/\s+/g, '');
