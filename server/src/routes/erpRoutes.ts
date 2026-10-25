@@ -151,10 +151,12 @@ erpRouter.post('/auth/login', async (req: Request, res: Response) => {
     const tokens = generateTokens(tokenPayload);
 
     // Set refresh token in HTTP-only cookie
+    // Session token lives only in an HttpOnly cookie; it is never exposed to client JavaScript
     res.cookie('authToken', tokens.accessToken, {
-      httpOnly: false, // client store reads/writes this cookie; see issue #32 follow-up
+      httpOnly: true,
       secure: process.env.NODE_ENV === 'production',
-      sameSite: 'lax',
+      sameSite: 'strict',
+      path: '/',
       maxAge: 7 * 24 * 60 * 60 * 1000,
     });
 
@@ -174,7 +176,6 @@ erpRouter.post('/auth/login', async (req: Request, res: Response) => {
 
     return res.json({
       success: true,
-      token: tokens.accessToken,
       user: {
         userId: user._id.toString(),
         userName: user.name,
@@ -311,7 +312,7 @@ erpRouter.get('/auth/me', async (req: Request, res: Response) => {
 });
 
 erpRouter.post('/auth/logout', (req: Request, res: Response) => {
-  res.clearCookie('authToken', { path: '/' });
+  res.clearCookie('authToken', { path: '/', httpOnly: true, sameSite: 'strict', secure: process.env.NODE_ENV === 'production' });
   return res.json({ success: true, message: 'Logged out successfully' });
 });
 
