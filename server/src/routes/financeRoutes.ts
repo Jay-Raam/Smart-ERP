@@ -4,6 +4,7 @@ import { requirePermission } from '../middleware/rbacMiddleware';
 import { ReconciliationService } from '../services/reconciliationService';
 import { ReminderService } from '../services/reminderService';
 import { InventoryValuationService, IStockReceipt, IStockIssue, ValuationMethod } from '../services/inventoryValuationService';
+import { ExportForexService, IForexSettlementRequest, IYearEndRevaluationRequest } from '../services/exportForexService';
 
 export const financeRouter = Router();
 
@@ -312,6 +313,58 @@ financeRouter.post(
     } catch (err: any) {
       console.error('Error performing NRV impairment audit:', err);
       return res.status(500).json({ error: 'Failed to perform NRV audit', details: err.message });
+    }
+  }
+);
+
+/**
+ * POST /api/erp/finance/forex/settle
+ * Realizes foreign remittance and generates Ind AS 21 double-entry exchange gain/loss voucher
+ */
+financeRouter.post(
+  '/finance/forex/settle',
+  requirePermission('reports', 'view'),
+  async (req: Request, res: Response) => {
+    try {
+      const payload = req.body as IForexSettlementRequest;
+      if (!payload.invoiceNumber || !payload.receivedAmountForeign || !payload.settlementExchangeRate) {
+        return res.status(400).json({ error: 'invoiceNumber, receivedAmountForeign, and settlementExchangeRate are required.' });
+      }
+
+      const settlement = ExportForexService.settleForeignRemittance(payload);
+      return res.json({
+        success: true,
+        settlement
+      });
+    } catch (err: any) {
+      console.error('Error settling foreign remittance:', err);
+      return res.status(500).json({ error: 'Failed to settle foreign remittance', details: err.message });
+    }
+  }
+);
+
+/**
+ * POST /api/erp/finance/forex/revalue-receivables
+ * Fiscal year-end mark-to-market revaluation of open foreign trade receivables under Ind AS 21
+ */
+financeRouter.post(
+  '/finance/forex/revalue-receivables',
+  requirePermission('reports', 'view'),
+  async (req: Request, res: Response) => {
+    try {
+      const payload = req.body as IYearEndRevaluationRequest;
+      if (!payload.asOfDate || !Array.isArray(payload.openInvoices) || !payload.closingExchangeRates) {
+        return res.status(400).json({ error: 'asOfDate, openInvoices array, and closingExchangeRates are required.' });
+      }
+
+      const revaluation = ExportForexService.revalueYearEndReceivables(payload);
+      return res.json({
+        success: true,
+        revaluation
+      });
+    } catch (err: any) {
+      console.error('Error revaluing year-end foreign receivables:', err);
+      return res.status(500).json({ error: 'Failed to revalue foreign receivables', details: err.message });
     }
   }
 );

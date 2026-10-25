@@ -3,6 +3,7 @@ import { Invoice, Bill, Organisation, Branch } from '../models/ErpModels';
 import { Gstr1Service } from '../services/gstr1Service';
 import { Gstr2bReconService, Gstr2bGovtPayload } from '../services/gstr2bReconService';
 import { EwayBillFleetService, IVehicleUpdatePayload, IValidityCalculationRequest } from '../services/ewayBillFleetService';
+import { ExportForexService, IExportInvoiceRequest } from '../services/exportForexService';
 import { requirePermission } from '../middleware/rbacMiddleware';
 
 export const complianceRouter = Router();
@@ -210,6 +211,37 @@ complianceRouter.post(
       });
     } catch (error: any) {
       return res.status(500).json({ error: 'Failed to process multi-vehicle split', details: error.message });
+    }
+  }
+);
+
+/**
+ * POST /api/erp/compliance/export-invoice/generate
+ * Generates and validates statutory multi-currency export invoice under LUT or with IGST payment
+ */
+complianceRouter.post(
+  '/compliance/export-invoice/generate',
+  requirePermission('invoices', 'add'),
+  async (req: Request, res: Response) => {
+    try {
+      const payload = req.body as IExportInvoiceRequest;
+      const result = ExportForexService.generateExportInvoice(payload);
+
+      if (!result.isValid) {
+        return res.status(400).json({
+          success: false,
+          error: 'EXPORT_INVOICE_VALIDATION_FAILED',
+          errors: result.errors
+        });
+      }
+
+      return res.json({
+        success: true,
+        invoice: result
+      });
+    } catch (error: any) {
+      console.error('Error generating export invoice:', error);
+      return res.status(500).json({ error: 'Failed to generate export invoice', details: error.message });
     }
   }
 );
