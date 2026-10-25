@@ -48,6 +48,7 @@ If you are evaluating this repository for technical depth, code hygiene, and arc
 | Area | Location | What to Inspect |
 | :--- | :--- | :--- |
 | **Statutory GST Engine** | [`packages/gst-engine`](packages/gst-engine) | Zero-dependency India GST package with HSN catalog, UTGST rules, and Section 170 round-off |
+| **GSTR-1 & GSTR-2B ITC Engine** | [`server/src/services/gstr1Service.ts`](server/src/services/gstr1Service.ts) | Automated GSTN portal JSON generator and GSTR-2B Input Tax Credit leak reconciliation |
 | **3D Tenant Scoping** | [`server/src/middleware/tenantMiddleware.ts`](server/src/middleware/tenantMiddleware.ts) | Strict 3-dimensional multi-tenancy (`orgId`, `branchId`, `financialYearId`) isolation |
 | **Reconciliation Engine** | [`server/src/services/reconciliationService.ts`](server/src/services/reconciliationService.ts) | 2-Way & 3-Way matching algorithms reconciling POs, Goods Receipts, and Invoices |
 | **Autonomous AI Copilot** | [`server/src/services/aiAgentService.ts`](server/src/services/aiAgentService.ts) | Natural language ERP assistant executing verified transactional workflows |
@@ -138,11 +139,16 @@ The user interface keeps search terms, filters, sorting, and pagination synced w
 - **Vector PDF Badging**: Renders the generated statutory IRN metadata, B2B QR code, and E-Way Bill barcode strips directly onto generated vector PDF tax invoices.
 - **Provider-Neutral Live Adapter**: Production rejects the simulator and requires a configured HTTP GSP/ASP adapter through `GST_EINVOICE_PROVIDER_URL` and `GST_EINVOICE_PROVIDER_API_KEY`. The provider response is validated before statutory identifiers are stored.
 
-### 11. Automated Database Backups & Compaction
+### 11. Automated GSTR-1 Portal JSON & GSTR-2B ITC Reconciliation
+- **1-Click GSTR-1 Portal JSON Export**: Generates compliant GSTN portal JSON schema files (`b2b`, `b2cl`, `b2cs`, `cdnr`, `hsn`) ready for direct upload to `gst.gov.in`.
+- **GSTR-2B vs Purchase Register ITC Matcher**: Ingests downloaded government GSTR-2B JSON and reconciles against inward vendor bills to detect Input Tax Credit (ITC) leaks, identifying defaulting vendors who collected GST without filing returns.
+- **Audit Endpoints**: Accessible via `GET /api/erp/compliance/gstr1/export?taxPeriod=MMYYYY` and `POST /api/erp/compliance/gstr2b/reconcile`.
+
+### 12. Automated Database Backups & Compaction
 - SuperAdmin endpoint to trigger on-demand and recurring compressed JSON backups (`.json.gz`) across all database collections.
 - Automated retention policy keeps the 10 most recent backups and prunes older snapshots to optimize disk storage.
 
-### 12. Performance Optimization & Bundle Code Splitting
+### 13. Performance Optimization & Bundle Code Splitting
 - Dynamic `React.lazy()` imports and `<Suspense>` boundaries for all 18 modules and full-page routes.
 - Rollup manual chunking isolates heavy dependencies (`@react-pdf`, `lucide-react`, and core vendor libraries) into separate chunks, cutting the main bundle down from ~2.16 MB to ~119 KB.
 

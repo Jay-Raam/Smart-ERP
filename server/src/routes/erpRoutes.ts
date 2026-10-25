@@ -38,6 +38,7 @@ import { bankingRouter } from './bankingRoutes';
 import { paymentRouter } from './paymentRoutes';
 import { userRouter } from './userRoutes';
 import { financeRouter } from './financeRoutes';
+import { complianceRouter } from './complianceRoutes';
 import {
   GENERIC_AUTH_ERROR,
   LOCKOUT_ERROR,
@@ -58,6 +59,7 @@ erpRouter.use(bankingRouter);
 erpRouter.use(paymentRouter);
 erpRouter.use(userRouter);
 erpRouter.use(financeRouter);
+erpRouter.use(complianceRouter);
 
 // ==========================================
 // 1. AUTHENTICATION (EMAIL OR MOBILE + PASSWORD)
