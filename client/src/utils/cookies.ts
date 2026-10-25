@@ -1,8 +1,10 @@
+const secureFlag = () => (typeof location !== 'undefined' && location.protocol === 'https:' ? '; Secure' : '');
+
 // Cookie Helper for JWT Token Storage in Browser
 export const cookieUtils = {
   set(name: string, value: string, days = 7) {
     const expires = new Date(Date.now() + days * 864e5).toUTCString();
-    document.cookie = `${name}=${encodeURIComponent(value)}; expires=${expires}; path=/; SameSite=Lax`;
+    document.cookie = `${name}=${encodeURIComponent(value)}; expires=${expires}; path=/; SameSite=Lax${secureFlag()}`;
   },
 
   get(name: string): string | null {

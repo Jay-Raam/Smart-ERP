@@ -151,9 +151,9 @@ erpRouter.post('/auth/login', async (req: Request, res: Response) => {
 
     // Set refresh token in HTTP-only cookie
     res.cookie('authToken', tokens.accessToken, {
-      httpOnly: true,
+      httpOnly: false, // client store reads/writes this cookie; see issue #32 follow-up
       secure: process.env.NODE_ENV === 'production',
-      sameSite: 'strict',
+      sameSite: 'lax',
       maxAge: 7 * 24 * 60 * 60 * 1000,
     });
 
