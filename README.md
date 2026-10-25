@@ -51,6 +51,7 @@ If you are evaluating this repository for technical depth, code hygiene, and arc
 | **GSTR-1 & GSTR-2B ITC Engine** | [`server/src/services/gstr1Service.ts`](server/src/services/gstr1Service.ts) | Automated GSTN portal JSON generator and GSTR-2B Input Tax Credit leak reconciliation |
 | **Bank Statement Reconciliation** | [`server/src/services/bankStatementService.ts`](server/src/services/bankStatementService.ts) | Multi-bank CSV / MT940 statement parser with fuzzy UTR matching and batch ledger settlement |
 | **E-Way Bill Part-B Fleet Engine** | [`server/src/services/ewayBillFleetService.ts`](server/src/services/ewayBillFleetService.ts) | Rule 138(10) distance validity calculator, vehicle fleet updates, and multi-vehicle consignment splits |
+| **Ind AS 2 Inventory Valuation Engine** | [`server/src/services/inventoryValuationService.ts`](server/src/services/inventoryValuationService.ts) | FIFO & Weighted Average costing with landed charges allocation and Paragraph 9 NRV write-down auditing |
 | **3D Tenant Scoping** | [`server/src/middleware/tenantMiddleware.ts`](server/src/middleware/tenantMiddleware.ts) | Strict 3-dimensional multi-tenancy (`orgId`, `branchId`, `financialYearId`) isolation |
 | **Reconciliation Engine** | [`server/src/services/reconciliationService.ts`](server/src/services/reconciliationService.ts) | 2-Way & 3-Way matching algorithms reconciling POs, Goods Receipts, and Invoices |
 | **Autonomous AI Copilot** | [`server/src/services/aiAgentService.ts`](server/src/services/aiAgentService.ts) | Natural language ERP assistant executing verified transactional workflows |
@@ -156,11 +157,17 @@ The user interface keeps search terms, filters, sorting, and pagination synced w
 - **Multi-Vehicle Split Consignments**: Tracks large industrial equipment dispatches across multiple carrier vehicles against a single Part-A EWB with line-item over-dispatch prevention.
 - **Logistics Endpoints**: Accessible via `POST /api/erp/compliance/ewaybill/part-b/update`, `POST /api/erp/compliance/ewaybill/validity/calculate`, and `POST /api/erp/compliance/ewaybill/multi-vehicle/split`.
 
-### 13. Automated Database Backups & Compaction
+### 13. Ind AS 2 / AS 2 FIFO & Moving Weighted Average Inventory Valuation
+- **Perpetual FIFO Lot Queue**: Chronological lot-by-lot consumption with full batch lineage, maintaining exact cost of purchase (including inward freight, landing charges, and non-creditable duties).
+- **Moving Weighted Average Cost (WAC)**: Perpetual dynamic rate recalculations upon every stock arrival, issuing materials at the weighted moving rate.
+- **Ind AS 2 Paragraph 9 (Lower of Cost and NRV)**: Impairment audit comparing inventory cost against Net Realizable Value, generating automated double-entry journal vouchers (`Debit: Cost of Sales - Inventory Write-Down Loss`, `Credit: Inventory Valuation Reserve`).
+- **Valuation Endpoints**: Accessible via `POST /api/erp/finance/inventory-valuation/calculate` and `POST /api/erp/finance/inventory-valuation/nrv-audit`.
+
+### 14. Automated Database Backups & Compaction
 - SuperAdmin endpoint to trigger on-demand and recurring compressed JSON backups (`.json.gz`) across all database collections.
 - Automated retention policy keeps the 10 most recent backups and prunes older snapshots to optimize disk storage.
 
-### 14. Performance Optimization & Bundle Code Splitting
+### 15. Performance Optimization & Bundle Code Splitting
 - Dynamic `React.lazy()` imports and `<Suspense>` boundaries for all 18 modules and full-page routes.
 - Rollup manual chunking isolates heavy dependencies (`@react-pdf`, `lucide-react`, and core vendor libraries) into separate chunks, cutting the main bundle down from ~2.16 MB to ~119 KB.
 

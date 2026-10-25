@@ -3,6 +3,7 @@ import { Bill, BankAccount, CollectionActivity, Invoice } from '../models/ErpMod
 import { requirePermission } from '../middleware/rbacMiddleware';
 import { ReconciliationService } from '../services/reconciliationService';
 import { ReminderService } from '../services/reminderService';
+import { InventoryValuationService, IStockReceipt, IStockIssue, ValuationMethod } from '../services/inventoryValuationService';
 
 export const financeRouter = Router();
 
@@ -214,3 +215,104 @@ financeRouter.get('/finance/cash-flow', requirePermission('reports', 'view'), as
     return res.status(500).json({ error: err.message });
   }
 });
+
+/**
+ * POST /api/erp/finance/inventory-valuation/calculate
+ * Computes statutory inventory valuation and COGS under Ind AS 2 (FIFO or Moving Weighted Average)
+ */
+financeRouter.post(
+  '/finance/inventory-valuation/calculate',
+  requirePermission('reports', 'view'),
+  async (req: Request, res: Response) => {
+    try {
+      const {
+        productId,
+        method = 'FIFO',
+        receipts = [],
+        issues = [],
+        compareWithOther = true
+      } = req.body as {
+        productId: string;
+        method?: ValuationMethod;
+        receipts: IStockReceipt[];
+        issues: IStockIssue[];
+        compareWithOther?: boolean;
+      };
+
+      if (!productId) {
+        return res.status(400).json({ error: 'productId is required.' });
+      }
+
+      let valuationResult;
+      if (method === 'WEIGHTED_AVERAGE') {
+        valuationResult = InventoryValuationService.calculateWeightedAverage(productId, receipts, issues);
+      } else {
+        valuationResult = InventoryValuationService.calculateFifo(productId, receipts, issues);
+      }
+
+      let comparisonReport;
+      if (compareWithOther) {
+        comparisonReport = InventoryValuationService.compareValuationMethods(productId, receipts, issues);
+      }
+
+      return res.json({
+        success: true,
+        productId,
+        method,
+        valuation: valuationResult,
+        comparisonReport
+      });
+    } catch (err: any) {
+      console.error('Error calculating inventory valuation:', err);
+      return res.status(500).json({ error: 'Failed to calculate inventory valuation', details: err.message });
+    }
+  }
+);
+
+/**
+ * POST /api/erp/finance/inventory-valuation/nrv-audit
+ * Performs statutory audit under Ind AS 2 Paragraph 9 (Lower of Cost and Net Realizable Value)
+ */
+financeRouter.post(
+  '/finance/inventory-valuation/nrv-audit',
+  requirePermission('reports', 'view'),
+  async (req: Request, res: Response) => {
+    try {
+      const {
+        productId,
+        productName = 'Store Inventory Item',
+        closingQuantity,
+        costValue,
+        estimatedSellingPrice,
+        estimatedCostToSell = 0,
+        auditDate
+      } = req.body;
+
+      if (!productId || closingQuantity === undefined || costValue === undefined || estimatedSellingPrice === undefined) {
+        return res.status(400).json({
+          error: 'MISSING_PARAMETERS',
+          message: 'productId, closingQuantity, costValue, and estimatedSellingPrice are required.'
+        });
+      }
+
+      const auditResult = InventoryValuationService.evaluateNrvImpairment({
+        productId,
+        productName,
+        closingQuantity: Number(closingQuantity),
+        costValue: Number(costValue),
+        estimatedSellingPrice: Number(estimatedSellingPrice),
+        estimatedCostToSell: Number(estimatedCostToSell),
+        auditDate
+      });
+
+      return res.json({
+        success: true,
+        audit: auditResult
+      });
+    } catch (err: any) {
+      console.error('Error performing NRV impairment audit:', err);
+      return res.status(500).json({ error: 'Failed to perform NRV audit', details: err.message });
+    }
+  }
+);
+
