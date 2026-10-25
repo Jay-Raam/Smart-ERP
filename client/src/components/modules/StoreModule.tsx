@@ -15,6 +15,7 @@ import {
   X,
   ShieldAlert,
   Trash2,
+  ScanLine,
 } from 'lucide-react';
 import { useErpStore, StoreItem } from '../../store/erpStore';
 import { DataTable, ColumnDef } from '../shared/DataTable';
@@ -22,7 +23,7 @@ import { usePermissions } from '../../hooks/usePermissions';
 import { showAppToast } from '../../utils/handleApiError';
 
 export const StoreModule: React.FC = () => {
-  const { storeItems, issueStoreStock } = useErpStore();
+  const { storeItems, scanStoreBarcode, issueStoreStock } = useErpStore();
   const { canEdit, canApprove } = usePermissions('store');
   const [searchQuery, setSearchQuery] = useState('');
   const [warehouseFilter, setWarehouseFilter] = useState('All');
@@ -33,6 +34,9 @@ export const StoreModule: React.FC = () => {
   const [adjustReason, setAdjustReason] = useState('Quality Rejection');
   const [adjustRemarks, setAdjustRemarks] = useState('');
   const [isSubmittingAdjust, setIsSubmittingAdjust] = useState(false);
+  const [barcode, setBarcode] = useState('');
+  const [scanResults, setScanResults] = useState<StoreItem[]>([]);
+  const [isScanning, setIsScanning] = useState(false);
 
   // Stock Lineage / Provenance Modal State
   const [selectedStockForLineage, setSelectedStockForLineage] = useState<StoreItem | null>(null);
@@ -62,6 +66,21 @@ export const StoreModule: React.FC = () => {
       // Toast shown by store
     } finally {
       setIsSubmittingAdjust(false);
+    }
+  };
+
+  const handleBarcodeScan = async (event: React.FormEvent) => {
+    event.preventDefault();
+    if (!barcode.trim()) return;
+    try {
+      setIsScanning(true);
+      const results = await scanStoreBarcode(barcode);
+      setScanResults(results);
+      if (results.length === 0) showAppToast('No inventory matched that SKU or batch barcode.', 'info');
+    } catch (error: any) {
+      showAppToast(error.message, 'error');
+    } finally {
+      setIsScanning(false);
     }
   };
 
@@ -210,6 +229,48 @@ export const StoreModule: React.FC = () => {
           </p>
         </div>
       </div>
+
+      <section className="rounded-xl border border-indigo-200 bg-indigo-50/60 p-4">
+        <form className="flex flex-col gap-3 sm:flex-row sm:items-end" onSubmit={handleBarcodeScan}>
+          <label className="flex-1 text-xs font-semibold uppercase tracking-wide text-indigo-900">
+            Scan SKU or batch barcode
+            <div className="relative mt-1">
+              <ScanLine className="pointer-events-none absolute left-3 top-2.5 h-4 w-4 text-indigo-400" />
+              <input
+                autoFocus
+                value={barcode}
+                onChange={(event) => setBarcode(event.target.value)}
+                placeholder="Use a USB scanner or type a code"
+                className="w-full rounded-lg border border-indigo-200 bg-white py-2 pl-9 pr-3 text-sm font-mono outline-none focus:border-indigo-500 focus:ring-2 focus:ring-indigo-200"
+              />
+            </div>
+          </label>
+          <button type="submit" disabled={isScanning || !barcode.trim()} className="rounded-lg bg-indigo-600 px-4 py-2 text-sm font-semibold text-white disabled:cursor-not-allowed disabled:opacity-50">
+            {isScanning ? 'Scanning…' : 'Find stock'}
+          </button>
+        </form>
+        {scanResults.length > 0 && (
+          <div className="mt-3 grid gap-2 sm:grid-cols-2">
+            {scanResults.map((item) => (
+              <button
+                key={item.id}
+                type="button"
+                onClick={() => {
+                  setSelectedStockForLineage(item);
+                  setScanResults([]);
+                }}
+                className="rounded-lg border border-indigo-200 bg-white p-3 text-left hover:border-indigo-500"
+              >
+                <div className="flex items-center justify-between gap-3">
+                  <span className="font-semibold text-slate-900">{item.productName}</span>
+                  <span className="font-mono text-sm font-bold text-indigo-700">{item.availableStock}</span>
+                </div>
+                <p className="mt-1 text-xs text-slate-500">{item.warehouse} · {item.binLocation} · {item.sku}</p>
+              </button>
+            ))}
+          </div>
+        )}
+      </section>
 
       {/* Modern Smart ERP DataTable with Red Expiry Row Highlight & Click to Lineage */}
       <DataTable
