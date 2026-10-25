@@ -100,9 +100,10 @@ erpRouter.post('/auth/login', async (req: Request, res: Response) => {
       return res.status(401).json({ error: GENERIC_AUTH_ERROR });
     }
 
-    // 4. Verify password (bcrypt hashed or legacy matching)
+    // Verify password: bcrypt always; legacy plaintext seed hashes only outside production
     let isPasswordValid = false;
-    if (user.passwordHash === password || password === 'password123') {
+    const allowLegacyPlaintext = process.env.NODE_ENV !== 'production';
+    if (allowLegacyPlaintext && user.passwordHash === password) {
       isPasswordValid = true;
     } else {
       try {
@@ -150,9 +151,9 @@ erpRouter.post('/auth/login', async (req: Request, res: Response) => {
 
     // Set refresh token in HTTP-only cookie
     res.cookie('authToken', tokens.accessToken, {
-      httpOnly: false,
-      secure: false,
-      sameSite: 'lax',
+      httpOnly: true,
+      secure: process.env.NODE_ENV === 'production',
+      sameSite: 'strict',
       maxAge: 7 * 24 * 60 * 60 * 1000,
     });
 
