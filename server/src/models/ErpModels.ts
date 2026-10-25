@@ -236,6 +236,144 @@ ProductSchema.index({ category: 1, approvalStatus: 1 });
 ProductSchema.index({ hsnCode: 1 });
 ProductSchema.index({ isDeleted: 1 });
 
+// 6. Bill of Materials
+export interface IBomComponent {
+  productId: string;
+  quantity: number;
+  scrapPercent: number;
+  uom: string;
+  level: number;
+}
+
+export interface IBillOfMaterials extends Document {
+  bomNumber: string;
+  productId: string;
+  productName: string;
+  revision: string;
+  description: string;
+  components: IBomComponent[];
+  status: 'DRAFT' | 'ACTIVE' | 'ARCHIVED';
+  organisationId: string;
+  branchId: string;
+  createdBy: string;
+  isDeleted?: boolean;
+  deletedAt?: Date | null;
+}
+
+const BomComponentSchema = new Schema<IBomComponent>(
+  {
+    productId: { type: String, required: true },
+    quantity: { type: Number, required: true, min: 0.0001 },
+    scrapPercent: { type: Number, default: 0, min: 0, max: 100 },
+    uom: { type: String, required: true },
+    level: { type: Number, default: 1, min: 1 },
+  },
+  { _id: false }
+);
+
+const BillOfMaterialsSchema = new Schema<IBillOfMaterials>(
+  {
+    bomNumber: { type: String, required: true },
+    productId: { type: String, required: true },
+    productName: { type: String, required: true },
+    revision: { type: String, required: true, default: 'A' },
+    description: { type: String, default: '' },
+    components: { type: [BomComponentSchema], required: true },
+    status: { type: String, enum: ['DRAFT', 'ACTIVE', 'ARCHIVED'], default: 'DRAFT' },
+    organisationId: { type: String, default: '' },
+    branchId: { type: String, default: '' },
+    createdBy: { type: String, default: 'System' },
+    isDeleted: { type: Boolean, default: false },
+    deletedAt: { type: Date, default: null },
+  },
+  { timestamps: true }
+);
+
+BillOfMaterialsSchema.index({ organisationId: 1, branchId: 1, productId: 1, status: 1 });
+BillOfMaterialsSchema.index({ organisationId: 1, branchId: 1, bomNumber: 1 });
+
+export const BillOfMaterials = mongoose.model<IBillOfMaterials>('BillOfMaterials', BillOfMaterialsSchema);
+
+// 7. Production Work Order
+export interface IWorkOrderMaterial {
+  productId: string;
+  productName: string;
+  sku: string;
+  requiredQuantity: number;
+  availableQuantity: number;
+  consumedQuantity: number;
+  uom: string;
+}
+
+export interface IWorkOrder extends Document {
+  workOrderNumber: string;
+  productId: string;
+  productName: string;
+  bomId: string;
+  bomRevision: string;
+  plannedQuantity: number;
+  producedQuantity: number;
+  priority: 'LOW' | 'MEDIUM' | 'HIGH' | 'URGENT';
+  plannedStartDate: string;
+  plannedEndDate: string;
+  actualStartDate?: string;
+  actualEndDate?: string;
+  status: 'PLANNED' | 'RELEASED' | 'IN_PROGRESS' | 'COMPLETED' | 'CANCELLED';
+  materials: IWorkOrderMaterial[];
+  notes: string;
+  organisationId: string;
+  branchId: string;
+  financialYear: string;
+  createdBy: string;
+}
+
+const WorkOrderMaterialSchema = new Schema<IWorkOrderMaterial>(
+  {
+    productId: { type: String, required: true },
+    productName: { type: String, required: true },
+    sku: { type: String, required: true },
+    requiredQuantity: { type: Number, required: true, min: 0 },
+    availableQuantity: { type: Number, required: true, min: 0 },
+    consumedQuantity: { type: Number, default: 0, min: 0 },
+    uom: { type: String, required: true },
+  },
+  { _id: false }
+);
+
+const WorkOrderSchema = new Schema<IWorkOrder>(
+  {
+    workOrderNumber: { type: String, required: true },
+    productId: { type: String, required: true },
+    productName: { type: String, required: true },
+    bomId: { type: String, required: true },
+    bomRevision: { type: String, required: true },
+    plannedQuantity: { type: Number, required: true, min: 0.0001 },
+    producedQuantity: { type: Number, default: 0, min: 0 },
+    priority: { type: String, enum: ['LOW', 'MEDIUM', 'HIGH', 'URGENT'], default: 'MEDIUM' },
+    plannedStartDate: { type: String, required: true },
+    plannedEndDate: { type: String, required: true },
+    actualStartDate: { type: String, default: '' },
+    actualEndDate: { type: String, default: '' },
+    status: {
+      type: String,
+      enum: ['PLANNED', 'RELEASED', 'IN_PROGRESS', 'COMPLETED', 'CANCELLED'],
+      default: 'PLANNED',
+    },
+    materials: { type: [WorkOrderMaterialSchema], required: true },
+    notes: { type: String, default: '' },
+    organisationId: { type: String, default: '' },
+    branchId: { type: String, default: '' },
+    financialYear: { type: String, default: '2026-2027' },
+    createdBy: { type: String, default: 'System' },
+  },
+  { timestamps: true }
+);
+
+WorkOrderSchema.index({ organisationId: 1, branchId: 1, status: 1, plannedStartDate: 1 });
+WorkOrderSchema.index({ organisationId: 1, branchId: 1, workOrderNumber: 1 });
+
+export const WorkOrder = mongoose.model<IWorkOrder>('WorkOrder', WorkOrderSchema);
+
 // 6. Document Line Item (Used for Invoices, Purchase Orders, Bills, and Delivery Challans)
 export interface IDocumentItem {
   productId?: string;

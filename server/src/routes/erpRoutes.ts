@@ -23,6 +23,8 @@ import {
   GstRateMaster,
   ScrapRecord,
   LoginLockout,
+  BillOfMaterials,
+  WorkOrder,
 } from '../models/ErpModels';
 import { generateTokens, verifyAccessToken } from '../security/auth';
 import { requirePermission, requireSuperAdmin } from '../middleware/rbacMiddleware';
@@ -392,6 +394,8 @@ erpRouter.get('/bootstrap', async (req: Request, res: Response) => {
       storeItems,
       deliveryChallans,
       bankAccounts,
+      boms,
+      workOrders,
     ] = await Promise.all([
       Customer.find(custFilter).sort({ createdAt: -1 }),
       Product.find(prodFilter).sort({ createdAt: -1 }),
@@ -402,6 +406,8 @@ erpRouter.get('/bootstrap', async (req: Request, res: Response) => {
       StoreItem.find(storeFilter).sort({ createdAt: -1 }),
       DeliveryChallan.find(txFilter).sort({ createdAt: -1 }),
       BankAccount.find(finalOrgId ? { organisationId: finalOrgId } : {}).sort({ isPrimary: -1, createdAt: -1 }),
+      BillOfMaterials.find({ ...(finalOrgId ? { organisationId: finalOrgId } : {}), ...(activeBranch ? { branchId: activeBranch } : {}), isDeleted: { $ne: true } }).sort({ createdAt: -1 }),
+      WorkOrder.find(txFilter).sort({ plannedStartDate: 1, createdAt: -1 }),
     ]);
 
     // Fetch all active enterprise organisations
@@ -683,6 +689,8 @@ erpRouter.get('/bootstrap', async (req: Request, res: Response) => {
         organisationId: b.organisationId,
         branchId: b.branchId,
       })),
+      billOfMaterials: boms.map((bom) => ({ ...bom.toObject(), id: bom._id.toString() })),
+      workOrders: workOrders.map((order) => ({ ...order.toObject(), id: order._id.toString() })),
     });
   } catch (err: any) {
     return res.status(500).json({ error: err.message });
@@ -1963,7 +1971,288 @@ erpRouter.delete('/invoices/:id', requirePermission('invoices', 'edit'), async (
 });
 
 // ==========================================
-// 6. PURCHASE ORDERS
+// 6. PRODUCTION PLANNING
+// ==========================================
+erpRouter.get('/production/boms', requirePermission('production', 'view'), async (req: Request, res: Response) => {
+  try {
+    const { branchId, organisationId, status } = req.query;
+    const query: any = { isDeleted: { $ne: true } };
+    if (branchId) query.branchId = branchId;
+    if (organisationId) query.organisationId = organisationId;
+    if (status) query.status = status;
+    const boms = await BillOfMaterials.find(query).sort({ productName: 1, revision: -1 });
+    return res.json(boms.map((bom) => ({ ...bom.toObject(), id: bom._id.toString() })));
+  } catch (err: any) {
+    return res.status(500).json({ error: err.message });
+  }
+});
+
+erpRouter.post('/production/boms', requirePermission('production', 'add'), async (req: Request, res: Response) => {
+  try {
+    const {
+      productId,
+      revision = 'A',
+      description = '',
+      components,
+      branchId = '',
+      organisationId = '',
+    } = req.body;
+
+    if (!productId || !Array.isArray(components) || components.length === 0) {
+      return res.status(400).json({ error: 'Finished product and at least one component are required.' });
+    }
+    if (components.some((component: any) => component.productId === productId)) {
+      return res.status(400).json({ error: 'A product cannot be its own BOM component.' });
+    }
+
+    const productIds = [...new Set([productId, ...components.map((component: any) => component.productId)])];
+    const products = await Product.find({ _id: { $in: productIds }, isDeleted: { $ne: true } });
+    if (products.length !== productIds.length) {
+      return res.status(400).json({ error: 'Every BOM product and component must exist in the product master.' });
+    }
+
+    const productMap = new Map(products.map((product) => [product._id.toString(), product]));
+    const normalizedComponents = components.map((component: any) => {
+      const quantity = Number(component.quantity);
+      const scrapPercent = Number(component.scrapPercent || 0);
+      if (!Number.isFinite(quantity) || quantity <= 0 || !Number.isFinite(scrapPercent) || scrapPercent < 0 || scrapPercent > 100) {
+        throw new Error('Component quantities must be positive and scrap percentages must be between 0 and 100.');
+      }
+      const componentProduct = productMap.get(String(component.productId));
+      return {
+        productId: String(component.productId),
+        quantity,
+        scrapPercent,
+        uom: componentProduct?.uom || component.uom || 'Nos',
+        level: Math.max(1, Number(component.level) || 1),
+      };
+    });
+
+    const count = await BillOfMaterials.countDocuments({ organisationId, branchId });
+    const bom = await BillOfMaterials.create({
+      bomNumber: `BOM-${String(count + 1).padStart(5, '0')}`,
+      productId,
+      productName: productMap.get(productId)?.name,
+      revision: String(revision).trim() || 'A',
+      description: String(description).trim(),
+      components: normalizedComponents,
+      status: 'DRAFT',
+      branchId,
+      organisationId,
+      createdBy: (req as any).callerUser?.name || 'Authorized Production Officer',
+    });
+    return res.status(201).json({ ...bom.toObject(), id: bom._id.toString() });
+  } catch (err: any) {
+    return res.status(400).json({ error: err.message });
+  }
+});
+
+erpRouter.patch('/production/boms/:id/status', requirePermission('production', 'approve'), async (req: Request, res: Response) => {
+  try {
+    const { status } = req.body;
+    if (!['DRAFT', 'ACTIVE', 'ARCHIVED'].includes(status)) {
+      return res.status(400).json({ error: 'Invalid BOM status.' });
+    }
+    const bom = await BillOfMaterials.findByIdAndUpdate(req.params.id, { status }, { new: true });
+    if (!bom) return res.status(404).json({ error: 'BOM not found.' });
+    return res.json({ ...bom.toObject(), id: bom._id.toString() });
+  } catch (err: any) {
+    return res.status(400).json({ error: err.message });
+  }
+});
+
+erpRouter.get('/production/work-orders', requirePermission('production', 'view'), async (req: Request, res: Response) => {
+  try {
+    const { branchId, organisationId, financialYear, status } = req.query;
+    const query: any = {};
+    if (branchId) query.branchId = branchId;
+    if (organisationId) query.organisationId = organisationId;
+    if (financialYear) query.financialYear = financialYear;
+    if (status) query.status = status;
+    const orders = await WorkOrder.find(query).sort({ plannedStartDate: 1, priority: -1 });
+    return res.json(orders.map((order) => ({ ...order.toObject(), id: order._id.toString() })));
+  } catch (err: any) {
+    return res.status(500).json({ error: err.message });
+  }
+});
+
+erpRouter.get('/production/material-availability', requirePermission('production', 'view'), async (req: Request, res: Response) => {
+  try {
+    const { branchId, organisationId } = req.query;
+    const query: any = { isDeleted: { $ne: true } };
+    if (branchId) query.branchId = branchId;
+    if (organisationId) query.organisationId = organisationId;
+    const stock = await StoreItem.aggregate([
+      { $match: query },
+      { $group: { _id: '$productId', availableQuantity: { $sum: '$availableStock' }, productName: { $first: '$productName' }, sku: { $first: '$sku' } } },
+      { $sort: { productName: 1 } },
+    ]);
+    return res.json(stock.map((item) => ({ productId: item._id, productName: item.productName, sku: item.sku, availableQuantity: item.availableQuantity })));
+  } catch (err: any) {
+    return res.status(500).json({ error: err.message });
+  }
+});
+
+erpRouter.post('/production/work-orders', requirePermission('production', 'add'), async (req: Request, res: Response) => {
+  try {
+    const {
+      bomId,
+      plannedQuantity,
+      priority = 'MEDIUM',
+      plannedStartDate,
+      plannedEndDate,
+      notes = '',
+      branchId = '',
+      organisationId = '',
+      financialYear = '2026-2027',
+    } = req.body;
+    const quantity = Number(plannedQuantity);
+    if (!bomId || !Number.isFinite(quantity) || quantity <= 0 || !plannedStartDate || !plannedEndDate) {
+      return res.status(400).json({ error: 'BOM, positive planned quantity, and planned dates are required.' });
+    }
+    if (!['LOW', 'MEDIUM', 'HIGH', 'URGENT'].includes(priority)) {
+      return res.status(400).json({ error: 'Invalid work-order priority.' });
+    }
+    const bom = await BillOfMaterials.findOne({ _id: bomId, status: 'ACTIVE', isDeleted: { $ne: true } });
+    if (!bom) return res.status(404).json({ error: 'An active BOM is required to create a work order.' });
+
+    const productIds = bom.components.map((component) => component.productId);
+    const products = await Product.find({ _id: { $in: productIds }, isDeleted: { $ne: true } });
+    const productMap = new Map(products.map((product) => [product._id.toString(), product]));
+    const materials = await Promise.all(bom.components.map(async (component) => {
+      const stock = await StoreItem.aggregate([
+        { $match: { productId: component.productId, branchId, organisationId, isDeleted: { $ne: true } } },
+        { $group: { _id: '$productId', availableQuantity: { $sum: '$availableStock' } } },
+      ]);
+      const requiredQuantity = Number((component.quantity * quantity * (1 + component.scrapPercent / 100)).toFixed(4));
+      return {
+        productId: component.productId,
+        productName: productMap.get(component.productId)?.name || 'Unknown product',
+        sku: productMap.get(component.productId)?.sku || '',
+        requiredQuantity,
+        availableQuantity: stock[0]?.availableQuantity || 0,
+        consumedQuantity: 0,
+        uom: component.uom,
+      };
+    }));
+
+    const count = await WorkOrder.countDocuments({ organisationId, branchId });
+    const order = await WorkOrder.create({
+      workOrderNumber: `WO-${String(count + 1).padStart(5, '0')}`,
+      productId: bom.productId,
+      productName: bom.productName,
+      bomId: bom._id.toString(),
+      bomRevision: bom.revision,
+      plannedQuantity: quantity,
+      priority,
+      plannedStartDate,
+      plannedEndDate,
+      materials,
+      notes: String(notes).trim(),
+      organisationId,
+      branchId,
+      financialYear,
+      createdBy: (req as any).callerUser?.name || 'Authorized Production Officer',
+    });
+    return res.status(201).json({ ...order.toObject(), id: order._id.toString() });
+  } catch (err: any) {
+    return res.status(400).json({ error: err.message });
+  }
+});
+
+erpRouter.patch('/production/work-orders/:id/status', requirePermission('production', 'edit'), async (req: Request, res: Response) => {
+  try {
+    const { status } = req.body;
+    if (!['RELEASED', 'IN_PROGRESS', 'CANCELLED'].includes(status)) {
+      return res.status(400).json({ error: 'Use material consume or finished-goods receipt for execution statuses.' });
+    }
+    const updates: any = { status };
+    if (status === 'IN_PROGRESS') updates.actualStartDate = new Date().toISOString();
+    const order = await WorkOrder.findByIdAndUpdate(req.params.id, updates, { new: true });
+    if (!order) return res.status(404).json({ error: 'Work order not found.' });
+    return res.json({ ...order.toObject(), id: order._id.toString() });
+  } catch (err: any) {
+    return res.status(400).json({ error: err.message });
+  }
+});
+
+erpRouter.post('/production/work-orders/:id/consume-materials', requirePermission('production', 'edit'), async (req: Request, res: Response) => {
+  try {
+    const order = await WorkOrder.findById(req.params.id);
+    if (!order) return res.status(404).json({ error: 'Work order not found.' });
+    if (!['RELEASED', 'IN_PROGRESS'].includes(order.status)) return res.status(409).json({ error: 'Only released or in-progress work orders can consume materials.' });
+    const requested = Array.isArray(req.body.materials) ? req.body.materials : order.materials.map((material) => ({ productId: material.productId, quantity: material.requiredQuantity - material.consumedQuantity }));
+    for (const item of requested) {
+      const material = order.materials.find((candidate) => candidate.productId === item.productId);
+      const quantity = Number(item.quantity);
+      if (!material || !Number.isFinite(quantity) || quantity <= 0) return res.status(400).json({ error: 'Each consumed material must belong to the work order and have a positive quantity.' });
+      if (material.consumedQuantity + quantity > material.requiredQuantity) return res.status(422).json({ error: `Cannot consume more than ${material.requiredQuantity} ${material.uom} of ${material.productName}.` });
+      const stores = await StoreItem.find({ productId: material.productId, branchId: order.branchId, organisationId: order.organisationId, isDeleted: { $ne: true }, availableStock: { $gt: 0 } }).sort({ expiryDate: 1, createdAt: 1 });
+      if (stores.reduce((total, store) => total + store.availableStock, 0) < quantity) return res.status(422).json({ error: `Insufficient stock for ${material.productName}.` });
+      let remaining = quantity;
+      for (const store of stores) {
+        const deduction = Math.min(remaining, store.availableStock);
+        store.availableStock -= deduction;
+        store.status = store.availableStock <= store.minLevel ? 'Low Stock' : 'In Stock';
+        await store.save();
+        remaining -= deduction;
+        if (remaining <= 0) break;
+      }
+      await Product.findByIdAndUpdate(material.productId, {
+        currentStock: stores.reduce((total, store) => total + store.availableStock, 0),
+      });
+      material.consumedQuantity = Number((material.consumedQuantity + quantity).toFixed(4));
+    }
+    order.status = 'IN_PROGRESS';
+    order.actualStartDate = order.actualStartDate || new Date().toISOString();
+    await order.save();
+    return res.json({ ...order.toObject(), id: order._id.toString() });
+  } catch (err: any) {
+    return res.status(400).json({ error: err.message });
+  }
+});
+
+erpRouter.post('/production/work-orders/:id/receive-output', requirePermission('production', 'edit'), async (req: Request, res: Response) => {
+  try {
+    const order = await WorkOrder.findById(req.params.id);
+    if (!order) return res.status(404).json({ error: 'Work order not found.' });
+    if (order.status !== 'IN_PROGRESS') return res.status(409).json({ error: 'Only in-progress work orders can receive finished goods.' });
+    const quantity = Number(req.body.quantity);
+    if (!Number.isFinite(quantity) || quantity <= 0 || order.producedQuantity + quantity > order.plannedQuantity) return res.status(422).json({ error: 'Finished-goods quantity must be positive and not exceed the planned quantity.' });
+    const product = await Product.findById(order.productId);
+    if (!product) return res.status(404).json({ error: 'Finished product not found.' });
+    let store = await StoreItem.findOne({ productId: order.productId, branchId: order.branchId, organisationId: order.organisationId, isDeleted: { $ne: true } }).sort({ createdAt: 1 });
+    if (!store) {
+      store = new StoreItem({
+        productId: order.productId,
+        productName: product.name,
+        sku: product.sku,
+        warehouse: req.body.warehouse || 'Production Floor',
+        binLocation: req.body.binLocation || 'FG-01',
+        availableStock: 0,
+        minLevel: product.minReorderLevel,
+        maxLevel: product.minReorderLevel * 5,
+        branchId: order.branchId,
+        organisationId: order.organisationId,
+      });
+    }
+    store.availableStock += quantity;
+    store.status = store.availableStock <= store.minLevel ? 'Low Stock' : 'In Stock';
+    store.lastAudited = new Date().toISOString().split('T')[0];
+    await store.save();
+    order.producedQuantity = Number((order.producedQuantity + quantity).toFixed(4));
+    order.status = order.producedQuantity >= order.plannedQuantity ? 'COMPLETED' : 'IN_PROGRESS';
+    if (order.status === 'COMPLETED') order.actualEndDate = new Date().toISOString();
+    await order.save();
+    await Product.findByIdAndUpdate(product._id, { currentStock: store.availableStock });
+    return res.json({ order: { ...order.toObject(), id: order._id.toString() }, storeItem: { ...store.toObject(), id: store._id.toString() } });
+  } catch (err: any) {
+    return res.status(400).json({ error: err.message });
+  }
+});
+
+// ==========================================
+// 7. PURCHASE ORDERS
 // ==========================================
 erpRouter.get('/purchase-orders', requirePermission('purchase', 'view'), async (req: Request, res: Response) => {
   try {

@@ -112,30 +112,36 @@ The user interface keeps search terms, filters, sorting, and pagination synced w
 - **Warehouse Inward Movements**: Validates batch numbers, warehouse rack/shelf locations, and enforces expiry date rules (must be at least 5 days into the future).
 - **Auto-Reorder Triggers**: Tracks minimum reorder thresholds across products and creates reorder alerts for purchasing teams.
 
-### 6. Vector PDF Document Engine
+### 6. Production Planning & Work Orders
+- **Multi-Level BOMs**: Define revisioned bills of materials with component quantities, units, and scrap allowances for manufactured and assembled products.
+- **Material Availability Planning**: Work orders snapshot required quantities against branch-scoped store stock before release.
+- **Scheduled Work Orders**: Plan production dates and priorities, release orders, consume materials, and receive finished goods into warehouse stock.
+- **Auditable Stock Integration**: Material consumption reduces batch-aware store inventory, while finished-goods receipt updates the product master and stock ledger.
+
+### 7. Vector PDF Document Engine
 - Generates pixel-accurate vector tax invoices and reports using `@react-pdf/renderer`.
 - Clean HSN tax breakdown tables (`HSN/SAC`, `Rate %`, `Taxable Value`, `CGST`, `SGST`, `Total Tax`) without broken characters or formatting artifacts.
 
-### 7. Granular Role-Based Access Control (RBAC)
+### 8. Granular Role-Based Access Control (RBAC)
 - Fine-grained permission matrices per user across 15 workspace modules: `view`, `add`, `edit`, `history`, and `approve`.
 - UI buttons, actions, and routes automatically adapt to user privileges via `<PermissionGate />` and `usePermissions` hook.
 - Server-side middleware (`rbacMiddleware.ts`) validates session tokens and blocks unauthorized mutations with `403 Forbidden` responses.
 
-### 8. Soft Deletes & Financial Audit Immutability
+### 9. Soft Deletes & Financial Audit Immutability
 - Master entities (`Customer`, `Vendor`, `Product`, `Organisation`, `Branch`, `StoreItem`) use soft deletion with `isDeleted` flags and `deletedAt` timestamps.
 - **Strict Financial Immutability**: Financial documents (`Invoice`, `Bill`, `FinancialTransaction`) with recorded payments or ledger postings cannot be hard deleted. Adjustments require offsetting reversal transactions to preserve complete accounting audit trails.
 
-### 9. Indian GST E-Invoicing & E-Way Bill Generation (Schema INV-01 Simulation)
+### 10. Indian GST E-Invoicing & E-Way Bill Generation (Schema INV-01 Simulation)
 - **Offline Statutory Schema Simulation**: Implements an offline statutory calculation engine adhering to official National Informatics Centre (NIC) **Schema `INV-01`** standards.
 - **Simulated IRN & B2B QR Code Payload**: Generates deterministic 64-character SHA-256 Invoice Reference Numbers (IRN) computed via `Supplier GSTIN + Doc Type + Doc Number + Financial Year`, alongside 15-digit Acknowledgement Numbers and signed B2B QR code payload structures. This enables full e-invoicing workflow testing without requiring paid third-party GSP/ASP aggregator subscriptions (ClearTax, Karza, Masters India) for staging environments.
 - **E-Way Bill Generation**: Automatically computes statutory 12-digit E-Way Bill transit numbers and transit barcodes for consignment values exceeding ₹50,000.
 - **Vector PDF Badging**: Renders the generated statutory IRN metadata, B2B QR code, and E-Way Bill barcode strips directly onto generated vector PDF tax invoices.
 
-### 10. Automated Database Backups & Compaction
+### 11. Automated Database Backups & Compaction
 - SuperAdmin endpoint to trigger on-demand and recurring compressed JSON backups (`.json.gz`) across all database collections.
 - Automated retention policy keeps the 10 most recent backups and prunes older snapshots to optimize disk storage.
 
-### 11. Performance Optimization & Bundle Code Splitting
+### 12. Performance Optimization & Bundle Code Splitting
 - Dynamic `React.lazy()` imports and `<Suspense>` boundaries for all 18 modules and full-page routes.
 - Rollup manual chunking isolates heavy dependencies (`@react-pdf`, `lucide-react`, and core vendor libraries) into separate chunks, cutting the main bundle down from ~2.16 MB to ~119 KB.
 
@@ -308,6 +314,17 @@ Core Mongoose models defined in `server/src/models/ErpModels.ts`:
 - `DELETE /api/erp/invoices/:id` — Voids unpaid invoice (blocked if `paidAmount > 0`).
 - `POST /api/erp/invoices/:id/generate-irn` — Generates statutory 64-char IRN, 15-digit Ack No, and Signed QR Code payload.
 - `GET /api/erp/invoices/:id/history` — Returns complete invoice lifecycle events.
+
+### Production Planning
+- `GET /api/erp/production/boms` — Lists branch-scoped BOM revisions.
+- `POST /api/erp/production/boms` — Creates a draft BOM with validated product components.
+- `PATCH /api/erp/production/boms/:id/status` — Activates or archives a BOM.
+- `GET /api/erp/production/work-orders` — Lists scheduled work orders and material snapshots.
+- `POST /api/erp/production/work-orders` — Creates a work order from an active BOM.
+- `GET /api/erp/production/material-availability` — Summarises available stock for production planning.
+- `PATCH /api/erp/production/work-orders/:id/status` — Releases, starts, or cancels a work order.
+- `POST /api/erp/production/work-orders/:id/consume-materials` — Deducts required materials from store stock.
+- `POST /api/erp/production/work-orders/:id/receive-output` — Receives finished goods into store stock.
 
 ### Payments & Banking Ledger
 - `POST /api/erp/payments` — Records customer or vendor payment and creates immutable ledger transaction.

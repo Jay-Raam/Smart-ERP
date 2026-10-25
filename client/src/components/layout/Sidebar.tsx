@@ -18,6 +18,7 @@ import {
   Landmark,
   ArrowLeftRight,
   Layers,
+  Factory,
 } from 'lucide-react';
 import { useErpStore } from '../../store/erpStore';
 import { useAuthStore } from '../../store/authStore';
@@ -30,6 +31,7 @@ export type ModuleType =
   | 'bills'
   | 'store'
   | 'products'
+  | 'production'
   | 'delivery'
   | 'organisations'
   | 'branches'
@@ -133,6 +135,7 @@ export const Sidebar: React.FC<SidebarProps> = ({
           badgeColor: 'bg-rose-50 text-rose-700 border border-rose-200',
         },
         { id: 'products' as ModuleType, label: 'Products Master', icon: Package, badge: products.length },
+        { id: 'production' as ModuleType, label: 'Production Planning', icon: Factory, badge: null },
       ],
     },
     {
