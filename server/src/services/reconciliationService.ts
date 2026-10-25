@@ -1,4 +1,5 @@
 import { Bill, PurchaseOrder, StoreItem, IBill, IPurchaseOrder } from '../models/ErpModels';
+import { escapeRegex } from '../utils/regex';
 
 export interface IItemVariance {
   itemName: string;
@@ -109,7 +110,7 @@ export class ReconciliationService {
 
         // Inward received check: query store inventory linked to this bill/PO
         const storeRecord = await StoreItem.findOne({
-          productName: new RegExp(`^${billProductName}$`, 'i'),
+          productName: new RegExp(`^${escapeRegex(billProductName)}$`, 'i'),
         }).lean();
         const receivedQty = storeRecord ? Math.min(storeRecord.availableStock, billQty) : billQty;
 

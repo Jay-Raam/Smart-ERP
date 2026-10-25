@@ -1,4 +1,5 @@
 import { Router, Request, Response } from 'express';
+import { escapeRegex } from '../utils/regex';
 import mongoose from 'mongoose';
 import bcrypt from 'bcryptjs';
 import {
@@ -209,7 +210,7 @@ if (process.env.NODE_ENV !== 'production') {
           $or: [
             { identifier: normalizeIdentifier(identifier) },
             { ipAddress: ip || '127.0.0.1' },
-            { key: { $regex: identifier, $options: 'i' } }
+            { key: { $regex: escapeRegex(String(identifier)), $options: 'i' } }
           ]
         });
       } else {
@@ -839,7 +840,7 @@ erpRouter.get('/item-categories', async (req: Request, res: Response) => {
       query.$or = [{ organisationId }, { organisationId: '' }, { organisationId: { $exists: false } }];
     }
     if (search) {
-      query.name = { $regex: String(search).trim(), $options: 'i' };
+      query.name = { $regex: escapeRegex(String(search).trim()), $options: 'i' };
     }
 
     const categories = await ItemCategory.find(query).sort({ name: 1 });
@@ -874,7 +875,7 @@ erpRouter.post('/item-categories', async (req: Request, res: Response) => {
 
     const existing = await ItemCategory.findOne({
       $or: [
-        { name: { $regex: `^${cleanName}$`, $options: 'i' } },
+        { name: { $regex: `^${escapeRegex(cleanName)}$`, $options: 'i' } },
         { code: cleanCode },
       ],
     });
@@ -953,7 +954,7 @@ erpRouter.get('/bills', requirePermission('bills', 'view'), async (req: Request,
     }
 
     if (search) {
-      const term = String(search).trim();
+      const term = escapeRegex(String(search).trim());
       query.$or = [
         { billNumber: { $regex: term, $options: 'i' } },
         { vendorName: { $regex: term, $options: 'i' } },
@@ -1564,7 +1565,7 @@ erpRouter.get('/invoices', requirePermission('invoices', 'view'), async (req: Re
     }
 
     if (search) {
-      const term = String(search).trim();
+      const term = escapeRegex(String(search).trim());
       query.$or = [
         { invoiceNumber: { $regex: term, $options: 'i' } },
         { customerName: { $regex: term, $options: 'i' } },
@@ -1974,7 +1975,7 @@ erpRouter.get('/purchase-orders', requirePermission('purchase', 'view'), async (
     }
 
     if (search) {
-      const term = String(search).trim();
+      const term = escapeRegex(String(search).trim());
       query.$or = [
         { poNumber: { $regex: term, $options: 'i' } },
         { vendorName: { $regex: term, $options: 'i' } },

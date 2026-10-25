@@ -3,6 +3,7 @@ import bcrypt from 'bcryptjs';
 import { UserAccount, AuditHistory } from '../models/ErpModels';
 import { verifyAccessToken } from '../security/auth';
 import { logAuditAction } from '../utils/auditLogger';
+import { escapeRegex } from '../utils/regex';
 
 export const userRouter = Router();
 
@@ -120,7 +121,7 @@ userRouter.get('/users', requireSuperAdminOrUserPerm, async (req: Request, res: 
     }
 
     if (search) {
-      const s = String(search).trim();
+      const s = escapeRegex(String(search).trim());
       query.$or = [
         { name: { $regex: s, $options: 'i' } },
         { email: { $regex: s, $options: 'i' } },
