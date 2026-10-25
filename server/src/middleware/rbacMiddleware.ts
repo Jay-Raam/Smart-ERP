@@ -1,7 +1,6 @@
 import { Request, Response, NextFunction } from 'express';
-import jwt from 'jsonwebtoken';
 import { UserAccount, IUserAccount } from '../models/ErpModels';
-import { verifyAccessToken, UserPayload } from '../security/auth';
+import { verifyAccessToken } from '../security/auth';
 
 export interface AuthenticatedRequest extends Request {
   callerUser?: IUserAccount;
@@ -38,14 +37,7 @@ export async function authenticateUser(req: Request): Promise<IUserAccount | nul
 
   if (!token) return null;
 
-  let decoded = verifyAccessToken(token);
-  if (!decoded) {
-    try {
-      decoded = jwt.decode(token) as UserPayload;
-    } catch {
-      decoded = null;
-    }
-  }
+  const decoded = verifyAccessToken(token);
 
   if (!decoded || (!decoded.userId && !decoded.email)) {
     return null;

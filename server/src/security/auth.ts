@@ -1,6 +1,10 @@
 import jwt from 'jsonwebtoken';
 import { Request, Response, NextFunction } from 'express';
 
+const isProd = process.env.NODE_ENV === 'production';
+if (isProd && (!process.env.JWT_ACCESS_SECRET || !process.env.JWT_REFRESH_SECRET)) {
+  throw new Error('JWT_ACCESS_SECRET and JWT_REFRESH_SECRET must be set in production');
+}
 const ACCESS_SECRET = process.env.JWT_ACCESS_SECRET || 'default_super_secret_jwt_access_key_2026_x9';
 const REFRESH_SECRET = process.env.JWT_REFRESH_SECRET || 'default_super_secret_jwt_refresh_key_2026_z1';
 
