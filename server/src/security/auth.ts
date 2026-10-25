@@ -57,8 +57,9 @@ export function getDemoRoleHeader(req: Request): string | undefined {
 
 export function authMiddleware(req: Request, res: Response, next: NextFunction) {
   const authHeader = req.headers.authorization;
-  if (authHeader && authHeader.startsWith('Bearer ')) {
-    const token = authHeader.substring(7);
+  const bearer = authHeader && authHeader.startsWith('Bearer ') ? authHeader.substring(7) : null;
+  const token = bearer || req.cookies?.authToken;
+  if (token) {
     const decoded = verifyAccessToken(token);
     if (decoded) {
       req.user = decoded;

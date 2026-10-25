@@ -1,5 +1,5 @@
 import { create } from 'zustand';
-import { cookieUtils } from '../utils/cookies';
+
 import { showAppToast } from '../utils/handleApiError';
 
 export type UserRole = 'SuperAdmin' | 'Admin' | 'Manager' | 'Staff' | 'Viewer' | 'owner' | 'viewer';
@@ -46,7 +46,6 @@ export interface UserSession {
 interface AuthState {
   isAuthenticated: boolean;
   isSessionValidated: boolean;
-  token: string | null;
   user: UserSession;
   currentTenant: TenantConfig;
   switchTenant: (id: string) => void;
@@ -56,14 +55,6 @@ interface AuthState {
     identifier: string,
     password: string
   ) => Promise<{ success: boolean; error?: string }>;
-  login: (data: {
-    email: string;
-    userName?: string;
-    role?: UserRole;
-    branchId: string;
-    branchName: string;
-    organisationId: string;
-  }) => void;
   logout: () => void;
   setRole: (role: UserRole) => void;
   setBranch: (branchId: string, branchName: string) => void;
@@ -77,8 +68,8 @@ localStorage.removeItem('UserID');
 localStorage.removeItem('userName');
 localStorage.removeItem('userEmail');
 
-// Strictly verify session from cookies (if cookie deleted, user is unauthenticated)
-const savedCookieToken = cookieUtils.get('authToken');
+// Strictly verify session from the server: the auth cookie is HttpOnly, so JS only keeps a non-secret hint
+const hasSessionHint = localStorage.getItem('SessionActive') === '1';
 const savedBranchId = localStorage.getItem('Branch') || '';
 const savedBranchName = localStorage.getItem('BranchName') || '';
 const savedOrgId = localStorage.getItem('OrganizationId') || '';
@@ -98,37 +89,23 @@ const initialEmptyUser: UserSession = {
 };
 
 export const useAuthStore = create<AuthState>((set, get) => ({
-  isAuthenticated: !!savedCookieToken,
+  isAuthenticated: hasSessionHint,
   isSessionValidated: false,
-  token: savedCookieToken || null,
   currentTenant: AVAILABLE_TENANTS[0],
   switchTenant: (id: string) => {
     const t = AVAILABLE_TENANTS.find((x) => x.id === id) || AVAILABLE_TENANTS[0];
     set({ currentTenant: t });
     showAppToast(`Switched schema to ${t.schemaName}`, 'info');
   },
-  checkSession: () => {
-    const token = cookieUtils.get('authToken');
-    if (!token) {
-      if (get().isAuthenticated) {
-        get().logout();
-      }
-      return false;
-    }
-    return true;
-  },
+  checkSession: () => get().isAuthenticated,
 
   validateSession: async () => {
-    const token = cookieUtils.get('authToken');
-    if (!token) {
-      if (get().isAuthenticated) {
-        get().logout();
-      }
+    if (!get().isAuthenticated) {
       return false;
     }
 
     try {
-      const res = await fetch('/api/erp/auth/me');
+      const res = await fetch('/api/erp/auth/me', { credentials: 'same-origin' });
       if (!res.ok) {
         get().logout();
         return false;
@@ -158,7 +135,6 @@ export const useAuthStore = create<AuthState>((set, get) => ({
 
       set({
         isAuthenticated: true,
-        token,
         user: userSession,
         isSessionValidated: true,
       });
@@ -188,9 +164,8 @@ export const useAuthStore = create<AuthState>((set, get) => ({
         };
       }
 
-      const token = data.token;
-      // Secret token is saved ONLY in cookies (NEVER in localStorage)
-      cookieUtils.set('authToken', token, 7);
+      // The server stores the session in an HttpOnly cookie; keep only a non-secret hint locally
+      localStorage.setItem('SessionActive', '1');
 
       // Operational branch context saved in localStorage (NO role or permissions stored)
       if (data.user.organisationId) localStorage.setItem('OrganizationId', data.user.organisationId);
@@ -218,7 +193,6 @@ export const useAuthStore = create<AuthState>((set, get) => ({
 
       set({
         isAuthenticated: true,
-        token,
         user: userSession,
         isSessionValidated: true,
       });
@@ -233,45 +207,14 @@ export const useAuthStore = create<AuthState>((set, get) => ({
     }
   },
 
-  login: (data) => {
-    const token = `jwt_token_${Date.now()}_${Math.random().toString(36).slice(2, 8)}`;
-    cookieUtils.set('authToken', token, 7);
-
-    localStorage.setItem('UserID', '');
-    localStorage.setItem('userName', data.userName || '');
-    localStorage.setItem('userEmail', data.email);
-    localStorage.setItem('userType', data.role || 'Staff');
-    localStorage.setItem('OrganizationId', data.organisationId || '');
-    localStorage.setItem('Branch', data.branchId || '');
-
-    set({
-      isAuthenticated: true,
-      token,
-      user: {
-        userId: '',
-        userName: data.userName || '',
-        email: data.email,
-        role: data.role || 'Staff',
-        organisationId: data.organisationId || '',
-        organisationName: '',
-        branchId: data.branchId || '',
-        branchName: data.branchName || '',
-        permissions: (data.role || 'Staff') === 'SuperAdmin' ? ['*'] : ['sales:*', 'invoices:*'],
-        roles: [],
-      },
-    });
-
-    showAppToast(`Welcome back, ${data.userName || 'User'}!`, 'success');
-  },
 
   logout: () => {
-    cookieUtils.remove('authToken');
+    localStorage.removeItem('SessionActive');
     localStorage.removeItem('token');
-    fetch('/api/erp/auth/logout', { method: 'POST' }).catch(() => {});
+    fetch('/api/erp/auth/logout', { method: 'POST', credentials: 'same-origin' }).catch(() => {});
 
     set({
       isAuthenticated: false,
-      token: null,
       user: {
         userId: '',
         userName: '',

@@ -124,7 +124,7 @@ const FALLBACK_DATA: Record<string, { projects: ProjectData[]; invoices: Invoice
 };
 
 export function useTenantDashboard() {
-  const { currentTenant, token, user } = useAuthStore();
+  const { currentTenant, user } = useAuthStore();
   const slug = currentTenant?.slug || 'acme';
 
   return useQuery({
@@ -135,7 +135,6 @@ export function useTenantDashboard() {
           method: 'POST',
           headers: {
             'Content-Type': 'application/json',
-            'Authorization': `Bearer ${token}`,
             'X-Tenant-Slug': slug,
             'X-Demo-Role': user.role,
           },
@@ -211,7 +210,7 @@ export function useTenantDashboard() {
 
 export function useDashboardMutations() {
   const queryClient = useQueryClient();
-  const { currentTenant, token, user } = useAuthStore();
+  const { currentTenant, user } = useAuthStore();
   const slug = currentTenant?.slug || 'acme';
 
   const createInvoiceMutation = useMutation({
@@ -221,7 +220,6 @@ export function useDashboardMutations() {
           method: 'POST',
           headers: {
             'Content-Type': 'application/json',
-            'Authorization': `Bearer ${token}`,
             'X-Tenant-Slug': slug,
             'X-Demo-Role': user.role,
           },
@@ -277,7 +275,6 @@ export function useDashboardMutations() {
           method: 'POST',
           headers: {
             'Content-Type': 'application/json',
-            'Authorization': `Bearer ${token}`,
             'X-Tenant-Slug': slug,
           },
           body: JSON.stringify({
@@ -296,7 +293,6 @@ export function useDashboardMutations() {
           method: 'POST',
           headers: {
             'Content-Type': 'application/json',
-            'Authorization': `Bearer ${token}`,
             'X-Tenant-Slug': slug,
           },
           body: JSON.stringify({
