@@ -1,8 +1,7 @@
 import { Router, Request, Response } from 'express';
 import bcrypt from 'bcryptjs';
-import jwt from 'jsonwebtoken';
 import { UserAccount, AuditHistory } from '../models/ErpModels';
-import { verifyAccessToken, UserPayload } from '../security/auth';
+import { verifyAccessToken } from '../security/auth';
 import { logAuditAction } from '../utils/auditLogger';
 
 export const userRouter = Router();
@@ -22,14 +21,7 @@ async function requireSuperAdminOrUserPerm(req: Request, res: Response, next: ()
       return res.status(401).json({ error: 'Authentication required' });
     }
 
-    let decoded = verifyAccessToken(token);
-    if (!decoded) {
-      try {
-        decoded = jwt.decode(token) as UserPayload;
-      } catch (e) {
-        decoded = null;
-      }
-    }
+    const decoded = verifyAccessToken(token);
 
     if (!decoded || (!decoded.userId && !decoded.email)) {
       return res.status(401).json({ error: 'Invalid or expired session token' });
