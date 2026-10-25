@@ -2,11 +2,14 @@ import React, { useEffect, useState } from 'react';
 import { ArrowDownRight, ArrowUpRight, CalendarClock, CircleDollarSign } from 'lucide-react';
 import { useErpStore } from '../../store/erpStore';
 import { showAppToast } from '../../utils/handleApiError';
+import { usePermissions } from '../../hooks/usePermissions';
 
 interface AgingRow { label: string; count: number; amount: number }
-interface AgingData { receivables: AgingRow[]; payables: AgingRow[]; totals: { receivables: number; payables: number } }
+interface AgingDocument { id: string; documentNumber: string; partyName: string; dueDate: string; daysPastDue: number; amount: number; bucket: string }
+interface AgingData { receivables: AgingRow[]; payables: AgingRow[]; totals: { receivables: number; payables: number }; receivableRows: AgingDocument[]; payableRows: AgingDocument[] }
 interface ForecastRow { start: string; end: string; expectedInflow: number; expectedOutflow: number; netFlow: number; projectedClosingCash: number }
 interface CashFlowData { openingCash: number; forecast: ForecastRow[] }
+interface CollectionActivity { id: string; documentNumber: string; partyName: string; actionType: string; notes: string; nextFollowUpDate?: string; status: string }
 
 const money = (value: number) => `₹${Math.round(value || 0).toLocaleString('en-IN')}`;
 
@@ -14,6 +17,10 @@ export const FinanceInsightsModule: React.FC = () => {
   const { activeOrganisationId, activeBranchId, activeFinancialYear } = useErpStore();
   const [aging, setAging] = useState<AgingData | null>(null);
   const [cashFlow, setCashFlow] = useState<CashFlowData | null>(null);
+  const [activities, setActivities] = useState<CollectionActivity[]>([]);
+  const [selectedDocument, setSelectedDocument] = useState<AgingDocument | null>(null);
+  const [activityForm, setActivityForm] = useState({ actionType: 'CALL', notes: '', nextFollowUpDate: '' });
+  const { canEdit } = usePermissions('reports');
   const [asOf, setAsOf] = useState(new Date().toISOString().slice(0, 10));
   const [loading, setLoading] = useState(false);
 
@@ -24,13 +31,15 @@ export const FinanceInsightsModule: React.FC = () => {
       if (activeOrganisationId) params.set('organisationId', activeOrganisationId);
       if (activeBranchId) params.set('branchId', activeBranchId);
       if (activeFinancialYear) params.set('financialYear', activeFinancialYear);
-      const [agingResponse, cashResponse] = await Promise.all([
+      const [agingResponse, cashResponse, activitiesResponse] = await Promise.all([
         fetch(`/api/erp/finance/aging?${params}`),
         fetch(`/api/erp/finance/cash-flow?${params}&horizonDays=90`),
+        fetch(`/api/erp/finance/collection-activities?${params}`),
       ]);
-      if (!agingResponse.ok || !cashResponse.ok) throw new Error('Unable to load finance insights.');
+      if (!agingResponse.ok || !cashResponse.ok || !activitiesResponse.ok) throw new Error('Unable to load finance insights.');
       setAging(await agingResponse.json());
       setCashFlow(await cashResponse.json());
+      setActivities(await activitiesResponse.json());
     } catch (error: any) {
       showAppToast(error.message, 'error');
     } finally {
@@ -39,6 +48,36 @@ export const FinanceInsightsModule: React.FC = () => {
   };
 
   useEffect(() => { load(); }, [asOf, activeOrganisationId, activeBranchId, activeFinancialYear]);
+  const logActivity = async (event: React.FormEvent) => {
+    event.preventDefault();
+    if (!selectedDocument || !activityForm.notes.trim()) return;
+    const params = new URLSearchParams({
+      organisationId: activeOrganisationId,
+      branchId: activeBranchId,
+      financialYear: activeFinancialYear,
+    });
+    try {
+      const response = await fetch(`/api/erp/finance/collection-activities?${params}`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          documentType: 'INVOICE',
+          documentId: selectedDocument.id,
+          documentNumber: selectedDocument.documentNumber,
+          partyName: selectedDocument.partyName,
+          ...activityForm,
+        }),
+      });
+      const data = await response.json();
+      if (!response.ok) throw new Error(data.error || 'Unable to save follow-up');
+      setActivities((current) => [data, ...current]);
+      setActivityForm({ actionType: 'CALL', notes: '', nextFollowUpDate: '' });
+      setSelectedDocument(null);
+      showAppToast('Collection follow-up recorded.', 'success');
+    } catch (error: any) {
+      showAppToast(error.message, 'error');
+    }
+  };
   const agingSections = aging ? [
     { title: 'Receivables aging', rows: aging.receivables, colour: 'emerald', total: aging.totals.receivables },
     { title: 'Payables aging', rows: aging.payables, colour: 'amber', total: aging.totals.payables },
@@ -59,6 +98,10 @@ export const FinanceInsightsModule: React.FC = () => {
       {aging && <div className="grid gap-4 sm:grid-cols-2"><div className="rounded-2xl border border-emerald-200 bg-emerald-50 p-5"><div className="flex items-center justify-between"><span className="text-sm font-medium text-emerald-800">Receivables outstanding</span><ArrowDownRight className="h-5 w-5 text-emerald-600" /></div><p className="mt-3 text-2xl font-bold text-emerald-900">{money(aging.totals.receivables)}</p></div><div className="rounded-2xl border border-amber-200 bg-amber-50 p-5"><div className="flex items-center justify-between"><span className="text-sm font-medium text-amber-800">Payables outstanding</span><ArrowUpRight className="h-5 w-5 text-amber-600" /></div><p className="mt-3 text-2xl font-bold text-amber-900">{money(aging.totals.payables)}</p></div></div>}
 
       {aging && <div className="grid gap-6 lg:grid-cols-2">{agingSections.map((section) => <section key={section.title} className="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm dark:border-zinc-800 dark:bg-zinc-900"><h2 className="font-semibold text-slate-900 dark:text-white">{section.title}</h2><div className="mt-4 space-y-3">{section.rows.map((row) => <div key={row.label}><div className="mb-1 flex justify-between text-sm"><span className="text-slate-600">{row.label} <span className="text-xs text-slate-400">({row.count})</span></span><span className="font-mono">{money(row.amount)}</span></div><div className="h-2 rounded-full bg-slate-100"><div className={`h-2 rounded-full ${section.colour === 'emerald' ? 'bg-emerald-500' : 'bg-amber-500'}`} style={{ width: `${section.total ? Math.min(100, (row.amount / section.total) * 100) : 0}%` }} /></div></div>)}</div></section>)}</div>}
+
+      {aging && <section className="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm dark:border-zinc-800 dark:bg-zinc-900"><h2 className="font-semibold text-slate-900 dark:text-white">Collection follow-ups</h2><p className="mt-1 text-sm text-slate-500">Record calls, messages, promises to pay, and next actions against overdue invoices.</p><div className="mt-4 grid gap-3 lg:grid-cols-2">{aging.receivableRows.filter((row) => row.daysPastDue > 0).slice(0, 8).map((row) => <div key={row.id} className="flex items-center justify-between gap-3 rounded-xl bg-slate-50 p-3 dark:bg-zinc-800"><div><p className="text-sm font-medium text-slate-900 dark:text-white">{row.partyName}</p><p className="text-xs text-slate-500">{row.documentNumber} · {row.daysPastDue} days overdue · {money(row.amount)}</p></div><button type="button" disabled={!canEdit} onClick={() => setSelectedDocument(row)} className="rounded-lg border border-indigo-200 px-3 py-2 text-xs font-semibold text-indigo-700 disabled:cursor-not-allowed disabled:opacity-50">Log action</button></div>)}</div>{selectedDocument && canEdit && <form onSubmit={logActivity} className="mt-4 grid gap-3 rounded-xl border border-indigo-100 bg-indigo-50 p-4 sm:grid-cols-[auto_1fr_auto_auto]"><strong className="text-sm text-indigo-900">{selectedDocument.documentNumber}</strong><input className="input" placeholder="Follow-up notes" value={activityForm.notes} onChange={(event) => setActivityForm({ ...activityForm, notes: event.target.value })} required /><select className="input" value={activityForm.actionType} onChange={(event) => setActivityForm({ ...activityForm, actionType: event.target.value })}><option value="CALL">Call</option><option value="EMAIL">Email</option><option value="MESSAGE">Message</option><option value="PROMISE_TO_PAY">Promise to pay</option><option value="NOTE">Note</option></select><input className="input" type="date" value={activityForm.nextFollowUpDate} onChange={(event) => setActivityForm({ ...activityForm, nextFollowUpDate: event.target.value })} /><button className="rounded-lg bg-indigo-600 px-3 py-2 text-xs font-semibold text-white sm:col-span-4 sm:justify-self-end" type="submit">Save follow-up</button></form>}</section>}
+
+      {activities.length > 0 && <section className="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm dark:border-zinc-800 dark:bg-zinc-900"><h2 className="font-semibold text-slate-900 dark:text-white">Recent collection activity</h2><div className="mt-3 space-y-2">{activities.slice(0, 5).map((activity) => <div key={activity.id} className="flex flex-wrap justify-between gap-2 rounded-lg bg-slate-50 p-3 text-sm dark:bg-zinc-800"><span><strong>{activity.documentNumber}</strong> · {activity.partyName} · {activity.actionType}</span><span className="text-slate-500">{activity.nextFollowUpDate || activity.status}</span></div>)}</div></section>}
 
       {cashFlow && <section className="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm dark:border-zinc-800 dark:bg-zinc-900"><div className="flex flex-wrap items-center justify-between gap-3"><div><h2 className="font-semibold text-slate-900 dark:text-white">90-day cash-flow forecast</h2><p className="text-sm text-slate-500">Opening cash: {money(cashFlow.openingCash)}</p></div><CalendarClock className="h-5 w-5 text-indigo-500" /></div><div className="mt-4 grid gap-3 md:grid-cols-3">{cashFlow.forecast.map((period) => <div key={period.start} className="rounded-xl bg-slate-50 p-4 dark:bg-zinc-800"><p className="text-xs text-slate-500">{period.start} → {period.end}</p><p className={`mt-2 font-mono font-semibold ${period.netFlow >= 0 ? 'text-emerald-700' : 'text-rose-700'}`}>{period.netFlow >= 0 ? '+' : ''}{money(period.netFlow)}</p><p className="mt-1 text-xs text-slate-500">Closing: {money(period.projectedClosingCash)}</p><div className="mt-3 flex justify-between text-[11px]"><span className="text-emerald-700">In {money(period.expectedInflow)}</span><span className="text-rose-700">Out {money(period.expectedOutflow)}</span></div></div>)}</div></section>}
     </div>

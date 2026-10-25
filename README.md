@@ -339,6 +339,11 @@ Core Mongoose models defined in `server/src/models/ErpModels.ts`:
 - The Approval Center consolidates pending product master requests and automated reorder purchase orders.
 - Existing module-level `approve` permissions remain enforced for each action, while approvers can review and act from `/approvals`.
 
+### Collection Follow-ups
+- `GET /api/erp/finance/collection-activities` — Lists scoped collection follow-up activity.
+- `POST /api/erp/finance/collection-activities` — Records calls, messages, promises to pay, and next follow-up dates against outstanding invoices.
+- Cash & Credit Insights includes an overdue invoice follow-up workspace protected by the Reports `edit` permission.
+
 ### Payments & Banking Ledger
 - `POST /api/erp/payments` — Records customer or vendor payment and creates immutable ledger transaction.
 - `GET /api/erp/transactions` — Queries financial ledger with type, bank, date range, and search filters.

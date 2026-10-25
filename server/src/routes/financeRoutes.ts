@@ -1,5 +1,5 @@
 import { Router, Request, Response } from 'express';
-import { Bill, BankAccount, Invoice } from '../models/ErpModels';
+import { Bill, BankAccount, CollectionActivity, Invoice } from '../models/ErpModels';
 import { requirePermission } from '../middleware/rbacMiddleware';
 
 export const financeRouter = Router();
@@ -34,6 +34,42 @@ function getDaysPastDue(dueDate: string, asOf: Date) {
 function bucketFor(daysPastDue: number) {
   return agingBuckets.find((bucket) => daysPastDue >= bucket.min && daysPastDue <= bucket.max) || agingBuckets[0];
 }
+
+financeRouter.get('/finance/collection-activities', requirePermission('reports', 'view'), async (req: Request, res: Response) => {
+  try {
+    const activities = await CollectionActivity.find(getScopedQuery(req)).sort({ nextFollowUpDate: 1, createdAt: -1 }).limit(200);
+    return res.json(activities.map((activity) => ({ ...activity.toObject(), id: activity._id.toString() })));
+  } catch (err: any) {
+    return res.status(500).json({ error: err.message });
+  }
+});
+
+financeRouter.post('/finance/collection-activities', requirePermission('reports', 'edit'), async (req: Request, res: Response) => {
+  try {
+    const { documentType, documentId, documentNumber, partyName, actionType, notes, nextFollowUpDate, status } = req.body;
+    if (!['INVOICE', 'BILL'].includes(documentType) || !documentId || !documentNumber || !partyName || !actionType || !notes?.trim()) {
+      return res.status(400).json({ error: 'Document, action type, and follow-up notes are required.' });
+    }
+    const query = getScopedQuery(req);
+    const activity = await CollectionActivity.create({
+      documentType,
+      documentId,
+      documentNumber,
+      partyName,
+      actionType,
+      notes: notes.trim(),
+      nextFollowUpDate: nextFollowUpDate || '',
+      status: status === 'COMPLETED' ? 'COMPLETED' : 'OPEN',
+      organisationId: query.organisationId || '',
+      branchId: query.branchId || '',
+      financialYear: query.financialYear || '2026-2027',
+      createdBy: (req as any).user?.name || (req as any).user?.email || 'Finance User',
+    });
+    return res.status(201).json({ ...activity.toObject(), id: activity._id.toString() });
+  } catch (err: any) {
+    return res.status(500).json({ error: err.message });
+  }
+});
 
 financeRouter.get('/finance/aging', requirePermission('reports', 'view'), async (req: Request, res: Response) => {
   try {
