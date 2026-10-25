@@ -440,6 +440,7 @@ interface ErpState {
   updatePurchaseOrder: (id: string, updates: Partial<PurchaseOrder>) => Promise<PurchaseOrder | undefined>;
   addDeliveryChallan: (dc: Omit<DeliveryChallan, 'id' | 'dcNumber'>) => Promise<void>;
   updateStoreStock: (productId: string, deltaQuantity: number) => Promise<void>;
+  scanStoreBarcode: (barcode: string) => Promise<StoreItem[]>;
   issueStoreStock: (payload: { storeItemId: string; quantity: number; reason: string; remarks?: string }) => Promise<void>;
   fetchBankAccounts: () => Promise<void>;
   addBankAccount: (account: Partial<BankAccount>) => Promise<BankAccount | undefined>;
@@ -1298,6 +1299,18 @@ export const useErpStore = create<ErpState>((set, get) => ({
     }
   },
 
+  scanStoreBarcode: async (barcode: string) => {
+    const value = barcode.trim();
+    if (!value) return [];
+    const params = new URLSearchParams({ branchId: get().activeBranchId, organisationId: get().activeOrganisationId });
+    const res = await fetch(`/api/erp/store/scan/${encodeURIComponent(value)}?${params}`);
+    if (!res.ok) {
+      const error = await res.json().catch(() => ({}));
+      throw new Error(error.error || 'Unable to scan warehouse barcode');
+    }
+    return res.json();
+  },
+
   issueStoreStock: async (payload: { storeItemId: string; quantity: number; reason: string; remarks?: string }) => {
     try {
       const res = await fetch('/api/erp/store/issue-stock', {
@@ -1310,7 +1323,7 @@ export const useErpStore = create<ErpState>((set, get) => ({
         throw new Error(errData.error || 'Failed to issue/deduct stock');
       }
       const data = await res.json();
-      const updatedItem = data.item;
+      const updatedItem = data.storeItem;
       set((state) => ({
         storeItems: state.storeItems.map((s) => (s.id === updatedItem.id ? updatedItem : s)),
         products: state.products.map((p) =>

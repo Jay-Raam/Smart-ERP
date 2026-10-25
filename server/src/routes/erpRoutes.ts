@@ -2756,6 +2756,24 @@ erpRouter.get('/store-items', requirePermission('store', 'view'), async (req: Re
   }
 });
 
+erpRouter.get('/store/scan/:barcode', requirePermission('store', 'view'), async (req: Request, res: Response) => {
+  try {
+    const { barcode } = req.params;
+    const { branchId, organisationId } = req.query;
+    const query: any = {
+      isDeleted: { $ne: true },
+      $or: [{ sku: barcode }, { batchNumber: barcode }],
+    };
+    if (branchId) query.branchId = branchId;
+    if (organisationId) query.organisationId = organisationId;
+
+    const items = await StoreItem.find(query).sort({ warehouse: 1, binLocation: 1 });
+    return res.json(items.map((item) => ({ ...item.toObject(), id: item._id.toString() })));
+  } catch (err: any) {
+    return res.status(500).json({ error: err.message });
+  }
+});
+
 erpRouter.patch('/store-items/:productId/stock', requirePermission('store', 'edit'), async (req: Request, res: Response) => {
   try {
     const { productId } = req.params;
@@ -2778,16 +2796,19 @@ erpRouter.patch('/store-items/:productId/stock', requirePermission('store', 'edi
 
 erpRouter.post('/store/issue-stock', requirePermission('store', 'edit'), async (req: Request, res: Response) => {
   try {
-    const { productId, quantity, reason, warehouse, binLocation } = req.body;
+    const { storeItemId, productId, quantity, reason, remarks, warehouse, binLocation } = req.body;
     const numQty = Number(quantity);
-    if (!productId || !numQty || numQty <= 0) {
+    if ((!storeItemId && !productId) || !numQty || numQty <= 0) {
       return res.status(400).json({ error: 'Valid Product and positive quantity are required.' });
     }
 
-    const storeItem = await StoreItem.findOne({ productId });
+    const storeItem = storeItemId
+      ? await StoreItem.findOne({ _id: storeItemId, isDeleted: { $ne: true } })
+      : await StoreItem.findOne({ productId, isDeleted: { $ne: true } });
     if (!storeItem) {
       return res.status(404).json({ error: 'Store inventory record not found for this product.' });
     }
+    const resolvedProductId = storeItem.productId;
 
     if (numQty > storeItem.availableStock) {
       return res.status(422).json({
@@ -2802,7 +2823,7 @@ erpRouter.post('/store/issue-stock', requirePermission('store', 'edit'), async (
     await storeItem.save();
 
     // Deduct stock from Product Master
-    const prod = await Product.findById(productId);
+    const prod = await Product.findById(resolvedProductId);
     if (prod) {
       prod.currentStock = Math.max(0, (prod.currentStock || 0) - numQty);
       await prod.save();
@@ -2812,7 +2833,7 @@ erpRouter.post('/store/issue-stock', requirePermission('store', 'edit'), async (
 
     // Record into ScrapRecord ledger
     const scrap = await ScrapRecord.create({
-      productId,
+      productId: resolvedProductId,
       productName: storeItem.productName,
       sku: storeItem.sku,
       itemCode: storeItem.sku,
@@ -2823,7 +2844,7 @@ erpRouter.post('/store/issue-stock', requirePermission('store', 'edit'), async (
       quantity: numQty,
       unitPrice: prod?.purchaseCost || prod?.sellingPrice || 0,
       reason: reason || 'Physical Stock Count Adjustment / Scrap',
-      remarks: reason || 'Physical Stock Count Adjustment / Scrap',
+      remarks: remarks || reason || 'Physical Stock Count Adjustment / Scrap',
       actionDate: new Date().toISOString().split('T')[0],
       date: new Date(),
       userName,
