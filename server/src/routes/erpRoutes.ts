@@ -1,7 +1,6 @@
 import { Router, Request, Response } from 'express';
 import mongoose from 'mongoose';
 import bcrypt from 'bcryptjs';
-import jwt from 'jsonwebtoken';
 import {
   Organisation,
   Branch,
@@ -232,14 +231,7 @@ erpRouter.get('/auth/me', async (req: Request, res: Response) => {
       return res.status(401).json({ error: 'No active session cookie' });
     }
 
-    let decoded = verifyAccessToken(token);
-    if (!decoded) {
-      try {
-        decoded = jwt.decode(token) as any;
-      } catch (e) {
-        decoded = null;
-      }
-    }
+    const decoded = verifyAccessToken(token);
 
     if (!decoded || (!decoded.userId && !decoded.email)) {
       return res.status(401).json({ error: 'Invalid or expired session token' });
