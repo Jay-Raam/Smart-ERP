@@ -50,6 +50,7 @@ If you are evaluating this repository for technical depth, code hygiene, and arc
 | **Statutory GST Engine** | [`packages/gst-engine`](packages/gst-engine) | Zero-dependency India GST package with HSN catalog, UTGST rules, and Section 170 round-off |
 | **GSTR-1 & GSTR-2B ITC Engine** | [`server/src/services/gstr1Service.ts`](server/src/services/gstr1Service.ts) | Automated GSTN portal JSON generator and GSTR-2B Input Tax Credit leak reconciliation |
 | **Bank Statement Reconciliation** | [`server/src/services/bankStatementService.ts`](server/src/services/bankStatementService.ts) | Multi-bank CSV / MT940 statement parser with fuzzy UTR matching and batch ledger settlement |
+| **E-Way Bill Part-B Fleet Engine** | [`server/src/services/ewayBillFleetService.ts`](server/src/services/ewayBillFleetService.ts) | Rule 138(10) distance validity calculator, vehicle fleet updates, and multi-vehicle consignment splits |
 | **3D Tenant Scoping** | [`server/src/middleware/tenantMiddleware.ts`](server/src/middleware/tenantMiddleware.ts) | Strict 3-dimensional multi-tenancy (`orgId`, `branchId`, `financialYearId`) isolation |
 | **Reconciliation Engine** | [`server/src/services/reconciliationService.ts`](server/src/services/reconciliationService.ts) | 2-Way & 3-Way matching algorithms reconciling POs, Goods Receipts, and Invoices |
 | **Autonomous AI Copilot** | [`server/src/services/aiAgentService.ts`](server/src/services/aiAgentService.ts) | Natural language ERP assistant executing verified transactional workflows |
@@ -149,11 +150,17 @@ The user interface keeps search terms, filters, sorting, and pagination synced w
 - **GSTR-2B vs Purchase Register ITC Matcher**: Ingests downloaded government GSTR-2B JSON and reconciles against inward vendor bills to detect Input Tax Credit (ITC) leaks, identifying defaulting vendors who collected GST without filing returns.
 - **Audit Endpoints**: Accessible via `GET /api/erp/compliance/gstr1/export?taxPeriod=MMYYYY` and `POST /api/erp/compliance/gstr2b/reconcile`.
 
-### 12. Automated Database Backups & Compaction
+### 12. E-Way Bill Part-B Fleet Management & Distance Validity Engine
+- **Statutory Rule 138(10) Validity Engine**: Enforces NIC transit validity tiers (1 day per 200 km for regular cargo; 1 day per 20 km for Over Dimensional Cargo), exact midnight expiration, and 8-hour pre/post-expiry extension eligibility.
+- **Dynamic Conveyance Updates**: Formats and validates Part-B vehicle and transshipment updates for `FIRST_TIME`, `BREAKDOWN`, and `TRANSSHIPMENT` with Indian vehicle plate regex verification (`TN09AB1234`).
+- **Multi-Vehicle Split Consignments**: Tracks large industrial equipment dispatches across multiple carrier vehicles against a single Part-A EWB with line-item over-dispatch prevention.
+- **Logistics Endpoints**: Accessible via `POST /api/erp/compliance/ewaybill/part-b/update`, `POST /api/erp/compliance/ewaybill/validity/calculate`, and `POST /api/erp/compliance/ewaybill/multi-vehicle/split`.
+
+### 13. Automated Database Backups & Compaction
 - SuperAdmin endpoint to trigger on-demand and recurring compressed JSON backups (`.json.gz`) across all database collections.
 - Automated retention policy keeps the 10 most recent backups and prunes older snapshots to optimize disk storage.
 
-### 13. Performance Optimization & Bundle Code Splitting
+### 14. Performance Optimization & Bundle Code Splitting
 - Dynamic `React.lazy()` imports and `<Suspense>` boundaries for all 18 modules and full-page routes.
 - Rollup manual chunking isolates heavy dependencies (`@react-pdf`, `lucide-react`, and core vendor libraries) into separate chunks, cutting the main bundle down from ~2.16 MB to ~119 KB.
 

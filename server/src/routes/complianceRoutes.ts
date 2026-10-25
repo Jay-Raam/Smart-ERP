@@ -2,6 +2,7 @@ import { Router, Request, Response } from 'express';
 import { Invoice, Bill, Organisation, Branch } from '../models/ErpModels';
 import { Gstr1Service } from '../services/gstr1Service';
 import { Gstr2bReconService, Gstr2bGovtPayload } from '../services/gstr2bReconService';
+import { EwayBillFleetService, IVehicleUpdatePayload, IValidityCalculationRequest } from '../services/ewayBillFleetService';
 import { requirePermission } from '../middleware/rbacMiddleware';
 
 export const complianceRouter = Router();
@@ -107,3 +108,109 @@ complianceRouter.post(
     }
   }
 );
+
+/**
+ * POST /api/erp/compliance/ewaybill/part-b/update
+ * Validates and prepares Part-B conveyance update payload for NIC E-Way Bill portal
+ */
+complianceRouter.post(
+  '/compliance/ewaybill/part-b/update',
+  requirePermission('invoices', 'edit'),
+  async (req: Request, res: Response) => {
+    try {
+      const payload = req.body as IVehicleUpdatePayload;
+      const result = EwayBillFleetService.formatPartBVehicleUpdate(payload);
+
+      if (!result.isValid) {
+        return res.status(400).json({
+          success: false,
+          error: 'VALIDATION_FAILED',
+          errors: result.errors
+        });
+      }
+
+      return res.json({
+        success: true,
+        message: 'Part-B conveyance payload formatted and validated successfully',
+        data: result.formattedPayload
+      });
+    } catch (error: any) {
+      return res.status(500).json({ error: 'Failed to format Part-B vehicle update', details: error.message });
+    }
+  }
+);
+
+/**
+ * POST /api/erp/compliance/ewaybill/validity/calculate
+ * Calculates statutory validity duration and extension window eligibility under Rule 138(10)
+ */
+complianceRouter.post(
+  '/compliance/ewaybill/validity/calculate',
+  requirePermission('invoices', 'view'),
+  async (req: Request, res: Response) => {
+    try {
+      const { ewbNo, distanceKm, cargoType, generatedAt, checkAt } = req.body as IValidityCalculationRequest;
+
+      if (!ewbNo || distanceKm === undefined) {
+        return res.status(400).json({ error: 'ewbNo and distanceKm are required.' });
+      }
+
+      const validity = EwayBillFleetService.calculateValidity({
+        ewbNo,
+        distanceKm: Number(distanceKm),
+        cargoType,
+        generatedAt,
+        checkAt
+      });
+
+      return res.json({
+        success: true,
+        validity
+      });
+    } catch (error: any) {
+      return res.status(500).json({ error: 'Failed to calculate E-Way Bill validity', details: error.message });
+    }
+  }
+);
+
+/**
+ * POST /api/erp/compliance/ewaybill/multi-vehicle/split
+ * Processes and validates multi-vehicle split consignment tracking
+ */
+complianceRouter.post(
+  '/compliance/ewaybill/multi-vehicle/split',
+  requirePermission('invoices', 'edit'),
+  async (req: Request, res: Response) => {
+    try {
+      const { consignmentId, ewbNo, masterItems, splits } = req.body;
+
+      if (!consignmentId || !ewbNo || !Array.isArray(masterItems) || !Array.isArray(splits)) {
+        return res.status(400).json({ error: 'consignmentId, ewbNo, masterItems, and splits array are required.' });
+      }
+
+      const splitResult = EwayBillFleetService.processMultiVehicleSplit(
+        consignmentId,
+        ewbNo,
+        masterItems,
+        splits
+      );
+
+      if (!splitResult.isValid) {
+        return res.status(400).json({
+          success: false,
+          error: 'CONSIGNMENT_SPLIT_VALIDATION_ERROR',
+          validationErrors: splitResult.validationErrors,
+          summary: splitResult
+        });
+      }
+
+      return res.json({
+        success: true,
+        summary: splitResult
+      });
+    } catch (error: any) {
+      return res.status(500).json({ error: 'Failed to process multi-vehicle split', details: error.message });
+    }
+  }
+);
+

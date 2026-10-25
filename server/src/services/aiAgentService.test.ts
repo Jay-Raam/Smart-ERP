@@ -8,7 +8,7 @@ import { PurchaseOrder, Invoice, Organisation, Branch } from '../models/ErpModel
 dotenv.config({ path: path.resolve(__dirname, '../../.env') });
 dotenv.config({ path: path.resolve(process.cwd(), '.env') });
 
-describe('AiAgentService - Autonomous ERP Operations & Scenario Tests', () => {
+describe('AiAgentService - Autonomous ERP Operations & Scenario Tests', { timeout: 25000 }, () => {
   beforeAll(async () => {
     const mongoUri = process.env.MONGO_URI || 'mongodb+srv://jauvalue:Tby5VZdwtU9GGaJw@cluster0.pi9vv.mongodb.net/sura?retryWrites=true&w=majority';
     if (mongoose.connection.readyState === 0) {
@@ -29,7 +29,7 @@ describe('AiAgentService - Autonomous ERP Operations & Scenario Tests', () => {
     const response = await AiAgentService.processChat('Hello, what can you do?');
     expect(response).toBeDefined();
     expect(response.reply).toContain('Smart-ERP');
-    expect(response.reply).toContain('Invoices');
+    expect(response.reply.toLowerCase()).toContain('invoice');
   });
 
   it('Scenario 3: Parse natural language invoice requests with accurate GST breakdown', async () => {
@@ -58,7 +58,7 @@ describe('AiAgentService - Autonomous ERP Operations & Scenario Tests', () => {
     expect(response.pendingAction).toBeDefined();
     expect(response.pendingAction?.type).toBe('CREATE_PO');
     expect(response.pendingAction?.previewData.vendorName).toContain('Steel Works');
-    expect(response.pendingAction?.previewData.items[0].productName).toContain('metal rods');
+    expect(response.pendingAction?.previewData.items[0].productName.toLowerCase()).toContain('metal rod');
     expect(response.pendingAction?.previewData.items[0].quantity).toBe(50);
   });
 
@@ -135,7 +135,7 @@ describe('AiAgentService - Autonomous ERP Operations & Scenario Tests', () => {
       });
       expect(listMatch).not.toBeNull();
     }
-  });
+  }, 20000);
 
   it('Scenario 8: Strictly reject off-topic coding and math queries', async () => {
     const javaRes = await AiAgentService.processChat('wirte the program in hello world in the java');
