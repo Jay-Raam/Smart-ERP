@@ -2,6 +2,7 @@ import { GraphQLContext } from './server';
 import { requirePermission } from '../security/rbac';
 import { recordAudit, inMemoryAuditLogs, AuditLog } from '../models/AuditLog';
 import { dispatchWebhook } from '../workers/webhookWorker';
+import { assertSafeOutboundUrl } from '../utils/urlSafety';
 import { DEMO_TENANTS } from '../middleware/tenantResolver';
 import mongoose from 'mongoose';
 
@@ -320,6 +321,7 @@ export const resolvers = {
 
     createWebhookSubscription: async (_: any, { targetUrl, events }: { targetUrl: string; events: string[] }, ctx: GraphQLContext) => {
       requirePermission(ctx, 'webhooks:write');
+      await assertSafeOutboundUrl(targetUrl);
       const tenantSlug = ctx.tenant?.slug || 'acme';
       const tenantId = ctx.tenant?.id || '11111111-1111-1111-1111-111111111111';
 
@@ -349,6 +351,8 @@ export const resolvers = {
     },
 
     dispatchTestWebhook: async (_: any, { targetUrl, eventType }: { targetUrl: string; eventType: string }, ctx: GraphQLContext) => {
+      requirePermission(ctx, 'webhooks:write');
+      await assertSafeOutboundUrl(targetUrl);
       const tenantId = ctx.tenant?.id || '11111111-1111-1111-1111-111111111111';
       await dispatchWebhook({
         targetUrl,
